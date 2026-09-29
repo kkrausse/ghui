@@ -7,6 +7,8 @@ import path from "node:path"
 import { createRequire } from "node:module"
 import { fileURLToPath } from "node:url"
 
+process.title = "ghui"
+
 const __filename = fileURLToPath(import.meta.url)
 const requireFromHere = createRequire(import.meta.url)
 

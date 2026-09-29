@@ -6,8 +6,8 @@ proposed upstream later.
 
 ## Status
 
-The URL-only pull request copy command is implemented on the fork branch. The
-context-aware terminal title remains planned.
+The URL-only pull request copy command and context-aware process title are
+implemented on the fork branch.
 
 ## Planned Differences
 
@@ -39,7 +39,7 @@ documents, or issue trackers.
 - `src/ui/FooterHints.tsx` for discoverability.
 - Command, keymap, and clipboard-related tests under `test/`.
 
-### Context-aware terminal title
+### Context-aware process title — implemented
 
 **Why:** terminal tabs and window switchers currently do not identify which
 repository or pull request is open.
@@ -54,9 +54,8 @@ repository or pull request is open.
   requests, and views, and restore it cleanly when leaving a detail view or
   exiting the app.
 
-Here, "title" means the terminal tab/window title rather than the npm package
-description or an extra heading inside the TUI. This interpretation should be
-confirmed before implementation.
+The fork updates both the OS process title and the terminal tab/window title,
+rather than the npm package description or an extra heading inside the TUI.
 
 **Likely implementation areas:**
 
@@ -68,9 +67,7 @@ confirmed before implementation.
 
 ## Open Questions
 
-1. Should the terminal title include the pull request title as well as the
-   repository and number? The proposed first version omits it to stay concise.
-2. Should issue detail views receive the same link-copy and terminal-title
+1. Should issue detail views receive the same link-copy and terminal-title
    behavior in a follow-up?
 
 ## Local Development

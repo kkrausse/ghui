@@ -65,6 +65,7 @@ import { useDiffCommentNavigator } from "./useDiffCommentNavigator.js"
 import { useItemModalActions } from "../item/useItemModalActions.js"
 import { repositoryWorkspaceSurfaces, userWorkspaceSurfaces, type WorkspaceSurface } from "../workspaceSurfaces.js"
 import { detectedRepository, mockRepositoryCatalog, mockWorkspacePreferencesPath } from "../services/runtime.js"
+import { processTitleFor, setApplicationTitle } from "../processTitle.js"
 
 export interface UseAppShellInput {
 	readonly systemThemeGeneration: number
@@ -301,6 +302,14 @@ export const useAppShell = ({ systemThemeGeneration }: UseAppShellInput) => {
 		selectPullRequestByUrl,
 	} = prSurface
 	const isInitialLoading = !startupLoadComplete && pullRequestStatus === "loading" && pullRequests.length === 0
+	const processTitle = processTitleFor({
+		repository: selectedRepository,
+		pullRequest: selectedPullRequest,
+		pullRequestFocused: activeWorkspaceSurface === "pullRequests" && (detailFullView || diffFullView || runsFullView || commentsViewActive),
+	})
+	useEffect(() => {
+		setApplicationTitle(processTitle)
+	}, [processTitle])
 
 	const issueSurface = useIssueSurface({
 		username,

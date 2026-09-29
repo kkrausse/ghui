@@ -12,8 +12,10 @@ import { loadStoredSystemThemeAutoReload } from "./themeStore.js"
 import { colors, setSystemThemeColors } from "./ui/colors.js"
 import { LoadingLogoPane } from "./ui/LoadingLogo.js"
 import { SPINNER_INTERVAL_MS } from "./ui/spinner.js"
+import { refreshApplicationTitle, setApplicationTitle } from "./processTitle.js"
 
 process.env.OTUI_USE_ALTERNATE_SCREEN = "true"
+setApplicationTitle("ghui")
 
 const addGhUiParsers = () =>
 	addDefaultParsers([
@@ -74,6 +76,7 @@ const renderer = await createCliRenderer({
 	externalOutputMode: "passthrough",
 	onDestroy: () => {
 		process.stdout.write(FOCUS_REPORTING_DISABLE)
+		setApplicationTitle("ghui")
 		process.exit(0)
 	},
 })
@@ -87,6 +90,7 @@ setTuiSuspender({
 	},
 	resume: () => {
 		renderer.resume()
+		refreshApplicationTitle()
 		process.stdout.write(FOCUS_REPORTING_ENABLE)
 		process.stdout.write(FULL_SCREEN_REPAINT)
 		renderer.requestRender()
