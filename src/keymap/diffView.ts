@@ -25,6 +25,7 @@ export interface DiffViewCtx {
 	readonly previousFile: () => void
 	readonly openInBrowser: () => void
 	readonly openInEditor: () => void
+	readonly copyPullRequestUrl: () => void
 }
 
 const Diff = context<DiffViewCtx>()
@@ -94,4 +95,5 @@ export const diffViewKeymap = Diff(
 
 	{ id: "diff.open-browser", title: "Open in browser", keys: ["o"], run: (s) => s.openInBrowser() },
 	{ id: "diff.open-editor", title: "Open in editor", keys: ["e"], run: (s) => s.openInEditor() },
+	{ id: "diff.copy-url", title: "Copy pull request link", keys: ["shift+y"], run: (s) => s.copyPullRequestUrl() },
 )

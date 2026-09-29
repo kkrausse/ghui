@@ -533,6 +533,23 @@ export const globalCommands: readonly CommandDefinition[] = [
 		}),
 	}),
 	defineCommand({
+		id: "pull.copy-url",
+		title: "Copy pull request link",
+		scope: "Pull request",
+		subtitle: selectedPullRequestLabelAtom,
+		shortcut: "shift+y",
+		keywords: ["clipboard", "url", "link"],
+		disabledReason: noPullRequestReasonAtom,
+		run: Effect.gen(function* () {
+			const pr = yield* Atom.get(selectedPullRequestAtom)
+			if (!pr) return
+			yield* Clipboard.use((clipboard) => clipboard.copy(pr.url)).pipe(
+				Effect.tap(() => Atom.set(noticeAtom, "Pull request link copied")),
+				Effect.catch(flashErrorEffect),
+			)
+		}),
+	}),
+	defineCommand({
 		id: "issue.copy-metadata",
 		title: "Copy issue metadata",
 		scope: "Comments",

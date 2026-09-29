@@ -174,6 +174,7 @@ Requires the GitHub CLI (`gh`) the same as the rest of ghui; nothing extra to co
 - `f`: open the changed-files navigator while viewing a diff
 - `left` / `right`: choose the deleted or added side while in split diff comment mode
 - `[` / `]`: switch files while viewing or commenting on a diff
+- `shift-y`: copy only the selected pull request's GitHub link
 - `s`: toggle draft or ready-for-review state
 - `m`: merge
 - `x`: close with confirmation

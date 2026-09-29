@@ -25,4 +25,13 @@ describe("buildDetailViewCtx", () => {
 
 		expect(called).toEqual(["issue.refresh", "issue.copy-metadata", "issue.open-browser"])
 	})
+
+	test("routes pull request link copying to the URL-only command", () => {
+		const { ctx, called } = detailCtx("pullRequests")
+
+		ctx.copyPullRequestUrl()
+
+		expect(ctx.pullRequestActive).toBe(true)
+		expect(called).toEqual(["pull.copy-url"])
+	})
 })

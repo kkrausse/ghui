@@ -47,4 +47,5 @@ export const buildDiffViewCtx = ({
 	previousFile: () => runCommandById("diff.previous-file"),
 	openInBrowser: () => runCommandById("pull.open-browser"),
 	openInEditor: () => runCommandById("pull.open-editor"),
+	copyPullRequestUrl: () => runCommandById("pull.copy-url"),
 })

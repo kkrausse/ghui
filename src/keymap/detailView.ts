@@ -15,6 +15,8 @@ export interface DetailViewCtx extends Scrollable {
 	readonly openInBrowser: () => void
 	readonly openInEditor: () => void
 	readonly copyMetadata: () => void
+	readonly copyPullRequestUrl: () => void
+	readonly pullRequestActive: boolean
 }
 
 const Detail = context<DetailViewCtx>()
@@ -35,4 +37,5 @@ export const detailViewKeymap = Detail(
 	{ id: "detail.open-browser", title: "Open in browser", keys: ["o"], run: (s) => s.openInBrowser() },
 	{ id: "detail.open-editor", title: "Open in editor", keys: ["e"], run: (s) => s.openInEditor() },
 	{ id: "detail.copy", title: "Copy metadata", keys: ["y"], run: (s) => s.copyMetadata() },
+	{ id: "detail.copy-url", title: "Copy pull request link", keys: ["shift+y"], when: (s) => s.pullRequestActive, run: (s) => s.copyPullRequestUrl() },
 )
