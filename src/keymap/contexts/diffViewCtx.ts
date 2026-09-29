@@ -36,6 +36,7 @@ export const buildDiffViewCtx = ({
 	toggleRange: () => runCommandById("diff.toggle-range"),
 	toggleView: () => runCommandById("diff.toggle-view"),
 	toggleWrap: () => runCommandById("diff.toggle-wrap"),
+	toggleMarkdownPreview: () => runCommandById("diff.toggle-markdown-preview"),
 	reload: () => runCommandById("diff.reload"),
 	nextThread: () => runCommandById("diff.next-thread"),
 	previousThread: () => runCommandById("diff.previous-thread"),

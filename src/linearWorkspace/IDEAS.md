@@ -4,7 +4,7 @@ Gaps found by comparing against Linear itself, [roeyazroel/linear-tui](https://g
 (Go/tview), [k1-c/linear-tui](https://github.com/k1-c/linear-tui) (Rust/ratatui),
 and [schpet/linear-cli](https://github.com/schpet/linear-cli).
 
-Every API call named here was checked against the vendored `linear/linear.graphql`.
+Every API call named here was checked against the vendored `test/linear/linear.graphql`.
 
 ## Shipped
 

@@ -12,6 +12,7 @@ export interface DiffViewCtx {
 	readonly toggleRange: () => void
 	readonly toggleView: () => void
 	readonly toggleWrap: () => void
+	readonly toggleMarkdownPreview: () => void
 	readonly reload: () => void
 	readonly nextThread: () => void
 	readonly previousThread: () => void
@@ -39,6 +40,7 @@ export const diffViewKeymap = Diff(
 	{ id: "diff.toggle-range", title: "Select / clear diff lines", keys: ["v"], run: (s) => s.toggleRange() },
 	{ id: "diff.toggle-view", title: "Toggle split/unified", keys: ["shift+v"], run: (s) => s.toggleView() },
 	{ id: "diff.toggle-wrap", title: "Toggle wrap", keys: ["w"], run: (s) => s.toggleWrap() },
+	{ id: "diff.toggle-markdown-preview", title: "Preview rendered Markdown", keys: ["m"], run: (s) => s.toggleMarkdownPreview() },
 	{ id: "diff.reload", title: "Reload diff", keys: ["r"], run: (s) => s.reload() },
 	{ id: "diff.next-thread", title: "Next thread", keys: ["n"], run: (s) => s.nextThread() },
 	{ id: "diff.previous-thread", title: "Previous thread", keys: ["p"], run: (s) => s.previousThread() },

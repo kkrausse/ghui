@@ -1,35 +1,30 @@
-# linear-tui
+# Linear workspace
 
 A Linear client in the terminal. Reads teams, sprints, projects, and tickets;
 edits status, assignee, priority, and comments (including threaded replies), and
 posts project updates. Built so the Linear desktop app does not have to stay
-open just to glance at a sprint.
-
-Bun + [OpenTUI](https://opentui.com) (`@opentui/react`) — React components on a
-Zig render core. Deps live in the top-level `kevin-scripts/package.json`.
+open just to glance at a sprint. It runs as the **LINEAR** tab inside GHUI and shares
+GHUI's renderer, dependencies, and browser/clipboard services.
 
 Comments, issue/project descriptions, and full project updates render Markdown
 using OpenTUI's built-in `<markdown>` component — the same renderer OpenCode uses.
 Headings, emphasis, lists, quotes, links, fenced code, and tables use the TUI's
 palette. The shared renderer and syntax colors live in `ui/Markdown.tsx`.
 
-Links in those bodies are real terminal hyperlinks (OSC 8). When the terminal
-reports hyperlink support, OpenTUI hides the `(url)` and the label itself is
-cmd-clickable; otherwise the URL stays visible. OpenTUI never detects support
-inside tmux, so `hyperlinks.ts` asks tmux whether the outer terminal takes
-hyperlinks and flips OpenTUI's flag itself. That needs
-`set -as terminal-features ',*:hyperlinks'` in your tmux config.
+Links in those bodies are terminal hyperlinks (OSC 8) where OpenTUI detects
+support. GitHub pull request links open in GHUI's PR view; other web links open
+in the browser, and non-web schemes are refused.
 
 ## Setup
 
 ```sh
-bun run linear --login
+ghui --linear-login
 ```
 
 That opens Linear's key page, hands the secret prompt to `security` (so the key
 never passes through this process, your shell, or history), stores it in the
 Keychain, then reports which teams the key can see and whether it is really
-read-only. `bun run linear --logout` removes it.
+read-only. `ghui --linear-logout` removes it.
 
 Restrict the key to the teams you browse. Scope is your call: **Read** only if
 you just want to look, in which case the edit keys fail with a scope error and
@@ -54,15 +49,8 @@ same Keychain, so the security gap is smaller than it first looks.
 
 ## Run
 
-```sh
-bun run linear            # from kevin-scripts/
-bun run linear-tui/main.tsx
-```
-
-The window titles itself `linear`. In tmux that has to be a `rename-window`, put
-back when the app exits: tmux ships with `allow-rename off`, so the terminal
-title sequence never reaches the window name, and the name it computes instead is
-the pane's command — `bun`.
+Start GHUI and press `7` on the home list (`3` inside a repository), or click
+**LINEAR**. The credential is resolved on the first visit.
 
 Resident memory is ~160 MB with a 250-issue view loaded — most of that is the
 Bun runtime floor, not the UI. Well under Electron, but this is not a 20 MB Rust
@@ -403,20 +391,18 @@ Two caveats worth knowing:
 ## Layout
 
 ```
-main.tsx            entry; resolves the token before taking over the terminal
 app.tsx             all state + key handling
 views.ts            sidebar model, target -> query mapping, paging, grouping
 theme.ts            palette, priority/state/PR glyphs, relative dates
 git.ts              linked PRs and branches, out of Linear's attachment blobs
-shell.ts            pbcopy / open
-title.ts            window title, and the tmux rename it needs (plus the undo)
+shell.ts            copy / open, through GHUI's Clipboard and BrowserOpener
 ui/wheel.ts         the wheel over a list pane: one cursor row per event
 edit.ts             the write path: mutations + cache invalidation
 login.ts            --login / --logout
 linear/queries.ts   GraphQL documents
 linear/schema.ts    valibot schemas for every response
 linear/client.ts    token resolution, fetch, 60s per-view cache
-linear/linear.graphql  Linear's SDL, vendored, for query validation in tests
+test/linear/linear.graphql  Linear's SDL, vendored, for query validation
 ui/                 Sidebar, IssueList, NotificationList, ProjectList,
                     ProjectOverview, ProjectTabs, UpdateList, UpdateDetail,
                     IssueDetail, CommentThread, Picker, CommentBox, Button,
@@ -424,9 +410,8 @@ ui/                 Sidebar, IssueList, NotificationList, ProjectList,
 smoke.test.tsx      renders the real app against stubbed responses
 queries.test.tsx    validates every document against Linear's schema
 sidebar.test.tsx    sidebar windowing + mouse targets
-git.test.ts         attachment classification, against real metadata blobs
+git.test.ts         attachment classification, against metadata blob shapes
 open-pr.test.tsx    `O` end to end, with shell.ts stubbed so no tab opens
-title.test.ts       the tmux rename, and above all its undo
 ```
 
 Issue field selection is ported from [markmarkoh/lt](https://github.com/markmarkoh/lt)
@@ -435,7 +420,7 @@ Issue field selection is ported from [markmarkoh/lt](https://github.com/markmark
 ## Tests
 
 ```sh
-bun test linear-tui
+bun test test/linear
 ```
 
 `fetch` is stubbed for the whole file, so the suite never reaches the network

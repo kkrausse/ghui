@@ -13,7 +13,7 @@ import { expect, test } from "bun:test"
 import { buildSchema, parse, validate } from "graphql"
 import * as Q from "../../src/linearWorkspace/linear/queries.ts"
 
-const schemaPath = new URL("../../src/linearWorkspace/linear/linear.graphql", import.meta.url).pathname
+const schemaPath = new URL("./linear.graphql", import.meta.url).pathname
 const schema = buildSchema(await Bun.file(schemaPath).text(), { assumeValidSDL: true })
 
 // The module also exports tuning constants (PAGE_SIZE); only the strings are documents.

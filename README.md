@@ -59,12 +59,10 @@ It shares GHUI's renderer; it does not launch another CLI. The original app in
   or the local macOS Keychain item `linear-api-token`. No credential is bundled.
 - Setup: `ghui --linear-login`; removal: `ghui --linear-logout`. Source-mode
   equivalents are `bun src/index.tsx --linear-login` / `--linear-logout`.
-- Current PR links still open in the browser. Nested PR child rows and direct
-  navigation into GHUI's PR workspace are a follow-up, not part of this first pass.
+- GitHub PR links in Linear open in GHUI's PR view; other web links open in the
+  browser, and non-web link schemes are refused.
 
-This migration is local and unpushed. Company-specific fixtures/examples still
-require sanitization, source licensing/ownership review, and additional audits
-before public sharing. See `plans/linear-workspace-migration.md`.
+See `plans/linear-workspace-migration.md` for the migration scope.
 
 Clone, install, and link:
 

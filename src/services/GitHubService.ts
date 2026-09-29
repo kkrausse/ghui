@@ -197,8 +197,11 @@ export class GitHubService extends Context.Service<
 				// Fetch a bounded merged section once, alongside the first open page.
 				// Subsequent pages continue only the open connection's cursor.
 				const mergedArgs = ["api", "graphql", "-f", `query=${repositoryMergedPullRequestsQuery}`, "-F", `owner=${repo.owner}`, "-F", `name=${repo.name}`] as const
-				const mergedResponse = yield* ghJson("listRepositoryMergedPullRequests", RepositoryPullRequestsResponseSchema, mergedArgs)
-				const merged = mergedResponse.data.repository?.pullRequests
+				// The merged section is extra; its failure must not hide the open page.
+				const merged = yield* ghJson("listRepositoryMergedPullRequests", RepositoryPullRequestsResponseSchema, mergedArgs).pipe(
+					Effect.map((response) => response.data.repository?.pullRequests ?? null),
+					Effect.catch(() => Effect.succeed(null)),
+				)
 				return { ...openPage, items: [...openPage.items, ...(merged ? itemPage(merged, parsePullRequestSummary).items : [])] }
 			})
 
@@ -273,7 +276,8 @@ export class GitHubService extends Context.Service<
 				// GitHub omits approval-gated Actions workflows from statusCheckRollup:
 				// they have no jobs/check runs until a maintainer approves the fork.
 				if (pullRequest.headRepository?.nameWithOwner !== repository && pullRequest.headRepository) {
-					const runs = yield* listWorkflowRunsForCommit(repository, pullRequest.headRefOid)
+					// Best effort: a failed run lookup must not fail the whole detail load.
+					const runs = yield* listWorkflowRunsForCommit(repository, pullRequest.headRefOid).pipe(Effect.catch(() => Effect.succeed([])))
 					return includeApprovalRequiredRuns(detail, runs)
 				}
 				return detail
