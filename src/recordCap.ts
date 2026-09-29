@@ -13,13 +13,15 @@
 // of `Object.keys`", which is exactly LRU-by-first-insert. Not true LRU
 // (we don't bump on access) but it's close enough for these caches and
 // far cheaper than tracking access times.
-export const capRecord = <T>(record: Record<string, T>, max: number): Record<string, T> => {
+// An optional protected key survives eviction (e.g. the currently visible diff).
+export const capRecord = <T>(record: Record<string, T>, max: number, protectedKey?: string | null): Record<string, T> => {
 	const keys = Object.keys(record)
 	if (keys.length <= max) return record
+	const retainedKeys = protectedKey && Object.hasOwn(record, protectedKey) ? [...keys.filter((key) => key !== protectedKey), protectedKey] : keys
 	const drop = keys.length - max
 	const out: Record<string, T> = {}
 	for (let i = drop; i < keys.length; i++) {
-		const key = keys[i]!
+		const key = retainedKeys[i]!
 		out[key] = record[key]!
 	}
 	return out

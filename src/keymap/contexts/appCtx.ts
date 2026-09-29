@@ -9,6 +9,7 @@ import { buildDiffViewCtx, type BuildDiffViewCtxInput } from "./diffViewCtx.ts"
 import type { RunsViewCtx } from "../runsView.ts"
 import { buildFilterModeCtx, type BuildFilterModeCtxInput } from "./filterModeCtx.ts"
 import { buildListNavCtx, type BuildListNavCtxInput } from "./listNavCtx.ts"
+import type { MarkdownPreviewCtx } from "../markdownPreview.ts"
 import { buildMergeModalCtx, type BuildMergeModalCtxInput } from "./mergeModalCtx.ts"
 import { buildPullRequestStateModalCtx, type BuildPullRequestStateModalCtxInput } from "./pullRequestStateModalCtx.ts"
 import { buildSubmitReviewModalCtx, type BuildSubmitReviewModalCtxInput } from "./submitReviewModalCtx.ts"
@@ -62,6 +63,7 @@ export interface BuildAppCtxFlags {
 	readonly commandPaletteActive: boolean
 	readonly filterMode: boolean
 	readonly diffFullView: boolean
+	readonly markdownPreviewActive: boolean
 	readonly runsFullView: boolean
 	readonly detailFullView: boolean
 	readonly commentsViewActive: boolean
@@ -85,6 +87,7 @@ export interface BuildAppCtxInput {
 	readonly commandPalette: BuildCommandPaletteCtxInput
 	readonly filterModeCtx: BuildFilterModeCtxInput
 	readonly diff: BuildDiffViewCtxInput
+	readonly markdownPreview: MarkdownPreviewCtx
 	readonly runs: RunsViewCtx
 	readonly detail: BuildDetailViewCtxInput
 	readonly commentsView: BuildCommentsViewCtxInput
@@ -118,6 +121,7 @@ export const buildAppCtx = (input: BuildAppCtxInput): AppCtx => ({
 	commandPalette: buildCommandPaletteCtx(input.commandPalette),
 	filterModeCtx: buildFilterModeCtx(input.filterModeCtx),
 	diff: buildDiffViewCtx(input.diff),
+	markdownPreview: input.markdownPreview,
 	runs: input.runs,
 	detail: buildDetailViewCtx(input.detail),
 	commentsView: buildCommentsViewCtx(input.commentsView),

@@ -1,5 +1,6 @@
 import { useAtomSet, useAtomValue } from "@effect/atom-react"
 import { useEffect } from "react"
+import { useRequest } from "../../hooks/useRequest.js"
 import type { RepositoryDetails } from "../../domain.js"
 import { fetchRepositoryDetailsAtom, readCachedRepositoryDetailsAtom, repositoryDetailsCacheAtom, writeRepositoryDetailsAtom } from "./atoms.js"
 
@@ -15,9 +16,9 @@ import { fetchRepositoryDetailsAtom, readCachedRepositoryDetailsAtom, repository
 export const useRepositoryDetails = (repository: string | null): RepositoryDetails | null => {
 	const cache = useAtomValue(repositoryDetailsCacheAtom)
 	const setCache = useAtomSet(repositoryDetailsCacheAtom)
-	const readCached = useAtomSet(readCachedRepositoryDetailsAtom, { mode: "promise" })
-	const fetchDetails = useAtomSet(fetchRepositoryDetailsAtom, { mode: "promise" })
-	const writeCached = useAtomSet(writeRepositoryDetailsAtom, { mode: "promise" })
+	const readCached = useRequest(readCachedRepositoryDetailsAtom)
+	const fetchDetails = useRequest(fetchRepositoryDetailsAtom)
+	const writeCached = useRequest(writeRepositoryDetailsAtom)
 
 	const cached = repository ? (cache[repository] ?? null) : null
 

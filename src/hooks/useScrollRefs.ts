@@ -5,6 +5,7 @@ export interface ScrollRefs {
 	readonly detailScrollRef: MutableRefObject<ScrollBoxRenderable | null>
 	readonly detailPreviewScrollRef: MutableRefObject<ScrollBoxRenderable | null>
 	readonly diffScrollRef: MutableRefObject<ScrollBoxRenderable | null>
+	readonly markdownPreviewScrollRef: MutableRefObject<ScrollBoxRenderable | null>
 	readonly prListScrollRef: MutableRefObject<ScrollBoxRenderable | null>
 	readonly issueListScrollRef: MutableRefObject<ScrollBoxRenderable | null>
 	readonly prListScrollPersistedRef: MutableRefObject<number>
@@ -24,6 +25,7 @@ export const useScrollRefs = (): ScrollRefs => {
 	const detailScrollRef = useRef<ScrollBoxRenderable | null>(null)
 	const detailPreviewScrollRef = useRef<ScrollBoxRenderable | null>(null)
 	const diffScrollRef = useRef<ScrollBoxRenderable | null>(null)
+	const markdownPreviewScrollRef = useRef<ScrollBoxRenderable | null>(null)
 	const prListScrollRef = useRef<ScrollBoxRenderable | null>(null)
 	const issueListScrollRef = useRef<ScrollBoxRenderable | null>(null)
 	const prListScrollPersistedRef = useRef(0)
@@ -33,6 +35,7 @@ export const useScrollRefs = (): ScrollRefs => {
 		detailScrollRef,
 		detailPreviewScrollRef,
 		diffScrollRef,
+		markdownPreviewScrollRef,
 		prListScrollRef,
 		issueListScrollRef,
 		prListScrollPersistedRef,

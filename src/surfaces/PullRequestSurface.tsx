@@ -1,4 +1,4 @@
-import type { DiffRenderable, ScrollBoxRenderable } from "@opentui/core"
+import type { BoxRenderable, DiffRenderable, ScrollBoxRenderable } from "@opentui/core"
 import type { ComponentProps, MutableRefObject } from "react"
 import type { DiffCommentSide, IssueItem, PullRequestComment, PullRequestItem, PullRequestReviewComment } from "../domain.js"
 import {
@@ -13,7 +13,7 @@ import {
 import type { ThemeId } from "../ui/colors.js"
 import { colors } from "../ui/colors.js"
 import { ActiveFilterBar, ACTIVE_FILTER_BAR_HEIGHT } from "../ui/ActiveFilterBar.js"
-import { CommentsPane, type OrderedComment } from "../ui/CommentsPane.js"
+import { CommentsPane, ConversationSection, type OrderedComment } from "../ui/CommentsPane.js"
 import type { CommentLoadState } from "../ui/comments/loadState.js"
 import { DETAIL_BODY_SCROLL_LIMIT, DetailBody, DetailHeader, DetailPlaceholder, DetailsPane, type DetailCommentsStatus, type DetailPlaceholderContent } from "../ui/DetailsPane.js"
 import { DiffFilePanel, diffFilePanelDividerRows } from "../ui/diff/DiffFilePanel.js"
@@ -24,6 +24,7 @@ import { PullRequestList } from "../ui/PullRequestList.js"
 import { PullRequestRunsPane } from "../ui/runs/RunsPane.js"
 import type { RunsViewModel } from "../hooks/useRunsView.js"
 import type { DiffFilePanelBundle } from "./WorkspaceContent.js"
+import { useConversationSelection } from "../ui/comments/useConversationSelection.js"
 
 export interface PullRequestSurfaceProps {
 	readonly showScrollbars: boolean
@@ -103,10 +104,8 @@ export const PullRequestSurface = (props: PullRequestSurfaceProps) => {
 		sectionPadding,
 		wideBodyHeight,
 		wideDetailHeaderHeight,
-		wideDetailBodyScrollable,
 		wideDetailLines,
 		fullscreenDetailHeaderHeight,
-		fullscreenDetailBodyScrollable,
 		fullscreenBodyLines,
 		widePullRequestListHeight,
 		widePullRequestListNeedsScroll,
@@ -115,7 +114,6 @@ export const PullRequestSurface = (props: PullRequestSurfaceProps) => {
 		narrowPullRequestListNeedsScroll,
 		narrowDetailsPaneHeight,
 		narrowPreviewBodyHeight,
-		narrowPreviewBodyScrollable,
 		activeFilterLabel,
 		detailJunctions,
 		prListProps,
@@ -154,6 +152,27 @@ export const PullRequestSurface = (props: PullRequestSurfaceProps) => {
 		diffScrollRef,
 		onLinkOpen,
 	} = props
+	const conversationSelection = useConversationSelection(detailFullView && !commentsViewActive && !diffFullView, detailScrollRef)
+	const descriptionCursor = (
+		<box height={1} ref={(node: BoxRenderable | null) => conversationSelection.registerBlock("", node)} onMouseDown={() => conversationSelection.select("", false)}>
+			<PlainLine text="Description" fg={colors.muted} />
+		</box>
+	)
+	const syncDetailScrollbar = function (this: ScrollBoxRenderable) {
+		this.verticalScrollBar.visible = showScrollbars && this.scrollHeight > this.viewport.height
+	}
+	const conversation = selectedPullRequest ? (
+		<ConversationSection
+			selection={conversationSelection}
+			orderedComments={orderedComments}
+			loadState={selectedCommentsLoadState}
+			contentWidth={fullscreenContentWidth}
+			repository={selectedPullRequest.repository}
+			themeKey={`${themeId}:${systemThemeGeneration}`}
+			loadingIndicator={loadingIndicator}
+			onLinkOpen={onLinkOpen}
+		/>
+	) : null
 
 	if (commentsViewActive && commentSubject) {
 		return (
@@ -169,6 +188,7 @@ export const PullRequestSurface = (props: PullRequestSurfaceProps) => {
 				loadingIndicator={loadingIndicator}
 				themeGeneration={systemThemeGeneration}
 				showScrollbar={showScrollbars}
+				onLinkOpen={onLinkOpen}
 			/>
 		)
 	}
@@ -288,7 +308,7 @@ export const PullRequestSurface = (props: PullRequestSurfaceProps) => {
 
 	if (detailFullView && isSelectedPullRequestDetailError && selectedPullRequest) {
 		return (
-			<box flexGrow={1} flexDirection="column">
+			<box height={wideBodyHeight} flexShrink={0} flexDirection="column">
 				<DetailHeader
 					pullRequest={selectedPullRequest}
 					contentWidth={fullscreenContentWidth}
@@ -307,7 +327,7 @@ export const PullRequestSurface = (props: PullRequestSurfaceProps) => {
 
 	if (detailFullView && isSelectedPullRequestDetailLoading && selectedPullRequest) {
 		return (
-			<box flexGrow={1} flexDirection="column">
+			<box height={wideBodyHeight} flexShrink={0} flexDirection="column">
 				<DetailHeader
 					pullRequest={selectedPullRequest}
 					contentWidth={fullscreenContentWidth}
@@ -331,7 +351,7 @@ export const PullRequestSurface = (props: PullRequestSurfaceProps) => {
 
 	if (isWideLayout && detailFullView) {
 		return (
-			<box flexGrow={1} flexDirection="column">
+			<box height={wideBodyHeight} flexShrink={0} flexDirection="column">
 				{selectedPullRequest ? (
 					<>
 						<DetailHeader
@@ -343,17 +363,28 @@ export const PullRequestSurface = (props: PullRequestSurfaceProps) => {
 							comments={selectedComments}
 							commentsStatus={selectedCommentsStatus}
 						/>
-						<scrollbox ref={detailScrollRef} focusable={false} flexGrow={1} verticalScrollbarOptions={{ visible: showScrollbars && fullscreenDetailBodyScrollable }}>
-							<DetailBody
-								pullRequest={selectedPullRequest}
-								contentWidth={fullscreenContentWidth}
-								bodyLines={fullscreenBodyLines}
-								bodyLineLimit={DETAIL_BODY_SCROLL_LIMIT}
-								loadingIndicator={loadingIndicator}
-								themeId={themeId}
-								themeGeneration={systemThemeGeneration}
-								{...(onLinkOpen ? { onLinkOpen } : {})}
-							/>
+						<scrollbox ref={detailScrollRef} focusable={false} flexGrow={1} minHeight={0} renderAfter={syncDetailScrollbar}>
+							<box
+								flexDirection="column"
+								flexShrink={0}
+								border={["left"]}
+								borderStyle="heavy"
+								borderColor={conversationSelection.selectedId === "" ? colors.accent : colors.background}
+								paddingLeft={1}
+							>
+								{descriptionCursor}
+								<DetailBody
+									pullRequest={selectedPullRequest}
+									contentWidth={Math.max(1, fullscreenContentWidth - 2)}
+									bodyLines={fullscreenBodyLines}
+									bodyLineLimit={DETAIL_BODY_SCROLL_LIMIT}
+									loadingIndicator={loadingIndicator}
+									themeId={themeId}
+									themeGeneration={systemThemeGeneration}
+									{...(onLinkOpen ? { onLinkOpen } : {})}
+								/>
+							</box>
+							{conversation}
 						</scrollbox>
 					</>
 				) : (
@@ -467,7 +498,7 @@ export const PullRequestSurface = (props: PullRequestSurfaceProps) => {
 								comments={selectedComments}
 								commentsStatus={selectedCommentsStatus}
 							/>
-							<scrollbox ref={detailPreviewScrollRef} flexGrow={1} verticalScrollbarOptions={{ visible: showScrollbars && wideDetailBodyScrollable }}>
+							<scrollbox ref={detailPreviewScrollRef} flexGrow={1} renderAfter={syncDetailScrollbar}>
 								<DetailBody
 									pullRequest={selectedPullRequest}
 									contentWidth={rightContentWidth}
@@ -490,7 +521,7 @@ export const PullRequestSurface = (props: PullRequestSurfaceProps) => {
 
 	if (detailFullView) {
 		return (
-			<box flexGrow={1} flexDirection="column">
+			<box height={wideBodyHeight} flexShrink={0} flexDirection="column">
 				{isSelectedPullRequestDetailError && selectedPullRequest ? (
 					<>
 						<DetailHeader
@@ -516,17 +547,28 @@ export const PullRequestSurface = (props: PullRequestSurfaceProps) => {
 							comments={selectedComments}
 							commentsStatus={selectedCommentsStatus}
 						/>
-						<scrollbox ref={detailScrollRef} focusable={false} flexGrow={1} verticalScrollbarOptions={{ visible: showScrollbars && fullscreenDetailBodyScrollable }}>
-							<DetailBody
-								pullRequest={selectedPullRequest}
-								contentWidth={fullscreenContentWidth}
-								bodyLines={fullscreenBodyLines}
-								bodyLineLimit={DETAIL_BODY_SCROLL_LIMIT}
-								loadingIndicator={loadingIndicator}
-								themeId={themeId}
-								themeGeneration={systemThemeGeneration}
-								{...(onLinkOpen ? { onLinkOpen } : {})}
-							/>
+						<scrollbox ref={detailScrollRef} focusable={false} flexGrow={1} minHeight={0} renderAfter={syncDetailScrollbar}>
+							<box
+								flexDirection="column"
+								flexShrink={0}
+								border={["left"]}
+								borderStyle="heavy"
+								borderColor={conversationSelection.selectedId === "" ? colors.accent : colors.background}
+								paddingLeft={1}
+							>
+								{descriptionCursor}
+								<DetailBody
+									pullRequest={selectedPullRequest}
+									contentWidth={Math.max(1, fullscreenContentWidth - 2)}
+									bodyLines={fullscreenBodyLines}
+									bodyLineLimit={DETAIL_BODY_SCROLL_LIMIT}
+									loadingIndicator={loadingIndicator}
+									themeId={themeId}
+									themeGeneration={systemThemeGeneration}
+									{...(onLinkOpen ? { onLinkOpen } : {})}
+								/>
+							</box>
+							{conversation}
 						</scrollbox>
 					</>
 				) : (
@@ -585,13 +627,7 @@ export const PullRequestSurface = (props: PullRequestSurfaceProps) => {
 							comments={selectedComments}
 							commentsStatus={selectedCommentsStatus}
 						/>
-						<scrollbox
-							ref={detailPreviewScrollRef}
-							focusable={false}
-							height={narrowPreviewBodyHeight}
-							flexGrow={0}
-							verticalScrollbarOptions={{ visible: showScrollbars && narrowPreviewBodyScrollable }}
-						>
+						<scrollbox ref={detailPreviewScrollRef} focusable={false} height={narrowPreviewBodyHeight} flexGrow={0} renderAfter={syncDetailScrollbar}>
 							<DetailBody
 								pullRequest={selectedPullRequest}
 								contentWidth={fullscreenContentWidth}

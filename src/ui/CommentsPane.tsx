@@ -1,18 +1,10 @@
-import { useEffect, useMemo, useRef } from "react"
-import { TextAttributes, type ScrollBoxRenderable } from "@opentui/core"
+import { memo, useMemo, useRef } from "react"
+import { TextAttributes, type BoxRenderable, type ScrollBoxRenderable } from "@opentui/core"
 import type { PullRequestComment } from "../domain.js"
 import { colors } from "./colors.js"
-import {
-	commentBodyRows,
-	commentCountText,
-	commentMetaSegments,
-	CommentSegmentsLine,
-	QUOTE_HEADER_RE,
-	stripQuoteHeader,
-	type CommentDisplayLine,
-	type CommentSegment,
-} from "./comments.js"
+import { commentCountText, commentMetaSegments, CommentSegmentsLine, QUOTE_HEADER_RE, stripQuoteHeader, type CommentDisplayLine, type CommentSegment } from "./comments.js"
 import { truncateConversationPath } from "./DetailsPane.js"
+import { MarkdownBody } from "./MarkdownBody.js"
 import { centerCell, Divider, Filler, PaddedRow, PlainLine, TextLine } from "./primitives.js"
 import { shortRepoName } from "./pullRequests.js"
 import { commentsHeaderStatus, commentsPaneMode, type CommentLoadState } from "./comments/loadState.js"
@@ -33,8 +25,7 @@ interface CommentBlock {
 	readonly key: string
 	readonly comment: PullRequestComment | null
 	readonly meta: CommentDisplayLine
-	readonly body: readonly CommentDisplayLine[]
-	readonly height: number
+	readonly body: string
 	readonly indent: number
 	readonly isPlaceholder: boolean
 }
@@ -142,33 +133,117 @@ const buildBlocks = (ordered: readonly OrderedComment[], width: number): readonl
 		const meta: CommentDisplayLine = { key: `${comment.id}:meta`, segments: commentMetaSegments({ item: comment, groups, marker }) }
 		// When nested, the parent is right above — the quote header becomes noise.
 		const renderedBody = indent > 0 && comment._tag === "comment" ? stripQuoteHeader(comment.body) : comment.body
-		const body = commentBodyRows({ keyPrefix: comment.id, body: renderedBody, width: usableWidth })
-		// Reserve 1 spacer line between blocks for breathing room.
-		return { key: comment.id, comment, meta, body, height: 1 + body.length + 1, indent, isPlaceholder: false }
+		return { key: comment.id, comment, meta, body: renderedBody, indent, isPlaceholder: false }
 	})
 
 const placeholderBlock: CommentBlock = {
 	key: PLACEHOLDER_KEY,
 	comment: null,
 	meta: { key: `${PLACEHOLDER_KEY}:meta`, segments: [] },
-	body: [],
-	height: 1,
+	body: "",
 	indent: 0,
 	isPlaceholder: true,
 }
 
-const blockOffsets = (blocks: readonly CommentBlock[]): readonly number[] => {
-	const offsets: number[] = []
-	let cursor = 0
-	for (const block of blocks) {
-		offsets.push(cursor)
-		cursor += block.height
-	}
-	return offsets
-}
-
 const withReplyIndent = (segments: readonly CommentSegment[], indent: number): readonly CommentSegment[] =>
 	indent === 0 ? segments : [{ text: " ".repeat(indent * REPLY_INDENT_COLS), fg: colors.muted }, ...segments]
+
+interface ConversationContentProps {
+	readonly orderedComments: readonly OrderedComment[]
+	readonly contentWidth: number
+	readonly repository: string
+	readonly themeKey: string
+	readonly onLinkOpen?: ((url: string) => void) | undefined
+	readonly selection?:
+		| {
+				readonly selectedId: string
+				readonly select: (id: string, reveal?: boolean) => void
+				readonly copyLink: () => void
+				readonly registerBlock: (id: string, node: BoxRenderable | null) => void
+		  }
+		| undefined
+}
+
+// Keep Markdown subtrees stable during loading-spinner ticks and parent updates.
+// Scrolling remains imperative on the description's existing scrollbox.
+const ConversationContent = memo(({ orderedComments, contentWidth, repository, onLinkOpen, selection }: ConversationContentProps) => (
+	<box flexDirection="column" flexShrink={0}>
+		{buildBlocks(orderedComments, contentWidth).map((block) => (
+			<box
+				key={block.key}
+				flexDirection="column"
+				flexShrink={0}
+				marginBottom={1}
+				border={["left"]}
+				borderStyle="heavy"
+				borderColor={selection?.selectedId === block.key ? colors.accent : colors.background}
+				paddingLeft={1}
+				ref={(node: BoxRenderable | null) => selection?.registerBlock(block.key, node)}
+			>
+				<box height={1} flexDirection="row" onMouseDown={() => selection?.select(block.key, false)}>
+					<box width={2} />
+					<box flexShrink={1} minWidth={0}>
+						<CommentSegmentsLine segments={withReplyIndent(block.meta.segments, block.indent)} selected={false} />
+					</box>
+					<box
+						width={13}
+						flexShrink={0}
+						marginLeft={1}
+						onMouseDown={(event) => {
+							event.stopPropagation()
+							selection?.select(block.key, false)
+							selection?.copyLink()
+						}}
+					>
+						<PlainLine text="[y Copy link]" fg={colors.accent} />
+					</box>
+				</box>
+				<box marginLeft={block.indent * REPLY_INDENT_COLS + 2} flexShrink={0}>
+					<MarkdownBody
+						body={block.body.trim() || "(empty comment)"}
+						width={Math.max(1, contentWidth - block.indent * REPLY_INDENT_COLS - 4)}
+						repository={repository}
+						onLinkOpen={onLinkOpen}
+					/>
+				</box>
+			</box>
+		))}
+	</box>
+))
+
+/** Reading and selection view; replies reuse the existing comment editor. */
+export const ConversationSection = ({
+	loadState,
+	loadingIndicator,
+	...content
+}: ConversationContentProps & {
+	readonly loadState: CommentLoadState
+	readonly loadingIndicator: string
+}) => {
+	const mode = commentsPaneMode(loadState)
+	const statusText =
+		loadState.status === "idle" || loadState.status === "loading"
+			? `${loadingIndicator} Loading comments…`
+			: loadState.status === "error"
+				? `Could not load comments: ${loadState.error}. Press c, then r to retry.`
+				: ""
+	return (
+		<box flexDirection="column" flexShrink={0} paddingLeft={1} paddingRight={1} marginTop={1}>
+			<Divider width={content.contentWidth} />
+			<PlainLine text={`Conversation · ${commentCountText(content.orderedComments.length)}`} fg={colors.count} />
+			<PlainLine text="↑↓ select · y copy link · Enter reply · c all comments" fg={colors.muted} />
+			{/* Reserve one status row so refresh/error transitions don't shift comments. */}
+			<PlainLine text={statusText} fg={loadState.status === "error" ? colors.error : colors.muted} />
+			{mode === "comments" ? (
+				content.orderedComments.length > 0 ? (
+					<ConversationContent {...content} />
+				) : loadState.status === "ready" ? (
+					<PlainLine text="No comments yet." fg={colors.muted} />
+				) : null
+			) : null}
+		</box>
+	)
+}
 
 export const CommentsPane = ({
 	item,
@@ -182,6 +257,7 @@ export const CommentsPane = ({
 	loadingIndicator,
 	themeGeneration,
 	showScrollbar,
+	onLinkOpen,
 }: {
 	item: { readonly repository: string; readonly number: number }
 	comments: readonly PullRequestComment[]
@@ -194,11 +270,13 @@ export const CommentsPane = ({
 	loadingIndicator: string
 	themeGeneration: number
 	showScrollbar: boolean
+	onLinkOpen?: ((url: string) => void) | undefined
 }) => {
 	const realBlocks = useMemo(() => buildBlocks(orderedComments, contentWidth), [orderedComments, contentWidth, themeGeneration])
 	const blocks = useMemo<readonly CommentBlock[]>(() => [...realBlocks, placeholderBlock], [realBlocks])
-	const offsets = useMemo(() => blockOffsets(blocks), [blocks])
 	const scrollboxRef = useRef<ScrollBoxRenderable | null>(null)
+	const blockRefs = useRef(new Map<string, BoxRenderable>())
+	const lastReveal = useRef("")
 	const safeIndex = Math.max(0, Math.min(selectedIndex, blocks.length - 1))
 
 	const headerLine = (() => {
@@ -216,40 +294,70 @@ export const CommentsPane = ({
 
 	const paneMode = commentsPaneMode(loadState)
 	const error = loadState.status === "error" ? loadState.error : null
-	const errorRows = error !== null && paneMode === "comments" ? 2 : 0
-	const blockRows = blocks.reduce((total, block) => total + block.height, 0) + errorRows
-	const commentsNeedScroll = paneMode === "comments" && blockRows > bodyHeight
-
-	useEffect(() => {
-		if (!commentsNeedScroll) return
+	const revealSelected = () => {
 		const scrollbox = scrollboxRef.current
-		if (!scrollbox) return
-		const blockTop = (offsets[safeIndex] ?? 0) + errorRows
-		const blockBottom = blockTop + (blocks[safeIndex]?.height ?? 1)
+		if (scrollbox) scrollbox.verticalScrollBar.visible = showScrollbar && scrollbox.scrollHeight > scrollbox.viewport.height
+		const key = blocks[safeIndex]?.key ?? ""
+		const block = blockRefs.current.get(key)
+		if (!scrollbox || !block) return
+		const blockTop = block.y - scrollbox.content.y
+		const blockBottom = blockTop + block.height
+		const signature = `${key}:${blockTop}:${block.height}:${bodyHeight}`
+		if (lastReveal.current === signature) return
+		lastReveal.current = signature
 		const viewportTop = scrollbox.scrollTop
 		const viewportBottom = viewportTop + bodyHeight
-		if (blockTop < viewportTop) scrollbox.scrollTo({ x: 0, y: blockTop })
+		if (blockTop < viewportTop || block.height > bodyHeight) scrollbox.scrollTo({ x: 0, y: blockTop })
 		else if (blockBottom > viewportBottom) scrollbox.scrollTo({ x: 0, y: Math.max(0, blockBottom - bodyHeight) })
-	}, [safeIndex, blocks, offsets, bodyHeight, commentsNeedScroll, errorRows])
+	}
 
 	const renderedBlocks = blocks.map((block, index) => {
 		const isSelected = index === safeIndex
 		if (block.isPlaceholder) {
 			return (
-				<TextLine key={block.key}>
-					<span fg={isSelected ? colors.accent : colors.muted} attributes={isSelected ? TextAttributes.BOLD : 0}>
-						+ Add new comment
-					</span>
-				</TextLine>
+				<box
+					key={block.key}
+					height={1}
+					flexShrink={0}
+					ref={(node: BoxRenderable | null) => {
+						if (node) blockRefs.current.set(block.key, node)
+						else blockRefs.current.delete(block.key)
+					}}
+				>
+					<TextLine>
+						<span fg={isSelected ? colors.accent : colors.muted} attributes={isSelected ? TextAttributes.BOLD : 0}>
+							+ Add new comment
+						</span>
+					</TextLine>
+				</box>
 			)
 		}
 		return (
-			<box key={block.key} flexDirection="column">
-				<CommentSegmentsLine segments={withReplyIndent(block.meta.segments, block.indent)} selected={isSelected} />
-				{block.body.map((line) => (
-					<CommentSegmentsLine key={line.key} segments={withReplyIndent(line.segments, block.indent)} />
-				))}
-				<PlainLine text="" fg={colors.muted} />
+			<box
+				key={block.key}
+				flexDirection="column"
+				flexShrink={0}
+				marginBottom={1}
+				border={["left"]}
+				borderStyle="heavy"
+				borderColor={isSelected ? colors.accent : colors.background}
+				paddingLeft={1}
+				ref={(node: BoxRenderable | null) => {
+					if (node) blockRefs.current.set(block.key, node)
+					else blockRefs.current.delete(block.key)
+				}}
+			>
+				<box height={1}>
+					<CommentSegmentsLine segments={withReplyIndent(block.meta.segments, block.indent)} selected={false} />
+				</box>
+				<box marginLeft={block.indent * REPLY_INDENT_COLS + 2} flexShrink={0}>
+					<MarkdownBody
+						body={block.body.trim() || "(empty comment)"}
+						width={Math.max(1, contentWidth - block.indent * REPLY_INDENT_COLS - 4)}
+						repository={item.repository}
+						onLinkOpen={onLinkOpen}
+					/>
+				</box>
 			</box>
 		)
 	})
@@ -287,14 +395,8 @@ export const CommentsPane = ({
 						<PlainLine text={centerCell("Run Refresh comments to retry.", contentWidth)} fg={colors.muted} />
 						<Filler rows={Math.max(0, Math.ceil((bodyHeight - 2) / 2))} prefix="error-bottom" />
 					</>
-				) : !commentsNeedScroll ? (
-					<box flexGrow={1} flexDirection="column">
-						{errorBanner}
-						{renderedBlocks}
-						<Filler rows={Math.max(0, bodyHeight - blockRows)} prefix="comments-pad" />
-					</box>
 				) : (
-					<scrollbox ref={scrollboxRef} focusable={false} flexGrow={1} verticalScrollbarOptions={{ visible: showScrollbar }}>
+					<scrollbox ref={scrollboxRef} focusable={false} flexGrow={1} minHeight={0} renderAfter={revealSelected} verticalScrollbarOptions={{ visible: showScrollbar }}>
 						{errorBanner}
 						{renderedBlocks}
 					</scrollbox>

@@ -155,6 +155,17 @@ export const getCheckInfoFromContexts = (contexts: readonly RawCheckContext[]): 
 	return { checkStatus: "passing", checkSummary: `checks ${successful}/${contexts.length}`, checks }
 }
 
+export const includeApprovalRequiredRuns = (pullRequest: PullRequestItem, runs: readonly WorkflowRun[]): PullRequestItem => {
+	const approvals = runs.filter((run) => run.event === "pull_request" && run.conclusion === "action_required")
+	if (approvals.length === 0) return pullRequest
+	const checks: CheckItem[] = [
+		...pullRequest.checks,
+		...approvals.map((run) => ({ name: `${run.workflowName} (approval required)`, status: "pending" as const, conclusion: null })),
+	]
+	const successful = checks.filter((check) => check.conclusion === "success" || check.conclusion === "neutral" || check.conclusion === "skipped").length
+	return { ...pullRequest, checks, checkStatus: "pending", checkSummary: `checks ${successful}/${checks.length}` }
+}
+
 // ---------------------------------------------------------------------------
 // PR / Issue / Repository / MergeInfo parsing
 // ---------------------------------------------------------------------------

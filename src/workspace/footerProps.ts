@@ -57,7 +57,10 @@ export const computeFooterProps = (input: ComputeFooterPropsInput): WorkspaceFoo
 	runsInDetail: input.runsInDetail,
 	commentsViewActive: input.commentsViewActive,
 	commentsViewOnRealComment:
-		input.commentsViewActive && input.selectedCommentsStatus !== "idle" && input.selectedCommentsStatus !== "loading" && input.selectedOrderedComment !== null,
+		(input.commentsViewActive || input.detailFullView) &&
+		input.selectedCommentsStatus !== "idle" &&
+		input.selectedCommentsStatus !== "loading" &&
+		input.selectedOrderedComment !== null,
 	commentsViewCanEditSelected: canEditComment(input.selectedOrderedComment, input.username),
 	commentsViewCount: input.selectedCommentsLength,
 	hasSelection: input.selectedCommentSubject !== null,

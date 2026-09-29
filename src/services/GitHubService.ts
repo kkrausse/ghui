@@ -22,6 +22,7 @@ import {
 	fallbackCreatedComment,
 	fallbackEditedReviewComment,
 	fallbackReplyComment,
+	includeApprovalRequiredRuns,
 	itemPage,
 	parseIssueComment,
 	parseIssueComments,
@@ -57,6 +58,7 @@ import {
 	RepositoryMergeMethodsResponseSchema,
 	RepositoryPullRequestsResponseSchema,
 	repositoryDetailsQuery,
+	repositoryMergedPullRequestsQuery,
 	repositoryPullRequestsQuery,
 	SearchResponseSchema,
 	type SearchResponse,
@@ -90,6 +92,7 @@ export class GitHubService extends Context.Service<
 		readonly getRepositoryDetails: (repository: string) => Effect.Effect<RepositoryDetails, GitHubError>
 		readonly getAuthenticatedUser: () => Effect.Effect<string, GitHubError>
 		readonly getPullRequestDiff: (repository: string, number: number) => Effect.Effect<string, GitHubError>
+		readonly getFileContent: (repository: string, path: string, ref: string) => Effect.Effect<string, GitHubError>
 		readonly listWorkflowRunsForCommit: (repository: string, headSha: string) => Effect.Effect<readonly WorkflowRun[], GitHubError>
 		readonly getWorkflowRunDetails: (repository: string, runId: number) => Effect.Effect<WorkflowRunDetails, GitHubError>
 		readonly listPullRequestReviewComments: (repository: string, number: number) => Effect.Effect<readonly PullRequestReviewComment[], GitHubError>
@@ -188,7 +191,15 @@ export class GitHubService extends Context.Service<
 				if (!connection) {
 					return yield* new CommandError({ command: "gh", args: [], detail: `Repository not found: ${input.repository}`, cause: input.repository })
 				}
-				return itemPage(connection, parsePullRequestSummary)
+				const openPage = itemPage(connection, parsePullRequestSummary)
+				if (input.cursor) return openPage
+
+				// Fetch a bounded merged section once, alongside the first open page.
+				// Subsequent pages continue only the open connection's cursor.
+				const mergedArgs = ["api", "graphql", "-f", `query=${repositoryMergedPullRequestsQuery}`, "-F", `owner=${repo.owner}`, "-F", `name=${repo.name}`] as const
+				const mergedResponse = yield* ghJson("listRepositoryMergedPullRequests", RepositoryPullRequestsResponseSchema, mergedArgs)
+				const merged = mergedResponse.data.repository?.pullRequests
+				return { ...openPage, items: [...openPage.items, ...(merged ? itemPage(merged, parsePullRequestSummary).items : [])] }
 			})
 
 			// One page-fetcher per kind, accepting the unified `ItemListInput`.
@@ -258,7 +269,14 @@ export class GitHubService extends Context.Service<
 				if (!pullRequest) {
 					return yield* new CommandError({ command: "gh", args: [], detail: `Pull request not found: ${repository}#${number}`, cause: `${repository}#${number}` })
 				}
-				return parsePullRequest(pullRequest)
+				const detail = parsePullRequest(pullRequest)
+				// GitHub omits approval-gated Actions workflows from statusCheckRollup:
+				// they have no jobs/check runs until a maintainer approves the fork.
+				if (pullRequest.headRepository?.nameWithOwner !== repository && pullRequest.headRepository) {
+					const runs = yield* listWorkflowRunsForCommit(repository, pullRequest.headRefOid)
+					return includeApprovalRequiredRuns(detail, runs)
+				}
+				return detail
 			})
 
 			const authenticatedUser = yield* ghJson("getAuthenticatedUser", ViewerSchema, ["api", "user"]).pipe(
@@ -293,6 +311,18 @@ export class GitHubService extends Context.Service<
 				ghJson("getPullRequestDiff", PullRequestFilesResponseSchema, ["api", "--paginate", "--slurp", `repos/${repository}/pulls/${number}/files`]).pipe(
 					Effect.map((response) => pullRequestFilesToPatch(parsePullRequestFiles(response))),
 				)
+
+			const getFileContent = (repository: string, path: string, ref: string) => {
+				const encodedPath = path
+					.split("/")
+					.map((segment) => encodeURIComponent(segment))
+					.join("/")
+				const args = ["api", "-H", "Accept: application/vnd.github.raw+json", `repos/${repository}/contents/${encodedPath}?ref=${encodeURIComponent(ref)}`] as const
+				return command.run("gh", args).pipe(
+					Effect.withSpan("GitHubService.getFileContent", { attributes: githubApiAttributes("getFileContent", args) }),
+					Effect.map((result) => result.stdout),
+				)
+			}
 
 			const RUN_LIST_FIELDS = "databaseId,number,attempt,workflowName,name,displayTitle,event,headBranch,headSha,status,conclusion,url,createdAt,startedAt,updatedAt"
 
@@ -500,6 +530,7 @@ export class GitHubService extends Context.Service<
 				getRepositoryDetails,
 				getAuthenticatedUser,
 				getPullRequestDiff,
+				getFileContent,
 				listWorkflowRunsForCommit,
 				getWorkflowRunDetails,
 				listPullRequestReviewComments,

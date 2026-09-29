@@ -7,6 +7,7 @@ export interface BuildDiffViewCtxInput {
 	readonly setDiffCommentRangeStartIndex: (index: number | null) => void
 	readonly runCommandById: (id: string) => void
 	readonly openSelectedDiffComment: () => void
+	readonly copySelectedDiffLineLink: () => void
 	readonly moveDiffCommentAnchor: (delta: number, options?: { readonly preserveViewportRow?: boolean }) => void
 	readonly moveDiffCommentToBoundary: (boundary: "first" | "last") => void
 	readonly alignSelectedDiffCommentAnchor: (position: "top" | "center" | "bottom") => void
@@ -19,12 +20,14 @@ export const buildDiffViewCtx = ({
 	setDiffCommentRangeStartIndex,
 	runCommandById,
 	openSelectedDiffComment,
+	copySelectedDiffLineLink,
 	moveDiffCommentAnchor,
 	moveDiffCommentToBoundary,
 	alignSelectedDiffCommentAnchor,
 	selectDiffCommentSide,
 }: BuildDiffViewCtxInput): DiffViewCtx => ({
 	halfPage,
+	backToDetail: () => runCommandById("diff.back-to-detail"),
 	handleEscape: () => {
 		if (diffCommentRangeActive) setDiffCommentRangeStartIndex(null)
 		else runCommandById("diff.close")
@@ -48,4 +51,5 @@ export const buildDiffViewCtx = ({
 	openInBrowser: () => runCommandById("pull.open-browser"),
 	openInEditor: () => runCommandById("pull.open-editor"),
 	copyPullRequestUrl: () => runCommandById("pull.copy-url"),
+	copyLineLink: copySelectedDiffLineLink,
 })

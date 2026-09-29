@@ -7,6 +7,7 @@ export type DiffAlign = "center" | "top" | "bottom"
 export interface DiffViewCtx {
 	readonly halfPage: number
 	readonly handleEscape: () => void // closes diff, or clears comment range if active
+	readonly backToDetail: () => void
 	readonly openSelectedComment: () => void
 	readonly toggleRange: () => void
 	readonly toggleView: () => void
@@ -26,14 +27,16 @@ export interface DiffViewCtx {
 	readonly openInBrowser: () => void
 	readonly openInEditor: () => void
 	readonly copyPullRequestUrl: () => void
+	readonly copyLineLink: () => void
 }
 
 const Diff = context<DiffViewCtx>()
 
 export const diffViewKeymap = Diff(
 	{ id: "diff.escape", title: "Close diff / clear range", keys: ["escape"], run: (s) => s.handleEscape() },
+	{ id: "diff.back-to-detail", title: "Return to PR details", keys: ["left"], run: (s) => s.backToDetail() },
 	{ id: "diff.open-comment", title: "Open / add comment", keys: ["return"], run: (s) => s.openSelectedComment() },
-	{ id: "diff.toggle-range", title: "Toggle comment range", keys: ["v"], run: (s) => s.toggleRange() },
+	{ id: "diff.toggle-range", title: "Select / clear diff lines", keys: ["v"], run: (s) => s.toggleRange() },
 	{ id: "diff.toggle-view", title: "Toggle split/unified", keys: ["shift+v"], run: (s) => s.toggleView() },
 	{ id: "diff.toggle-wrap", title: "Toggle wrap", keys: ["w"], run: (s) => s.toggleWrap() },
 	{ id: "diff.reload", title: "Reload diff", keys: ["r"], run: (s) => s.reload() },
@@ -76,8 +79,8 @@ export const diffViewKeymap = Diff(
 	{ id: "diff.down", title: "Down", keys: ["down", "j"], run: (s) => s.moveAnchor(1) },
 
 	// Side selection
-	{ id: "diff.side-left", title: "Old side", keys: ["left", "h"], run: (s) => s.selectSide("LEFT") },
-	{ id: "diff.side-right", title: "New side", keys: ["right", "l"], run: (s) => s.selectSide("RIGHT") },
+	{ id: "diff.side-left", title: "Old side", keys: ["h"], run: (s) => s.selectSide("LEFT") },
+	{ id: "diff.side-right", title: "New side", keys: ["l"], run: (s) => s.selectSide("RIGHT") },
 
 	// File nav
 	{ id: "diff.changed-files", title: "Changed files", keys: ["f"], run: (s) => s.openChangedFiles() },
@@ -96,4 +99,5 @@ export const diffViewKeymap = Diff(
 	{ id: "diff.open-browser", title: "Open in browser", keys: ["o"], run: (s) => s.openInBrowser() },
 	{ id: "diff.open-editor", title: "Open in editor", keys: ["e"], run: (s) => s.openInEditor() },
 	{ id: "diff.copy-url", title: "Copy pull request link", keys: ["shift+y"], run: (s) => s.copyPullRequestUrl() },
+	{ id: "diff.copy-line-link", title: "Copy selected diff line link", keys: ["y"], run: (s) => s.copyLineLink() },
 )

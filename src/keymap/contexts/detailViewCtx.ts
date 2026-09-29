@@ -14,6 +14,9 @@ export const buildDetailViewCtx = ({ halfPage, activeSurface, scrollDetailFullVi
 	scrollBy: scrollDetailFullViewBy,
 	scrollTo: scrollDetailFullViewTo,
 	closeDetail: () => runCommandById("detail.close"),
+	confirmSelection: () => runCommandById("conversation.confirm"),
+	previousBlock: () => runCommandById("conversation.previous"),
+	nextBlock: () => runCommandById("conversation.next"),
 	openTheme: () => runCommandById("theme.open"),
 	openDiff: () => runCommandById("diff.open"),
 	openRuns: () => runCommandById("runs.open"),
@@ -26,7 +29,7 @@ export const buildDetailViewCtx = ({ halfPage, activeSurface, scrollDetailFullVi
 	refresh: () => runCommandById(activeSurface === "issues" ? "issue.refresh" : "pull.refresh"),
 	openInBrowser: () => runCommandById(activeSurface === "issues" ? "issue.open-browser" : "pull.open-browser"),
 	openInEditor: () => runCommandById("pull.open-editor"),
-	copyMetadata: () => runCommandById(activeSurface === "issues" ? "issue.copy-metadata" : "pull.copy-metadata"),
+	copyLink: () => runCommandById("comments.copy-link"),
 	copyPullRequestUrl: () => runCommandById("pull.copy-url"),
 	pullRequestActive: activeSurface === "pullRequests",
 })

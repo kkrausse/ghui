@@ -2,21 +2,29 @@ import { TextAttributes } from "@opentui/core"
 import { useState } from "react"
 import { colors, mixHex, rowHoverBackground } from "./colors.js"
 import { fitCell, TextLine } from "./primitives.js"
-import { workspaceSurfaceLabels, workspaceSurfaces, type WorkspaceSurface } from "../workspaceSurfaces.js"
+import { userWorkspaceTabs, workspaceTabLabels, type WorkspaceTab } from "../workspaceTabs.js"
 
-export type WorkspaceSurfaceCounts = Partial<Record<WorkspaceSurface, number | string>>
+export type WorkspaceSurfaceCounts = Partial<Record<WorkspaceTab, number | string>>
 
-const tabText = (surface: WorkspaceSurface, counts: WorkspaceSurfaceCounts) => {
-	const label = workspaceSurfaceLabels[surface]
-	const count = counts[surface]
-	return count === undefined ? ` ${label} ` : ` ${label} ${count} `
+export const workspaceTabItems = (surfaces: readonly WorkspaceTab[], counts: WorkspaceSurfaceCounts, width = Infinity) => {
+	const build = (compact: boolean, showCounts: boolean) =>
+		surfaces.map((surface) => {
+			const label = compact ? ({ review: "REVIEWS", assigned: "ASSIGNED", mentioned: "MENTIONS" }[surface as string] ?? workspaceTabLabels[surface]) : workspaceTabLabels[surface]
+			const count = showCounts ? counts[surface] : undefined
+			return { surface, label, count, text: count === undefined ? ` ${label} ` : ` ${label} ${count} ` }
+		})
+	const fits = (items: ReturnType<typeof build>) => items.reduce((sum, item) => sum + item.text.length + 1, 0) <= width
+	const full = build(false, true)
+	if (fits(full)) return full
+	const compact = build(true, true)
+	return fits(compact) ? compact : build(true, false)
 }
 
-export const workspaceTabSeparatorColumns = (counts: WorkspaceSurfaceCounts, surfaces: readonly WorkspaceSurface[] = workspaceSurfaces) => {
+export const workspaceTabSeparatorColumns = (counts: WorkspaceSurfaceCounts, surfaces: readonly WorkspaceTab[] = userWorkspaceTabs, width = Infinity) => {
 	const columns: number[] = []
 	let column = 0
-	for (const surface of surfaces) {
-		column += tabText(surface, counts).length
+	for (const tab of workspaceTabItems(surfaces, counts, width)) {
+		column += tab.text.length
 		columns.push(column)
 		column += 1
 	}
@@ -26,25 +34,19 @@ export const workspaceTabSeparatorColumns = (counts: WorkspaceSurfaceCounts, sur
 export const WorkspaceTabs = ({
 	activeSurface,
 	width,
-	surfaces = workspaceSurfaces,
+	surfaces = userWorkspaceTabs,
 	counts = {},
 	onSelect,
 }: {
-	activeSurface: WorkspaceSurface
+	activeSurface: WorkspaceTab
 	width: number
-	surfaces?: readonly WorkspaceSurface[]
+	surfaces?: readonly WorkspaceTab[]
 	counts?: WorkspaceSurfaceCounts
-	onSelect: (surface: WorkspaceSurface) => void
+	onSelect: (surface: WorkspaceTab) => void
 }) => {
-	const [hoveredSurface, setHoveredSurface] = useState<WorkspaceSurface | null>(null)
+	const [hoveredSurface, setHoveredSurface] = useState<WorkspaceTab | null>(null)
 	const activeCountColor = mixHex(colors.separator, colors.accent, 0.45)
-	const rendered = surfaces.map((surface) => {
-		const active = surface === activeSurface
-		const label = workspaceSurfaceLabels[surface]
-		const count = counts[surface]
-		const text = tabText(surface, counts)
-		return { surface, active, label, count, text }
-	})
+	const rendered = workspaceTabItems(surfaces, counts, width).map((tab) => ({ ...tab, active: tab.surface === activeSurface }))
 	const textWidth = rendered.reduce((sum, tab) => sum + tab.text.length, 0) + rendered.length
 	const filler = Math.max(0, width - textWidth)
 

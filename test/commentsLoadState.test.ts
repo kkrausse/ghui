@@ -19,13 +19,65 @@ const deferred = <A>() => {
 const flushPromises = () => new Promise((resolve) => setTimeout(resolve, 0))
 
 describe("comments load state", () => {
+	test("an older same-subject request cannot overwrite a newer forced refresh", async () => {
+		let states: Record<string, StoredCommentLoadState> = {}
+		let comments: Record<string, readonly PullRequestComment[]> = {}
+		const older = deferred<readonly PullRequestComment[]>()
+		const newer = deferred<readonly PullRequestComment[]>()
+		const requests = [older, newer]
+		const loader = useCommentsLoader({
+			readCommentsLoadState: () => states,
+			setPullRequestComments: (update) => {
+				comments = update(comments)
+			},
+			setPullRequestCommentsLoaded: (update) => {
+				states = update(states)
+			},
+			listPullRequestComments: async () => [],
+			listIssueComments: () => requests.shift()!.promise,
+			flashNotice: () => {},
+		})
+		loader.loadIssueComments(issue)
+		loader.loadIssueComments(issue, true)
+		newer.resolve([{ id: "new" } as PullRequestComment])
+		await flushPromises()
+		older.resolve([{ id: "old" } as PullRequestComment])
+		await flushPromises()
+		expect(comments[key]).toEqual([{ id: "new" }])
+		expect(states[key]).toEqual({ status: "ready" })
+	})
+
+	test("an unrelated queue refresh does not strand an in-flight comment load", async () => {
+		let states: Record<string, StoredCommentLoadState> = {}
+		let comments: Record<string, readonly PullRequestComment[]> = {}
+		const request = deferred<readonly PullRequestComment[]>()
+		const loader = useCommentsLoader({
+			readCommentsLoadState: () => states,
+			setPullRequestComments: (update) => {
+				comments = update(comments)
+			},
+			setPullRequestCommentsLoaded: (update) => {
+				states = update(states)
+			},
+			listPullRequestComments: async () => [],
+			listIssueComments: () => request.promise,
+			flashNotice: () => {},
+		})
+
+		loader.loadIssueComments(issue)
+		request.resolve([{ id: "loaded" } as PullRequestComment])
+		await flushPromises()
+
+		expect(comments[key]).toEqual([{ id: "loaded" }])
+		expect(states[key]).toEqual({ status: "ready" })
+	})
+
 	test("retains an uncached loading failure as a persistent error", async () => {
 		let states: Record<string, StoredCommentLoadState> = {}
 		let comments: Record<string, readonly PullRequestComment[]> = {}
 		const request = deferred<readonly PullRequestComment[]>()
 		const notices: string[] = []
 		const loader = useCommentsLoader({
-			refreshGenerationRef: { current: 0 },
 			readCommentsLoadState: () => states,
 			setPullRequestComments: (update) => {
 				comments = update(comments)
@@ -54,7 +106,6 @@ describe("comments load state", () => {
 		let comments: Record<string, readonly PullRequestComment[]> = { [key]: [cachedComment] }
 		const request = deferred<readonly PullRequestComment[]>()
 		const loader = useCommentsLoader({
-			refreshGenerationRef: { current: 0 },
 			readCommentsLoadState: () => states,
 			setPullRequestComments: (update) => {
 				comments = update(comments)

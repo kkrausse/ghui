@@ -14,7 +14,6 @@ import { githubRuntime } from "../src/services/runtime.ts"
 import { useMergeFlow, type UseMergeFlowResult } from "../src/ui/merge/useMergeFlow.ts"
 import { MergeModal } from "../src/ui/modals/MergeModal.tsx"
 import type { MergeModalState } from "../src/ui/modals/types.ts"
-import { getPullRequestMergeInfoAtom, getRepositoryMergeMethodsAtom } from "../src/ui/pullRequests/atoms.ts"
 import type { PullRequestItem } from "../src/domain.ts"
 import { mergeQueueCommandLayer, mergeQueuePullRequest } from "./fixtures/mergeQueue.ts"
 
@@ -111,15 +110,17 @@ export const probeMergeFlow = async (options: {
 				</RegistryContext.Provider>,
 			),
 		)
-		await act(async () => {
+		act(() => {
 			flow?.openMergeModal()
-			await Effect.runPromise(
-				Effect.all([
-					AtomRegistry.getResult(registry, getPullRequestMergeInfoAtom, { suspendOnWaiting: true }).pipe(Effect.result),
-					AtomRegistry.getResult(registry, getRepositoryMergeMethodsAtom, { suspendOnWaiting: true }),
-				]),
-			)
 		})
+		// Requests now have invocation-owned atoms. Observe the actual modal's
+		// completion instead of subscribing to a shared request result channel.
+		for (let attempt = 0; attempt < 100 && (modal?.loading || !modal?.allowedMethods); attempt++) {
+			await act(async () => {
+				await Bun.sleep(1)
+			})
+		}
+		if (modal?.loading || !modal?.allowedMethods) throw new Error("Merge metadata did not settle")
 		if (!flow || !modal) throw new Error("Merge flow failed to mount")
 		if (options.lookupFailure) {
 			await setup.renderOnce()

@@ -1,7 +1,10 @@
-import { context, type Scrollable, scrollCommands } from "@ghui/keymap"
+import { context, type Scrollable } from "@ghui/keymap"
 
 export interface DetailViewCtx extends Scrollable {
 	readonly closeDetail: () => void
+	readonly confirmSelection: () => void
+	readonly previousBlock: () => void
+	readonly nextBlock: () => void
 	readonly openTheme: () => void
 	readonly openDiff: () => void
 	readonly openRuns: () => void
@@ -14,7 +17,7 @@ export interface DetailViewCtx extends Scrollable {
 	readonly refresh: () => void
 	readonly openInBrowser: () => void
 	readonly openInEditor: () => void
-	readonly copyMetadata: () => void
+	readonly copyLink: () => void
 	readonly copyPullRequestUrl: () => void
 	readonly pullRequestActive: boolean
 }
@@ -22,8 +25,16 @@ export interface DetailViewCtx extends Scrollable {
 const Detail = context<DetailViewCtx>()
 
 export const detailViewKeymap = Detail(
-	scrollCommands<DetailViewCtx>(),
-	{ id: "detail.close", title: "Close detail", keys: ["escape", "return"], run: (s) => s.closeDetail() },
+	{ id: "detail.up", title: "Previous conversation block", keys: ["up", "k"], run: (s) => (s.pullRequestActive ? s.previousBlock() : s.scrollBy(-1)) },
+	{ id: "detail.down", title: "Next conversation block", keys: ["down", "j"], run: (s) => (s.pullRequestActive ? s.nextBlock() : s.scrollBy(1)) },
+	{ id: "detail.page-up", title: "Scroll up", keys: ["pageup", "ctrl+u"], run: (s) => s.scrollBy(-s.halfPage) },
+	{ id: "detail.page-down", title: "Scroll down", keys: ["pagedown", "ctrl+d", "ctrl+v"], run: (s) => s.scrollBy(s.halfPage) },
+	{ id: "detail.top", title: "Scroll to top", keys: ["home", "g g"], run: (s) => s.scrollTo(0) },
+	{ id: "detail.bottom", title: "Scroll to bottom", keys: ["end", "shift+g"], run: (s) => s.scrollTo(Number.MAX_SAFE_INTEGER) },
+	{ id: "detail.close", title: "Close detail", keys: ["escape"], run: (s) => s.closeDetail() },
+	{ id: "detail.confirm", title: "Reply to selected comment / close detail", keys: ["return"], run: (s) => s.confirmSelection() },
+	{ id: "detail.left", title: "Return to PR list", keys: ["left"], when: (s) => s.pullRequestActive, run: (s) => s.closeDetail() },
+	{ id: "detail.right", title: "Open PR diff", keys: ["right"], when: (s) => s.pullRequestActive, run: (s) => s.openDiff() },
 	{ id: "detail.theme", title: "Open theme", keys: ["t"], run: (s) => s.openTheme() },
 	{ id: "detail.diff", title: "Open diff", keys: ["d"], run: (s) => s.openDiff() },
 	{ id: "detail.runs", title: "Open workflow runs", keys: ["a"], run: (s) => s.openRuns() },
@@ -36,6 +47,6 @@ export const detailViewKeymap = Detail(
 	{ id: "detail.refresh", title: "Refresh", keys: ["r"], run: (s) => s.refresh() },
 	{ id: "detail.open-browser", title: "Open in browser", keys: ["o"], run: (s) => s.openInBrowser() },
 	{ id: "detail.open-editor", title: "Open in editor", keys: ["e"], run: (s) => s.openInEditor() },
-	{ id: "detail.copy", title: "Copy metadata", keys: ["y"], run: (s) => s.copyMetadata() },
+	{ id: "detail.copy", title: "Copy selected link", keys: ["y"], run: (s) => s.copyLink() },
 	{ id: "detail.copy-url", title: "Copy pull request link", keys: ["shift+y"], when: (s) => s.pullRequestActive, run: (s) => s.copyPullRequestUrl() },
 )

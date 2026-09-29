@@ -1,17 +1,20 @@
 import * as Atom from "effect/unstable/reactivity/Atom"
 import type { CreatePullRequestCommentInput, IssueItem, PullRequestComment, PullRequestItem } from "../../domain.js"
 import { GitHubService } from "../../services/GitHubService.js"
-import { githubRuntime } from "../../services/runtime.js"
+import { githubRequest } from "../../services/runtime.js"
 import { pullRequestDiffKey } from "../diff.js"
 import { selectedIssueAtom } from "../issues/atoms.js"
 import { selectedPullRequestAtom } from "../pullRequests/atoms.js"
 import { workspaceSurfaceAtom } from "../../workspace/atoms.js"
 import { commentsViewRowCount, orderCommentsForDisplay, type OrderedComment } from "../CommentsPane.js"
 import { idleCommentLoadState, type CommentLoadState, type StoredCommentLoadState } from "./loadState.js"
+import { detailFullViewAtom } from "../detail/atoms.js"
 
 // === UI state atoms ===
 export const commentsViewActiveAtom = Atom.make(false)
 export const commentsViewSelectionAtom = Atom.make(0)
+// Stable identities keep refreshes and newly inserted replies from moving the cursor.
+export const conversationSelectionAtom = Atom.make<Record<string, string | null>>({})
 export const pullRequestCommentsAtom = Atom.make<Record<string, readonly PullRequestComment[]>>({}).pipe(Atom.keepAlive)
 export const pullRequestCommentsLoadedAtom = Atom.make<Record<string, StoredCommentLoadState>>({}).pipe(Atom.keepAlive)
 
@@ -62,6 +65,11 @@ export const commentsRowCountAtom = Atom.make((get) => commentsViewRowCount(get(
 
 export const selectedOrderedCommentAtom = Atom.make((get): PullRequestComment | null => {
 	const ordered = get(orderedCommentsAtom)
+	if (get(detailFullViewAtom) && !get(commentsViewActiveAtom)) {
+		const key = get(selectedCommentKeyAtom)
+		const id = key ? get(conversationSelectionAtom)[key] : null
+		return ordered.find(({ comment }) => comment.id === id)?.comment ?? null
+	}
 	const index = get(commentsViewSelectionAtom)
 	return ordered[index]?.comment ?? null
 })
@@ -69,28 +77,28 @@ export const selectedOrderedCommentAtom = Atom.make((get): PullRequestComment | 
 export const selectedItemLabelsAtom = Atom.make((get) => get(selectedCommentSubjectAtom)?.labels ?? [])
 
 // === Data-fetching atoms ===
-export const listPullRequestCommentsAtom = githubRuntime.fn<{ readonly repository: string; readonly number: number }>()((input) =>
+export const listPullRequestCommentsAtom = githubRequest<{ readonly repository: string; readonly number: number }>()((input) =>
 	GitHubService.use((github) => github.listPullRequestComments(input.repository, input.number)),
 )
-export const listIssueCommentsAtom = githubRuntime.fn<{ readonly repository: string; readonly number: number }>()((input) =>
+export const listIssueCommentsAtom = githubRequest<{ readonly repository: string; readonly number: number }>()((input) =>
 	GitHubService.use((github) => github.listIssueComments(input.repository, input.number)),
 )
-export const createPullRequestCommentAtom = githubRuntime.fn<CreatePullRequestCommentInput>()((input) => GitHubService.use((github) => github.createPullRequestComment(input)))
-export const createPullRequestIssueCommentAtom = githubRuntime.fn<{ readonly repository: string; readonly number: number; readonly body: string }>()((input) =>
+export const createPullRequestCommentAtom = githubRequest<CreatePullRequestCommentInput>()((input) => GitHubService.use((github) => github.createPullRequestComment(input)))
+export const createPullRequestIssueCommentAtom = githubRequest<{ readonly repository: string; readonly number: number; readonly body: string }>()((input) =>
 	GitHubService.use((github) => github.createPullRequestIssueComment(input.repository, input.number, input.body)),
 )
-export const replyToReviewCommentAtom = githubRuntime.fn<{ readonly repository: string; readonly number: number; readonly inReplyTo: string; readonly body: string }>()((input) =>
+export const replyToReviewCommentAtom = githubRequest<{ readonly repository: string; readonly number: number; readonly inReplyTo: string; readonly body: string }>()((input) =>
 	GitHubService.use((github) => github.replyToReviewComment(input.repository, input.number, input.inReplyTo, input.body)),
 )
-export const editPullRequestIssueCommentAtom = githubRuntime.fn<{ readonly repository: string; readonly commentId: string; readonly body: string }>()((input) =>
+export const editPullRequestIssueCommentAtom = githubRequest<{ readonly repository: string; readonly commentId: string; readonly body: string }>()((input) =>
 	GitHubService.use((github) => github.editPullRequestIssueComment(input.repository, input.commentId, input.body)),
 )
-export const editReviewCommentAtom = githubRuntime.fn<{ readonly repository: string; readonly commentId: string; readonly body: string }>()((input) =>
+export const editReviewCommentAtom = githubRequest<{ readonly repository: string; readonly commentId: string; readonly body: string }>()((input) =>
 	GitHubService.use((github) => github.editReviewComment(input.repository, input.commentId, input.body)),
 )
-export const deletePullRequestIssueCommentAtom = githubRuntime.fn<{ readonly repository: string; readonly commentId: string }>()((input) =>
+export const deletePullRequestIssueCommentAtom = githubRequest<{ readonly repository: string; readonly commentId: string }>()((input) =>
 	GitHubService.use((github) => github.deletePullRequestIssueComment(input.repository, input.commentId)),
 )
-export const deleteReviewCommentAtom = githubRuntime.fn<{ readonly repository: string; readonly commentId: string }>()((input) =>
+export const deleteReviewCommentAtom = githubRequest<{ readonly repository: string; readonly commentId: string }>()((input) =>
 	GitHubService.use((github) => github.deleteReviewComment(input.repository, input.commentId)),
 )

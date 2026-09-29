@@ -5,6 +5,7 @@ import {
 	fallbackEditedReviewComment,
 	fallbackReplyComment,
 	getCheckInfoFromContexts,
+	includeApprovalRequiredRuns,
 	getPullRequestState,
 	getReviewStatus,
 	itemPage,
@@ -131,6 +132,34 @@ describe("getCheckInfoFromContexts", () => {
 		const info = getCheckInfoFromContexts([checkRun({ conclusion: "NEUTRAL" }), checkRun({ name: "skip", conclusion: "SKIPPED" })])
 		expect(info.checkStatus).toBe("passing")
 		expect(info.checkSummary).toBe("checks 2/2")
+	})
+})
+
+describe("includeApprovalRequiredRuns", () => {
+	test("shows fork workflows waiting for maintainer approval alongside successful checks", () => {
+		const pr = parsePullRequest({ ...baseDetail, statusCheckRollup: { contexts: { nodes: [checkRun({ name: "Greptile Review" })] } } })
+		const run = {
+			id: 1,
+			number: 1,
+			attempt: 1,
+			workflowName: "CI",
+			displayTitle: "CI",
+			event: "pull_request",
+			headBranch: "feature",
+			headSha: "abc",
+			status: "completed" as const,
+			conclusion: "action_required" as const,
+			url: "https://github.com/owner/repo/actions/runs/1",
+			createdAt: new Date(),
+			startedAt: null,
+			updatedAt: null,
+		}
+		const result = includeApprovalRequiredRuns(pr, [run, { ...run, id: 2, workflowName: "Integration Tests" }])
+		expect(result.checkStatus).toBe("pending")
+		expect(result.checkSummary).toBe("checks 1/3")
+		expect(result.checks.map((check) => check.name)).toEqual(["Greptile Review", "CI (approval required)", "Integration Tests (approval required)"])
+		expect(includeApprovalRequiredRuns(pr, [{ ...run, conclusion: "success" }])).toBe(pr)
+		expect(includeApprovalRequiredRuns(pr, [{ ...run, event: "workflow_dispatch" }])).toBe(pr)
 	})
 })
 

@@ -1,5 +1,7 @@
 import type { AppCommand } from "../commands.js"
-import type { PullRequestLabel, PullRequestReviewComment } from "../domain.js"
+import type { PullRequestItem, PullRequestLabel, PullRequestReviewComment } from "../domain.js"
+import type { ScrollBoxRenderable } from "@opentui/core"
+import type { MutableRefObject } from "react"
 import { CommandPalette } from "../ui/CommandPalette.js"
 import {
 	ChangedFilesModal,
@@ -17,6 +19,7 @@ import {
 	ThemeModal,
 } from "../ui/modals.js"
 import { Modal, type ModalTag } from "../ui/modals/types.js"
+import { MarkdownFilePreview } from "../ui/diff/MarkdownFilePreview.js"
 
 export interface ModalLayout {
 	readonly width: number
@@ -47,6 +50,18 @@ export interface WorkspaceModalsProps {
 	// When the docked diff-file panel is rendering the picker inline, the
 	// modal must stand down so both presentations don't fight for the screen.
 	readonly suppressChangedFilesModal: boolean
+	readonly markdownPreview: {
+		readonly pullRequest: PullRequestItem
+		readonly path: string
+		readonly modalWidth: number
+		readonly modalHeight: number
+		readonly offsetLeft: number
+		readonly offsetTop: number
+		readonly scrollRef: MutableRefObject<ScrollBoxRenderable | null>
+		readonly reloadKey: number
+		readonly showScrollbar: boolean
+		readonly onLinkOpen?: ((url: string) => void) | undefined
+	} | null
 }
 
 const layoutToProps = (layout: ModalLayout) => ({
@@ -56,8 +71,8 @@ const layoutToProps = (layout: ModalLayout) => ({
 	offsetTop: layout.top,
 })
 
-export const WorkspaceModals = (props: WorkspaceModalsProps) =>
-	Modal.$match(props.activeModal, {
+export const WorkspaceModals = (props: WorkspaceModalsProps) => {
+	const activeModal = Modal.$match(props.activeModal, {
 		None: () => null,
 		Label: (state) => <LabelModal state={state} currentLabels={props.selectedItemLabels} loadingIndicator={props.loadingIndicator} {...layoutToProps(props.layouts.Label)} />,
 		Close: (state) => <CloseModal state={state} loadingIndicator={props.loadingIndicator} {...layoutToProps(props.layouts.Close)} />,
@@ -95,3 +110,10 @@ export const WorkspaceModals = (props: WorkspaceModalsProps) =>
 			/>
 		),
 	})
+	return (
+		<>
+			{props.markdownPreview ? <MarkdownFilePreview {...props.markdownPreview} loadingIndicator={props.loadingIndicator} /> : null}
+			{activeModal}
+		</>
+	)
+}

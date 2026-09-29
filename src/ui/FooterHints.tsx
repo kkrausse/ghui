@@ -73,14 +73,19 @@ const diffViewHints = (ctx: HintsContext): readonly HintItem[] => [
 	{ key: "↑↓", label: ctx.diffRangeActive ? "range" : "line" },
 	{ key: "enter", label: ctx.diffRangeActive ? "comment" : "open" },
 	{ key: "v", label: ctx.diffRangeActive ? "clear" : "range" },
+	{ key: "y", label: "copy link" },
 	{ key: "w", label: "wrap" },
+	{ key: "m", label: "render", when: !ctx.diffRangeActive },
 	{ key: "[]", label: "files" },
 	{ key: "r", label: "reload" },
 ]
 
 const detailFullViewHints = (ctx: HintsContext): readonly HintItem[] => [
 	{ key: "esc", label: "back" },
-	{ key: "↑↓", label: "scroll" },
+	{ key: "↑↓", label: ctx.canOpenDiff ? "select" : "scroll" },
+	{ key: "pgup/dn", label: "scroll" },
+	{ key: "y", label: "copy link" },
+	{ key: "enter", label: "reply", when: ctx.commentsViewOnRealComment && ctx.canOpenDiff },
 	{ key: "r", label: ctx.hasError ? "retry" : "refresh" },
 	{ key: "d", label: "diff", when: ctx.canOpenDiff },
 ]
@@ -89,6 +94,7 @@ const commentsViewHints = (ctx: HintsContext): readonly HintItem[] => [
 	{ key: "↑↓", label: "move", disabled: ctx.commentsViewCount <= 1 },
 	{ key: "enter", label: ctx.commentsViewOnRealComment ? "reply" : "new" },
 	{ key: "a", label: "new" },
+	{ key: "y", label: "copy link", disabled: !ctx.commentsViewOnRealComment },
 	{ key: "e", label: "edit", disabled: !ctx.commentsViewCanEditSelected },
 	{ key: "x", label: "delete", disabled: !ctx.commentsViewCanEditSelected },
 	{ key: "o", label: "open", disabled: !ctx.commentsViewOnRealComment },

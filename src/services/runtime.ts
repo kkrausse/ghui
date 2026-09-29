@@ -1,4 +1,4 @@
-import { Layer } from "effect"
+import { type Effect, Layer } from "effect"
 import * as Atom from "effect/unstable/reactivity/Atom"
 import { config } from "../config.js"
 import { detectCurrentGitHubRepository } from "../gitRemotes.js"
@@ -63,3 +63,14 @@ export const githubRuntime = Atom.runtime(
 		Layer.provideMerge(Observability.layer),
 	),
 )
+
+type RuntimeServices = typeof githubRuntime extends Atom.AtomRuntime<infer R, infer _E> ? R : never
+
+/** Each call owns its Effect lifetime and result channel, even for the same PR.
+ * Display caches remain entity-keyed; settled request atoms are immediately disposable.
+ */
+export const githubRequest =
+	<I>() =>
+	<A, E>(run: (input: I) => Effect.Effect<A, E, RuntimeServices>) =>
+	(input: I) =>
+		githubRuntime.atom(run(input)).pipe(Atom.setIdleTTL(0))

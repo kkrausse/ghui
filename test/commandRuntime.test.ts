@@ -144,6 +144,43 @@ describe("command runtime", () => {
 		})
 	})
 
+	test("diff.copy-markdown-source fetches the live PR-head file and copies it", async () => {
+		const probe = `
+			import { Effect } from "effect"
+			import * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry"
+			import { dispatchCommand } from "./src/commands/dispatch.ts"
+			import { Clipboard } from "./src/services/Clipboard.ts"
+			import { GitHubService } from "./src/services/GitHubService.ts"
+			import { noticeAtom } from "./src/ui/notice/atoms.ts"
+			import { selectedPullRequestAtom } from "./src/ui/pullRequests/atoms.ts"
+			import { diffFullViewAtom, pullRequestDiffCacheAtom } from "./src/ui/diff/atoms.ts"
+			import { pullRequestDiffKey } from "./src/ui/diff.ts"
+			import { workspaceSurfaceAtom } from "./src/workspace/atoms.ts"
+			const pr = { repository: "owner/repo", number: 42, title: "Docs", url: "https://github.com/owner/repo/pull/42", headRefOid: "abc123" }
+			const registry = AtomRegistry.make({ initialValues: [
+				[workspaceSurfaceAtom, "pullRequests"],
+				[selectedPullRequestAtom, pr],
+				[diffFullViewAtom, true],
+				[pullRequestDiffCacheAtom, { [pullRequestDiffKey(pr)]: { _tag: "Ready", patch: "", files: [{ name: "docs/guide.md", filetype: "markdown", patch: "" }] } }],
+			] })
+			const copies = []
+			const requests = []
+			await Effect.runPromise(dispatchCommand("diff.copy-markdown-source").pipe(
+				Effect.provideService(AtomRegistry.AtomRegistry, registry),
+				Effect.provideService(GitHubService, { getFileContent: (repository, path, ref) => Effect.sync(() => { requests.push([repository, path, ref]); return "# Complete guide" }) }),
+				Effect.provideService(Clipboard, { copy: (text) => Effect.sync(() => { copies.push(text) }) }),
+			))
+			console.log(JSON.stringify({ requests, copies, notice: registry.get(noticeAtom) }))
+			registry.dispose()
+		`
+		const stdout = await runIsolatedProbe(probe)
+		expect(JSON.parse(stdout)).toEqual({
+			requests: [["owner/repo", "docs/guide.md", "refs/pull/42/head"]],
+			copies: ["# Complete guide"],
+			notice: "Copied docs/guide.md",
+		})
+	})
+
 	test("handoff cleanup cannot remove a newer registration", () => {
 		const calls: string[] = []
 		const cleanFirst = registerHandoff("quit", () => calls.push("first"))

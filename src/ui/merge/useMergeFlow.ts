@@ -1,5 +1,6 @@
 import { RegistryContext, useAtomSet } from "@effect/atom-react"
 import { useContext } from "react"
+import { useRequest } from "../../hooks/useRequest.js"
 import { allowedMergeMethodList, type PullRequestItem, type PullRequestMergeAction, type PullRequestMergeMethod, type RepositoryMergeMethods } from "../../domain.js"
 import { pullRequestMergeMethods } from "../../domain.js"
 import { errorMessage } from "../../errors.js"
@@ -68,10 +69,10 @@ export const useMergeFlow = ({
 	const registry = useContext(RegistryContext)
 	const setRepoMergeMethodsCache = useAtomSet(repoMergeMethodsCacheAtom)
 	const setLastUsedMergeMethod = useAtomSet(lastUsedMergeMethodAtom)
-	const getPullRequestMergeInfo = useAtomSet(getPullRequestMergeInfoAtom, { mode: "promise" })
-	const getRepositoryMergeMethods = useAtomSet(getRepositoryMergeMethodsAtom, { mode: "promise" })
-	const mergePullRequest = useAtomSet(mergePullRequestAtom, { mode: "promise" })
-	const toggleDraftStatus = useAtomSet(toggleDraftAtom, { mode: "promise" })
+	const getPullRequestMergeInfo = useRequest(getPullRequestMergeInfoAtom)
+	const getRepositoryMergeMethods = useRequest(getRepositoryMergeMethodsAtom)
+	const mergePullRequest = useRequest(mergePullRequestAtom)
+	const toggleDraftStatus = useRequest(toggleDraftAtom)
 
 	const openMergeModal = () => {
 		if (!selectedPullRequest) return

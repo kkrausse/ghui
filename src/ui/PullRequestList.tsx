@@ -14,6 +14,7 @@ export type PullRequestListRow =
 	| { readonly _tag: "title" }
 	| { readonly _tag: "message"; readonly text: string; readonly color: string }
 	| { readonly _tag: "group"; readonly repository: string; readonly pullRequests: readonly PullRequestItem[] }
+	| { readonly _tag: "section"; readonly label: string }
 	| { readonly _tag: "pull-request"; readonly pullRequest: PullRequestItem; readonly numberWidth: number; readonly ageWidth: number; readonly compact: boolean }
 	| { readonly _tag: "load-more"; readonly text: string }
 
@@ -59,6 +60,7 @@ export const buildPullRequestListRows = ({
 	loadingIndicator = "-",
 	showTitle = true,
 	showRepositoryGroups = true,
+	repositorySections = false,
 	compact = false,
 }: {
 	readonly groups: PullRequestGroups
@@ -71,6 +73,7 @@ export const buildPullRequestListRows = ({
 	readonly loadingIndicator?: string
 	readonly showTitle?: boolean
 	readonly showRepositoryGroups?: boolean
+	readonly repositorySections?: boolean
 	readonly compact?: boolean
 }): readonly PullRequestListRow[] => {
 	const itemCount = groups.reduce((count, [, pullRequests]) => count + pullRequests.length, 0)
@@ -78,12 +81,22 @@ export const buildPullRequestListRows = ({
 	if (status === "loading" && itemCount === 0) rows.push({ _tag: "message", text: "- Loading pull requests...", color: colors.muted })
 	if (status === "error") rows.push({ _tag: "message", text: `- ${error ?? "Could not load pull requests."}`, color: colors.error })
 	if (status === "ready" && itemCount === 0)
-		rows.push({ _tag: "message", text: filterText.length > 0 ? "- No matching pull requests." : "- No open pull requests.", color: colors.muted })
+		rows.push({
+			_tag: "message",
+			text: filterText.length > 0 ? "- No matching pull requests." : repositorySections ? "- No pull requests." : "- No open pull requests.",
+			color: colors.muted,
+		})
 	for (const [repository, pullRequests] of groups) {
 		if (showRepositoryGroups) rows.push({ _tag: "group", repository, pullRequests })
 		const numberWidth = groupNumberWidth(pullRequests)
 		const ageWidth = groupAgeWidth(pullRequests)
-		for (const pullRequest of pullRequests) rows.push({ _tag: "pull-request", pullRequest, numberWidth, ageWidth, compact })
+		let previousSection: string | null = null
+		for (const pullRequest of pullRequests) {
+			const section = pullRequest.state === "merged" ? "MERGED" : pullRequest.state === "closed" ? "CLOSED" : pullRequest.reviewStatus === "draft" ? "DRAFT" : "OPEN"
+			if (repositorySections && section !== previousSection) rows.push({ _tag: "section", label: section })
+			rows.push({ _tag: "pull-request", pullRequest, numberWidth, ageWidth, compact })
+			previousSection = section
+		}
 	}
 	if (status === "ready" && itemCount > 0 && (hasMore || isLoadingMore)) {
 		rows.push({
@@ -199,6 +212,7 @@ export const PullRequestList = ({
 	onSelectLoadMore,
 	showTitle = true,
 	showRepositoryGroups = true,
+	repositorySections = false,
 	compact = false,
 }: {
 	groups: PullRequestGroups
@@ -216,6 +230,7 @@ export const PullRequestList = ({
 	onSelectLoadMore?: () => void
 	showTitle?: boolean
 	showRepositoryGroups?: boolean
+	repositorySections?: boolean
 	compact?: boolean
 }) => {
 	const rows = buildPullRequestListRows({
@@ -229,6 +244,7 @@ export const PullRequestList = ({
 		loadingIndicator,
 		showTitle,
 		showRepositoryGroups,
+		repositorySections,
 		compact,
 	})
 	const { isHovered, onHoverChange } = useHoverState<string>()
@@ -238,6 +254,7 @@ export const PullRequestList = ({
 			{rows.map((row, index) => {
 				if (row._tag === "title") return <SectionTitle key="title" title="PULL REQUESTS" />
 				if (row._tag === "message") return <PlainLine key={`message-${index}`} text={row.text} fg={row.color} />
+				if (row._tag === "section") return <PlainLine key={`section-${row.label}`} text={`  ${row.label}`} fg={colors.muted} />
 				if (row._tag === "load-more")
 					return (
 						<SelectableRow key="load-more" width={contentWidth} selected={loadMoreSelected} hovered={false} onSelect={() => onSelectLoadMore?.()} onHoverChange={() => {}}>

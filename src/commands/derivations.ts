@@ -3,7 +3,8 @@ import type { PullRequestUserQueueMode } from "../domain.js"
 import { type PullRequestView, viewEquals, viewLabel } from "../pullRequestViews.js"
 import { commentsViewActiveAtom, selectedCommentSubjectAtom } from "../ui/comments/atoms.js"
 import { detailFullViewAtom } from "../ui/detail/atoms.js"
-import { diffFullViewAtom, diffReadyAtom } from "../ui/diff/atoms.js"
+import { diffFileIndexAtom, diffFullViewAtom, diffMarkdownPreviewAtom, diffReadyAtom, readyDiffFilesAtom } from "../ui/diff/atoms.js"
+import { isMarkdownFile } from "../ui/diff.js"
 import { runsFullViewAtom } from "../ui/runs/atoms.js"
 import { filterModeAtom, filterQueryAtom } from "../ui/filter/atoms.js"
 import { selectedIssueAtom } from "../ui/issues/atoms.js"
@@ -61,6 +62,21 @@ export const detailCloseDisabledReasonAtom = Atom.make((get) => (get(detailFullV
 export const diffOpenRequiredReasonAtom = Atom.make((get) => (get(diffFullViewAtom) ? null : "Open a diff first."))
 
 export const diffCloseDisabledReasonAtom = Atom.make((get) => (get(diffFullViewAtom) ? null : "Diff view is not open."))
+
+export const diffMarkdownPreviewReasonAtom = Atom.make((get): string | null => {
+	if (!get(diffFullViewAtom)) return "Open a diff first."
+	if (get(diffMarkdownPreviewAtom)) return null
+	const file = get(readyDiffFilesAtom)[get(diffFileIndexAtom)]
+	if (!file) return "Select a changed file first."
+	return isMarkdownFile(file.name) ? null : "The selected file is not Markdown."
+})
+
+export const diffMarkdownPreviewTitleAtom = Atom.make((get) => (get(diffMarkdownPreviewAtom) ? "Return to diff source" : "Preview rendered Markdown"))
+
+export const diffMarkdownPreviewSubtitleAtom = Atom.make((get) => {
+	const file = get(readyDiffFilesAtom)[get(diffFileIndexAtom)]
+	return file ? file.name : "No changed file selected"
+})
 
 export const runsCloseDisabledReasonAtom = Atom.make((get) => (get(runsFullViewAtom) ? null : "Runs view is not open."))
 
@@ -185,7 +201,7 @@ export const diffOpenCommentTargetTitleAtom = Atom.make((get) =>
 	get(commandRuntimeAtom).selectedDiffCommentThreadCount > 0 ? "Open selected diff thread" : "Comment on selected diff line",
 )
 
-export const diffToggleRangeTitleAtom = Atom.make((get) => (get(commandRuntimeAtom).diffRangeActive ? "Clear diff comment range" : "Start diff comment range"))
+export const diffToggleRangeTitleAtom = Atom.make((get) => (get(commandRuntimeAtom).diffRangeActive ? "Clear diff line selection" : "Select diff lines"))
 
 export const diffCommentAnchorSubtitleAtom = Atom.make((get) => get(commandRuntimeAtom).selectedDiffCommentAnchorLabel ?? "No diff line selected")
 
@@ -193,7 +209,7 @@ export const diffCommentAnchorSubtitleAtom = Atom.make((get) => get(commandRunti
 export const selectedCommentReasonAtom = Atom.make((get): string | null => {
 	const upstream = get(noSelectedItemReasonAtom)
 	if (upstream !== null) return upstream
-	if (!get(commentsViewActiveAtom)) return "Open comments first."
+	if (!get(commentsViewActiveAtom) && !get(detailFullViewAtom)) return "Open comments first."
 	return get(commandRuntimeAtom).hasSelectedComment ? null : "No comment selected."
 })
 

@@ -31,6 +31,27 @@ const pullRequest = (overrides: Partial<PullRequestItem> = {}): PullRequestItem 
 })
 
 describe("buildPullRequestListRows", () => {
+	test("separates repository PRs into open, draft, and merged sections", () => {
+		const open = pullRequest()
+		const draft = pullRequest({ number: 2, reviewStatus: "draft", url: "https://github.com/owner/repo/pull/2" })
+		const merged = pullRequest({ number: 3, state: "merged", url: "https://github.com/owner/repo/pull/3" })
+		const rows = buildPullRequestListRows({
+			groups: [["owner/repo", [open, draft, merged]]],
+			status: "ready",
+			error: null,
+			filterText: "",
+			loadedCount: 3,
+			hasMore: false,
+			isLoadingMore: false,
+			showTitle: false,
+			showRepositoryGroups: false,
+			repositorySections: true,
+		})
+		expect(rows.filter((row) => row._tag === "section").map((row) => row.label)).toEqual(["OPEN", "DRAFT", "MERGED"])
+		expect(pullRequestListRowIndex(rows, draft.url)).toBe(4)
+		expect(pullRequestListRowIndex(rows, merged.url)).toBe(7)
+	})
+
 	test("shows a loaded-count footer when more pull requests are available", () => {
 		const rows = buildPullRequestListRows({
 			groups: [["owner/repo", [pullRequest()]]],

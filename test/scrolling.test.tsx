@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, test } from "bun:test"
+import { afterEach, beforeAll, describe, expect, test } from "bun:test"
 import { act } from "react"
 
 // Quiet React's "update outside act" warnings from atom-driven loading frames and
@@ -37,9 +37,9 @@ process.env.GHUI_PR_PAGE_SIZE = "100"
 const loadApp = async () => {
 	const { createTestRenderer } = await import("@opentui/core/testing")
 	const { createRoot } = await import("@opentui/react")
-	const { RegistryProvider } = await import("@effect/atom-react")
+	const { RegistryContext } = await import("@effect/atom-react")
 	const { App } = await import("../src/App.tsx")
-	return { createTestRenderer, createRoot, RegistryProvider, App }
+	return { createTestRenderer, createRoot, RegistryContext, App }
 }
 
 let cached: Awaited<ReturnType<typeof loadApp>> | null = null
@@ -64,21 +64,29 @@ const settle = async (renderOnce: () => Promise<void>, predicate: () => boolean,
 	return false
 }
 
+const disposeRegistries: Array<() => void> = []
+afterEach(() => {
+	for (const dispose of disposeRegistries.splice(0)) dispose()
+})
+
 const setupApp = async (cols = 100, rows = 20) => {
 	if (!cached) cached = await loadApp()
-	const { createTestRenderer, createRoot, RegistryProvider, App } = cached
+	const { createTestRenderer, createRoot, RegistryContext, App } = cached
+	const { AtomRegistry } = await import("effect/unstable/reactivity")
+	const registry = AtomRegistry.make()
+	disposeRegistries.push(() => registry.dispose())
 	const setup = await createTestRenderer({ width: cols, height: rows })
 	const root = createRoot(setup.renderer)
 	act(() => {
 		root.render(
-			<RegistryProvider>
+			<RegistryContext.Provider value={registry}>
 				<App />
-			</RegistryProvider>,
+			</RegistryContext.Provider>,
 		)
 	})
 	const ready = await settle(setup.renderOnce, () => setup.captureCharFrame().includes("#1000"))
 	if (!ready) throw new Error("App never rendered mock PRs:\n" + setup.captureCharFrame())
-	return setup
+	return { ...setup, registry }
 }
 
 const detailPaneNumber = (frame: string) => {
@@ -141,19 +149,130 @@ const numberFromIndex = (flatIndex: number) => {
 }
 
 describe("PR list scrolling", () => {
+	for (const width of [65, 120]) {
+		test(`description footer is visible on first entry and copying preserves scroll at width ${width}`, async () => {
+			const { mockInput, mockMouse, renderOnce, captureCharFrame, renderer, registry } = await setupApp(width, 24)
+			try {
+				await press(mockInput, renderOnce, { kind: "arrow", dir: "right" })
+				await settle(renderOnce, () => captureCharFrame().includes("Conversation"))
+				const { selectedCommentKeyAtom, pullRequestCommentsAtom } = await import("../src/ui/comments/atoms.js")
+				const key = registry.get(selectedCommentKeyAtom)!
+				act(() => {
+					const comments = registry.get(pullRequestCommentsAtom)
+					registry.set(pullRequestCommentsAtom, {
+						...comments,
+						[key]: comments[key]!.map((comment) => ({ ...comment, body: Array.from({ length: 40 }, (_, i) => `Comment paragraph ${i}`).join("\n\n") })),
+					})
+				})
+				await stepFrame(renderOnce)
+				expect(captureCharFrame().trimEnd().split("\n").at(-1)).toContain("pgup/dn")
+				const lines = captureCharFrame().split("\n")
+				const row = lines.findIndex((line) => line.includes("[y Copy link]"))
+				expect(row).toBeGreaterThan(-1)
+				await act(async () => {
+					await mockMouse.click(lines[row]!.indexOf("[y Copy link]") + 3, row)
+				})
+				await stepFrame(renderOnce)
+				expect(
+					captureCharFrame()
+						.split("\n")
+						.findIndex((line) => line.includes("[y Copy link]")),
+				).toBe(row)
+				expect(captureCharFrame()).toContain("No comment permalink available yet")
+			} finally {
+				renderer.destroy()
+			}
+		})
+	}
+	for (const width of [65, 120]) {
+		test(`conversation selection reuses the reply editor and protects typing at width ${width}`, async () => {
+			const { mockInput, renderOnce, captureCharFrame, renderer } = await setupApp(width, 24)
+			try {
+				await press(mockInput, renderOnce, { kind: "arrow", dir: "right" })
+				await settle(renderOnce, () => captureCharFrame().includes("Conversation"))
+				await press(mockInput, renderOnce, { kind: "arrow", dir: "down" })
+				expect(captureCharFrame()).toContain("[y Copy link]")
+				await press(mockInput, renderOnce, { kind: "enter" })
+				expect(captureCharFrame()).toContain("wrote:")
+				await press(mockInput, renderOnce, { kind: "key", name: "y" })
+				expect(captureCharFrame()).not.toContain("No comment permalink")
+				await press(mockInput, renderOnce, { kind: "escape" })
+				await settle(renderOnce, () => !captureCharFrame().includes("enter save"))
+				expect(captureCharFrame()).toContain("[y Copy link]")
+				await press(mockInput, renderOnce, { kind: "key", name: "y" })
+				expect(captureCharFrame()).toContain("No comment permalink available yet")
+				await press(mockInput, renderOnce, { kind: "arrow", dir: "up" })
+				expect(captureCharFrame()).toContain("┃ Description")
+				await press(mockInput, renderOnce, { kind: "enter" })
+				expect(captureCharFrame()).not.toContain("› Description")
+			} finally {
+				renderer.destroy()
+			}
+		})
+	}
+	for (const width of [65, 120]) {
+		test(`expanded PR includes a scrollable conversation at width ${width}`, async () => {
+			const { mockInput, renderOnce, captureCharFrame, renderer } = await setupApp(width, 24)
+			try {
+				await press(mockInput, renderOnce, { kind: "arrow", dir: "right" })
+				await press(mockInput, renderOnce, { kind: "key", name: "G", shift: true }, 4)
+				await settle(renderOnce, () => captureCharFrame().includes("Threaded reply"))
+				expect(captureCharFrame()).toContain("Threaded reply")
+				expect(captureCharFrame()).toContain("src/App.tsx:42")
+				await press(mockInput, renderOnce, { kind: "key", name: "c" })
+				expect(captureCharFrame()).toContain("Comments #1000")
+			} finally {
+				renderer.destroy()
+			}
+		})
+	}
+
+	test("refresh reloads the inline conversation without opening the comments page", async () => {
+		const { mockInput, renderOnce, captureCharFrame, renderer } = await setupApp(120, 24)
+		try {
+			await press(mockInput, renderOnce, { kind: "arrow", dir: "right" })
+			await press(mockInput, renderOnce, { kind: "key", name: "G", shift: true }, 4)
+			expect(await settle(renderOnce, () => captureCharFrame().includes("Threaded reply"))).toBe(true)
+
+			await press(mockInput, renderOnce, { kind: "key", name: "r" })
+
+			expect(await settle(renderOnce, () => captureCharFrame().includes("Threaded reply"))).toBe(true)
+			expect(captureCharFrame()).not.toContain("Comments #1000")
+		} finally {
+			renderer.destroy()
+		}
+	})
+
 	test("workspace tabs switch between pull requests and issues", async () => {
 		const { mockInput, renderOnce, captureCharFrame, renderer } = await setupApp(100, 20)
 
 		// Home now lists "issues authored by me" instead of returning empty when no repo is selected.
-		expect(captureCharFrame()).toContain("REPOS 4 │ PULL REQUESTS 80 │ ISSUES")
-		expect(captureCharFrame()).not.toContain("PULL REQUESTS    ISSUES")
-		await press(mockInput, renderOnce, { kind: "key", name: "3" }, 2)
+		expect(captureCharFrame()).toContain("REPOS 4 │ MY PRS 80 │ REVIEW REQUESTED │ ASSIGNED PRS │ MENTIONED PRS │ ISSUES")
+		await press(mockInput, renderOnce, { kind: "key", name: "6" }, 2)
 		expect(captureCharFrame()).toContain("ISSUES")
 		expect(captureCharFrame()).not.toContain("1/2 surface")
 		expect(captureCharFrame()).not.toContain("tab surface")
 
 		await press(mockInput, renderOnce, { kind: "key", name: "2" }, 2)
-		expect(captureCharFrame()).toContain("REPOS 4 │ PULL REQUESTS 80")
+		expect(captureCharFrame()).toContain("REPOS 4 │ MY PRS 80")
+		renderer.destroy()
+	})
+
+	test("home tabs select PR queues directly and preserve authored selection", async () => {
+		const { mockInput, renderOnce, captureCharFrame, renderer } = await setupApp(120, 20)
+		await press(mockInput, renderOnce, { kind: "arrow", dir: "down" })
+		const authoredSelection = detailPaneNumber(captureCharFrame())
+		await press(mockInput, renderOnce, { kind: "key", name: "3" })
+		expect(await settle(renderOnce, () => captureCharFrame().includes("MY PRS │ REVIEW REQUESTED 80"))).toBe(true)
+		act(() => mockInput.pressTab())
+		const assignedLoaded = await settle(renderOnce, () => captureCharFrame().includes("REVIEW REQUESTED │ ASSIGNED PRS 80"))
+		expect(assignedLoaded, captureCharFrame()).toBe(true)
+		await press(mockInput, renderOnce, { kind: "key", name: "5" })
+		const mentionedLoaded = await settle(renderOnce, () => captureCharFrame().includes("ASSIGNED PRS │ MENTIONED PRS 80"))
+		expect(mentionedLoaded, captureCharFrame()).toBe(true)
+		await press(mockInput, renderOnce, { kind: "key", name: "2" })
+		expect(await settle(renderOnce, () => captureCharFrame().includes("MY PRS 80 │ REVIEW REQUESTED"))).toBe(true)
+		expect(detailPaneNumber(captureCharFrame())).toBe(authoredSelection)
 		renderer.destroy()
 	})
 
@@ -161,6 +280,42 @@ describe("PR list scrolling", () => {
 		const { captureCharFrame, renderer } = await setupApp(100, 20)
 		expect(detailPaneNumber(captureCharFrame())).toBe(numberFromIndex(0))
 		renderer.destroy()
+	})
+
+	test("compact home tabs remain clickable at minimum width and repo tabs stay scoped", async () => {
+		const { mockInput, mockMouse, renderOnce, captureCharFrame, renderer, resize } = await setupApp(60, 20)
+		const lines = captureCharFrame().split("\n")
+		const row = lines.findIndex((line) => line.includes("REVIEWS"))
+		expect(row).toBeGreaterThanOrEqual(0)
+		expect(lines[row]).toContain("REPOS │ MY PRS │ REVIEWS │ ASSIGNED │ MENTIONS │ ISSUES")
+		await act(async () => {
+			await mockMouse.click(lines[row]!.indexOf("REVIEWS") + 2, row)
+		})
+		await stepFrame(renderOnce)
+		// Returning to a wide layout exposes the selected queue's count.
+		act(() => resize(120, 20))
+		expect(await settle(renderOnce, () => captureCharFrame().includes("MY PRS │ REVIEW REQUESTED 80"))).toBe(true)
+		await press(mockInput, renderOnce, { kind: "key", name: "1" })
+		await press(mockInput, renderOnce, { kind: "enter" })
+		expect(await settle(renderOnce, () => captureCharFrame().includes("PULL REQUESTS"))).toBe(true)
+		expect(captureCharFrame()).not.toContain("REVIEW REQUESTED")
+		renderer.destroy()
+	})
+
+	test("right arrow opens a repository and left arrow returns home", async () => {
+		const { mockInput, renderOnce, captureCharFrame, renderer } = await setupApp(100, 20)
+		try {
+			await press(mockInput, renderOnce, { kind: "key", name: "1" })
+			await press(mockInput, renderOnce, { kind: "arrow", dir: "right" })
+			expect(await settle(renderOnce, () => captureCharFrame().includes("PULL REQUESTS"))).toBe(true)
+			expect(captureCharFrame()).toContain("HOME / mock-org/repo-0")
+
+			await press(mockInput, renderOnce, { kind: "arrow", dir: "left" })
+			expect(await settle(renderOnce, () => captureCharFrame().includes("REPOS 4 │ MY PRS"))).toBe(true)
+			expect(captureCharFrame()).not.toContain("HOME / mock-org/repo-0")
+		} finally {
+			renderer.destroy()
+		}
 	})
 
 	test("details show comments summary in header without inlining comment bodies", async () => {
@@ -174,7 +329,7 @@ describe("PR list scrolling", () => {
 		renderer.destroy()
 	})
 
-	test("diff arrows preserve left/right side preference across minimized context rows", async () => {
+	test("diff h/l preserve left/right side preference across minimized context rows", async () => {
 		const { captureCharFrame, mockInput, renderOnce, renderer } = await setupApp(120, 24)
 		await press(mockInput, renderOnce, { kind: "key", name: "d" }, 4)
 		const loaded = await settle(renderOnce, () => captureCharFrame().includes("src/mockDiff.ts"))
@@ -183,7 +338,7 @@ describe("PR list scrolling", () => {
 		expect(captureCharFrame()).not.toContain("ISSUES")
 		expect(captureCharFrame()).not.toContain("1/2 surface")
 
-		await press(mockInput, renderOnce, { kind: "arrow", dir: "left" })
+		await press(mockInput, renderOnce, { kind: "key", name: "h" })
 		await press(mockInput, renderOnce, { kind: "arrow", dir: "down" })
 		expect(captureCharFrame()).toContain("← -2")
 
@@ -191,9 +346,43 @@ describe("PR list scrolling", () => {
 		await press(mockInput, renderOnce, { kind: "arrow", dir: "down" })
 		expect(captureCharFrame()).toContain("← -4")
 
-		await press(mockInput, renderOnce, { kind: "arrow", dir: "right" })
+		await press(mockInput, renderOnce, { kind: "key", name: "l" })
 		expect(captureCharFrame()).toContain("→ +4")
 		renderer.destroy()
+	})
+
+	test("horizontal arrows walk list, description, and diff without wrapping", async () => {
+		const { captureCharFrame, mockInput, renderOnce, renderer } = await setupApp(120, 24)
+		try {
+			await press(mockInput, renderOnce, { kind: "arrow", dir: "down" })
+			const selected = detailPaneNumber(captureCharFrame())
+			await press(mockInput, renderOnce, { kind: "arrow", dir: "left" })
+			expect(leftPaneNumbers(captureCharFrame()).length).toBeGreaterThan(1)
+			await press(mockInput, renderOnce, { kind: "arrow", dir: "right" })
+			expect(leftPaneNumbers(captureCharFrame()).length).toBeLessThanOrEqual(1)
+			expect(detailPaneNumber(captureCharFrame())).toBe(selected)
+			await press(mockInput, renderOnce, { kind: "arrow", dir: "right" })
+			expect(await settle(renderOnce, () => captureCharFrame().includes("src/mockDiff.ts"))).toBe(true)
+			await press(mockInput, renderOnce, { kind: "arrow", dir: "right" })
+			expect(captureCharFrame()).toContain("src/mockDiff.ts")
+			await press(mockInput, renderOnce, { kind: "key", name: "v" })
+			await press(mockInput, renderOnce, { kind: "arrow", dir: "left" })
+			expect(captureCharFrame()).not.toContain("src/mockDiff.ts")
+			expect(leftPaneNumbers(captureCharFrame()).length).toBeLessThanOrEqual(1)
+			expect(detailPaneNumber(captureCharFrame())).toBe(selected)
+			await press(mockInput, renderOnce, { kind: "arrow", dir: "left" })
+			expect(leftPaneNumbers(captureCharFrame()).length).toBeGreaterThan(1)
+			expect(detailPaneNumber(captureCharFrame())).toBe(selected)
+
+			// A direct diff shortcut still steps back through the description.
+			await press(mockInput, renderOnce, { kind: "key", name: "d" })
+			expect(await settle(renderOnce, () => captureCharFrame().includes("src/mockDiff.ts"))).toBe(true)
+			await press(mockInput, renderOnce, { kind: "arrow", dir: "left" })
+			expect(leftPaneNumbers(captureCharFrame()).length).toBeLessThanOrEqual(1)
+			expect(detailPaneNumber(captureCharFrame())).toBe(selected)
+		} finally {
+			renderer.destroy()
+		}
 	})
 
 	test("each down/up moves selection by exactly one", async () => {

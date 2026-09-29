@@ -1,21 +1,18 @@
-import { TextAttributes, type BoxRenderable, type MouseEvent } from "@opentui/core"
-import { useRenderer } from "@opentui/react"
-import { Fragment, useEffect, useMemo, useState } from "react"
+import { TextAttributes } from "@opentui/core"
+import { Fragment } from "react"
 import { formatRelativeDate } from "../date.js"
 import type { CheckItem, PullRequestComment, PullRequestItem, PullRequestLabel } from "../domain.js"
 import { colors, type ThemeId } from "./colors.js"
-import { commentCountText, CommentSegmentsLine, type CommentSegment } from "./comments.js"
+import { commentCountText, type CommentSegment } from "./comments.js"
 import { diffStatText } from "./diff.js"
 import { DiffStats } from "./diffStats.js"
-import { collectUrlPositions, findUrlAt, inlineSegments, type InlinePalette } from "./inlineSegments.js"
+import { inlineSegments, type InlinePalette } from "./inlineSegments.js"
+import { MarkdownBody } from "./MarkdownBody.js"
 import { LabelChips, labelChipRows } from "./LabelChips.js"
 import { centerCell, Divider, Filler, fitCell, PaddedRow, PlainLine, TextLine, trimCell } from "./primitives.js"
 import { SubjectMetaLine } from "./SubjectMetaLine.js"
 
 const inlinePalette = (): InlinePalette => ({ text: colors.text, inlineCode: colors.inlineCode, link: colors.link, count: colors.count })
-
-// Pixel-column conversion accounts for the body box's paddingLeft={1}.
-const BODY_PADDING_LEFT = 1
 
 interface PreviewLine {
 	readonly segments: readonly CommentSegment[]
@@ -590,10 +587,10 @@ export const DetailBody = ({
 	pullRequest,
 	contentWidth,
 	bodyLines = DETAIL_BODY_LINES,
-	bodyLineLimit = bodyLines,
+	bodyLineLimit: _bodyLineLimit = bodyLines,
 	loadingIndicator,
-	themeId,
-	themeGeneration,
+	themeId: _themeId,
+	themeGeneration: _themeGeneration,
 	onLinkOpen,
 }: {
 	pullRequest: PullRequestItem
@@ -605,22 +602,6 @@ export const DetailBody = ({
 	themeGeneration: number
 	onLinkOpen?: (url: string) => void
 }) => {
-	const renderer = useRenderer()
-	const [hoveredUrl, setHoveredUrl] = useState<string | null>(null)
-
-	const previewLines = useMemo(
-		() => bodyPreview(pullRequest.body, contentWidth, bodyLineLimit, { issueReferenceRepository: pullRequest.repository }),
-		[pullRequest, contentWidth, bodyLineLimit, themeId, themeGeneration],
-	)
-
-	const urlPositions = useMemo(() => collectUrlPositions(previewLines), [previewLines])
-
-	useEffect(() => {
-		if (hoveredUrl === null) return
-		renderer.setMousePointer("pointer")
-		return () => renderer.setMousePointer("default")
-	}, [hoveredUrl, renderer])
-
 	if (!pullRequest.detailLoaded) {
 		const topRows = Math.max(0, Math.floor((bodyLines - 1) / 2))
 		const bottomRows = Math.max(0, bodyLines - topRows - 1)
@@ -633,35 +614,9 @@ export const DetailBody = ({
 		)
 	}
 
-	const handleMouseMove = function (this: BoxRenderable, event: MouseEvent) {
-		if (urlPositions.length === 0) return
-		const localX = event.x - this.x - BODY_PADDING_LEFT
-		const localY = event.y - this.y
-		const next = findUrlAt(urlPositions, localY, localX)
-		if (next !== hoveredUrl) setHoveredUrl(next)
-	}
-
-	const handleMouseOut = () => {
-		if (hoveredUrl !== null) setHoveredUrl(null)
-	}
-
-	const handleMouseDown = function (this: BoxRenderable, event: MouseEvent) {
-		if (!onLinkOpen || event.button !== 0) return
-		const localX = event.x - this.x - BODY_PADDING_LEFT
-		const localY = event.y - this.y
-		const url = findUrlAt(urlPositions, localY, localX)
-		if (url === null) return
-		event.stopPropagation()
-		onLinkOpen(url)
-	}
-
 	return (
-		<box flexDirection="column" height={previewLines.length} onMouseMove={handleMouseMove} onMouseOut={handleMouseOut} onMouseDown={handleMouseDown}>
-			{previewLines.map((line, index) => (
-				<PaddedRow key={`${pullRequest.url}-${index}`}>
-					<CommentSegmentsLine segments={line.segments} hoveredUrl={hoveredUrl} />
-				</PaddedRow>
-			))}
+		<box flexDirection="column" flexShrink={0} paddingLeft={1} paddingRight={1}>
+			<MarkdownBody body={pullRequest.body.trim() || "No description."} width={contentWidth} repository={pullRequest.repository} onLinkOpen={onLinkOpen} />
 		</box>
 	)
 }

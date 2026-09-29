@@ -73,6 +73,7 @@ const RawPullRequestSummaryFields = {
 	headRefOid: Schema.String,
 	headRefName: Schema.String,
 	baseRefName: Schema.String,
+	headRepository: Schema.optionalKey(Schema.NullOr(Schema.Struct({ nameWithOwner: Schema.String }))),
 } as const
 
 export const RawPullRequestSummaryNodeSchema = Schema.Struct({
@@ -337,6 +338,7 @@ const SUMMARY_FIELDS_FRAGMENT = `
         headRefOid
         headRefName
         baseRefName
+		headRepository { nameWithOwner }
 		repository { nameWithOwner defaultBranchRef { name } }`
 
 // Compose detail from summary — keeps the two in lock-step on field renames.
@@ -398,6 +400,18 @@ export const repositoryPullRequestsQuery = `
 query RepositoryPullRequests($owner: String!, $name: String!, $first: Int!, $after: String) {
   repository(owner: $owner, name: $name) {
     pullRequests(states: OPEN, first: $first, after: $after, orderBy: { field: UPDATED_AT, direction: DESC }) {
+      nodes {${SUMMARY_FIELDS_FRAGMENT}
+      }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+}
+`
+
+export const repositoryMergedPullRequestsQuery = `
+query RepositoryMergedPullRequests($owner: String!, $name: String!) {
+  repository(owner: $owner, name: $name) {
+    pullRequests(states: MERGED, first: 20, orderBy: { field: UPDATED_AT, direction: DESC }) {
       nodes {${SUMMARY_FIELDS_FRAGMENT}
       }
       pageInfo { hasNextPage endCursor }

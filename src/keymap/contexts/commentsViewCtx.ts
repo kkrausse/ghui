@@ -37,4 +37,6 @@ export const buildCommentsViewCtx = ({
 	confirmSelection: confirmCommentSelection,
 	editSelected: () => runCommandById("comments.edit"),
 	deleteSelected: () => runCommandById("comments.delete"),
+	copyLink: () => runCommandById("comments.copy-link"),
+	copyPullRequestUrl: () => runCommandById("pull.copy-url"),
 })

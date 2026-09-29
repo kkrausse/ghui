@@ -12,6 +12,7 @@ import { filterModalKeymap, type FilterModalCtx } from "./filterModal.ts"
 import { filterModeKeymap, type FilterModeCtx } from "./filterMode.ts"
 import { labelModalKeymap, type LabelModalCtx } from "./labelModal.ts"
 import { listNavKeymap, type ListNavCtx } from "./listNav.ts"
+import { markdownPreviewKeymap, type MarkdownPreviewCtx } from "./markdownPreview.ts"
 import { mergeModalKeymap, type MergeModalCtx } from "./mergeModal.ts"
 import { openRepositoryModalKeymap, type OpenRepositoryModalCtx } from "./openRepositoryModal.ts"
 import { pullRequestStateModalKeymap, type PullRequestStateModalCtx } from "./pullRequestStateModal.ts"
@@ -36,6 +37,7 @@ export interface AppCtx {
 	readonly commandPaletteActive: boolean
 	readonly filterMode: boolean
 	readonly diffFullView: boolean
+	readonly markdownPreviewActive: boolean
 	readonly runsFullView: boolean
 	readonly detailFullView: boolean
 	readonly commentsViewActive: boolean
@@ -60,6 +62,7 @@ export interface AppCtx {
 	readonly commandPalette: CommandPaletteCtx
 	readonly filterModeCtx: FilterModeCtx
 	readonly diff: DiffViewCtx
+	readonly markdownPreview: MarkdownPreviewCtx
 	readonly runs: RunsViewCtx
 	readonly detail: DetailViewCtx
 	readonly commentsView: CommentsViewCtx
@@ -126,7 +129,8 @@ export const appKeymap = App(
 	filterModeKeymap.scope((a) => a.filterMode && a.filterModeCtx),
 
 	// Full-view layers (only when no modal is on top)
-	diffViewKeymap.scope((a) => a.diffFullView && !modalActive(a) && a.diff),
+	markdownPreviewKeymap.scope((a) => a.diffFullView && a.markdownPreviewActive && !modalActive(a) && a.markdownPreview),
+	diffViewKeymap.scope((a) => a.diffFullView && !a.markdownPreviewActive && !modalActive(a) && a.diff),
 	runsViewKeymap.scope((a) => a.runsFullView && !modalActive(a) && a.runs),
 	detailViewKeymap.scope((a) => a.detailFullView && !modalActive(a) && a.detail),
 	commentsViewKeymap.scope((a) => a.commentsViewActive && !modalActive(a) && a.commentsView),

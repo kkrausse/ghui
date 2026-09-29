@@ -1,4 +1,5 @@
-import { useAtom, useAtomSet } from "@effect/atom-react"
+import { useAtom } from "@effect/atom-react"
+import { useRequest } from "../../hooks/useRequest.js"
 import type { MutableRefObject } from "react"
 import { config } from "../../config.js"
 import { useItemLoadMore } from "../../hooks/useItemLoadMore.js"
@@ -47,8 +48,8 @@ export const useLoadMore = ({
 	flashNotice,
 	setQueueLoadCache,
 }: UseLoadMoreInput): UseLoadMoreResult => {
-	const loadPullRequestPage = useAtomSet(listOpenPullRequestPageAtom, { mode: "promise" })
-	const writeQueueCache = useAtomSet(writeQueueCacheAtom, { mode: "promise" })
+	const loadPullRequestPage = useRequest(listOpenPullRequestPageAtom)
+	const writeQueueCache = useRequest(writeQueueCacheAtom)
 	const [loadingMoreKey, setLoadingMoreKey] = useAtom(loadingMoreKeyAtom)
 	const { loadMore, isLoadingMore, resetLoadingMore } = useItemLoadMore({
 		cacheKey: currentQueueCacheKey,

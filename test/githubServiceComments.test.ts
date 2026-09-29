@@ -9,19 +9,19 @@ interface RecordedCall {
 	readonly args: readonly string[]
 }
 
-const fakeCommandRunner = (response: string, recorder: RecordedCall[]) =>
+const fakeCommandRunner = (response: string | ((args: readonly string[]) => string), recorder: RecordedCall[]) =>
 	Layer.succeed(
 		CommandRunner,
 		CommandRunner.of({
 			run: (command, args) => {
 				recorder.push({ command, args: [...args] })
-				const result: CommandResult = { stdout: response, stderr: "", exitCode: 0 }
+				const result: CommandResult = { stdout: typeof response === "string" ? response : response(args), stderr: "", exitCode: 0 }
 				return Effect.succeed(result)
 			},
 			runSchema: <S extends Schema.Top>(schema: S, command: string, args: readonly string[]) => {
 				recorder.push({ command, args: [...args] })
 				return Effect.try({
-					try: () => JSON.parse(response) as unknown,
+					try: () => JSON.parse(typeof response === "string" ? response : response(args)) as unknown,
 					catch: (cause) => cause,
 				}).pipe(Effect.flatMap((value) => Schema.decodeUnknownEffect(schema)(value))) as Effect.Effect<S["Type"], never, S["DecodingServices"]>
 			},
@@ -109,19 +109,36 @@ describe("GitHubService list queries", () => {
 
 	test("repository PR list query omits expensive status checks", async () => {
 		const recorder: RecordedCall[] = []
-		const layer = GitHubService.layerNoDeps.pipe(Layer.provide(fakeCommandRunner(repositoryPullRequestListResponse, recorder)))
+		const mergedResponse = repositoryPullRequestListResponse
+			.replace('"number":42', '"number":41')
+			.replace('"state":"OPEN"', '"state":"MERGED"')
+			.replace('"merged":false', '"merged":true')
+		const layer = GitHubService.layerNoDeps.pipe(
+			Layer.provide(
+				fakeCommandRunner((args) => (args.some((arg) => arg.includes("query RepositoryMergedPullRequests")) ? mergedResponse : repositoryPullRequestListResponse), recorder),
+			),
+		)
 		const page = await runWith(
 			GitHubService.use((github) => github.listPullRequestPage({ kind: "pullRequest", mode: "all", repository: "owner/repo", cursor: null, pageSize: 1 })),
 			layer,
 		)
 
-		expect(page.items).toHaveLength(1)
+		expect(page.items).toHaveLength(2)
 		expect(page.items[0]!.checkStatus).toBe("none")
+		expect(page.items[1]!.state).toBe("merged")
+		expect(recorder.filter((call) => call.args.some((arg) => arg.includes("query RepositoryMergedPullRequests")))).toHaveLength(1)
+		expect(recorder.find((call) => call.args.some((arg) => arg.includes("query RepositoryMergedPullRequests")))?.args.join(" ")).toContain("states: MERGED, first: 20")
 		const call = operationCall(recorder)
 		const queryArg = call.args.find((arg) => arg.startsWith("query=")) ?? ""
 		expect(queryArg).not.toContain("statusCheckRollup")
 		expect(queryArg).not.toContain("contexts(first: 100)")
 		expect(call.args).toContain("first=1")
+		const nextPage = await runWith(
+			GitHubService.use((github) => github.listPullRequestPage({ kind: "pullRequest", mode: "all", repository: "owner/repo", cursor: "next", pageSize: 1 })),
+			layer,
+		)
+		expect(nextPage.items).toHaveLength(1)
+		expect(recorder.filter((call) => call.args.some((arg) => arg.includes("query RepositoryMergedPullRequests")))).toHaveLength(1)
 	})
 
 	test("classifies GitHub rate limit errors", () => {
@@ -140,6 +157,52 @@ describe("GitHubService list queries", () => {
 		)
 
 		expect(operationCall(recorder).args).toContain("1000")
+	})
+})
+
+describe("GitHubService fork checks", () => {
+	test("includes approval-gated workflows absent from the PR check rollup", async () => {
+		const calls: RecordedCall[] = []
+		const detail = JSON.parse(repositoryPullRequestListResponse).data.repository.pullRequests.nodes[0]
+		const responses = [
+			{ login: "kit" },
+			{
+				data: {
+					repository: {
+						pullRequest: {
+							...detail,
+							body: "",
+							labels: { nodes: [] },
+							additions: 0,
+							deletions: 0,
+							changedFiles: 0,
+							headRepository: { nameWithOwner: "contributor/repo" },
+							statusCheckRollup: { contexts: { nodes: [{ __typename: "CheckRun", name: "Greptile Review", status: "COMPLETED", conclusion: "SUCCESS" }] } },
+						},
+					},
+				},
+			},
+			[{ databaseId: 123, number: 1, status: "completed", conclusion: "action_required", workflowName: "CI", event: "pull_request", createdAt: "2026-01-01T00:00:00Z" }],
+		]
+		const runner = Layer.succeed(
+			CommandRunner,
+			CommandRunner.of({
+				run: () => Effect.die("unexpected run"),
+				runSchema: <S extends Schema.Top>(schema: S, command: string, args: readonly string[]) => {
+					calls.push({ command, args: [...args] })
+					return Schema.decodeUnknownEffect(schema)(responses[calls.length - 1]) as Effect.Effect<S["Type"], never, S["DecodingServices"]>
+				},
+			}),
+		)
+		const layer = GitHubService.layerNoDeps.pipe(Layer.provide(runner))
+		const pr = await runWith(
+			GitHubService.use((github) => github.getPullRequestDetails("owner/repo", 42)),
+			layer,
+		)
+		expect(pr.checkStatus).toBe("pending")
+		expect(pr.checkSummary).toBe("checks 1/2")
+		expect(pr.checks[1]?.name).toBe("CI (approval required)")
+		expect(calls[2]?.args).toContain("abc123")
 	})
 })
 

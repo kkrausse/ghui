@@ -3,7 +3,7 @@ import * as Atom from "effect/unstable/reactivity/Atom"
 import type { DiffCommentSide, PullRequestReviewComment } from "../../domain.js"
 import { loadStoredDiffWhitespaceMode } from "../../themeStore.js"
 import { GitHubService } from "../../services/GitHubService.js"
-import { githubRuntime } from "../../services/runtime.js"
+import { githubRequest, githubRuntime } from "../../services/runtime.js"
 import { parsePullRequestRevisionAtomKey, selectedPullRequestAtom } from "../pullRequests/atoms.js"
 import {
 	type DiffFilePatch,
@@ -24,6 +24,7 @@ export const diffScrollTopAtom = Atom.make(0)
 export const diffRenderViewAtom = Atom.make<DiffView>("split")
 export const diffWrapModeAtom = Atom.make<DiffWrapMode>("none")
 export const diffWhitespaceModeAtom = Atom.make<DiffWhitespaceMode>(initialDiffWhitespaceMode)
+export const diffMarkdownPreviewAtom = Atom.make(false)
 // Tri-state for the docked file panel. `null` means "auto" — visible whenever
 // the diff is in full-view AND the terminal is wide enough. Explicit `true` or
 // `false` is a sticky user override (toggled with shift+f) that survives
@@ -51,6 +52,16 @@ export const pullRequestReviewCommentsForRevision = Atom.family((revisionKey: st
 	const { repository, number } = parsePullRequestRevisionAtomKey(revisionKey, "review comments")
 	return githubRuntime.atom(GitHubService.use((github) => github.listPullRequestReviewComments(repository, number))).pipe(Atom.setIdleTTL(0))
 })
+
+export interface PullRequestFileContentInput {
+	readonly repository: string
+	readonly path: string
+	readonly ref: string
+}
+
+export const pullRequestFileContentRequest = githubRequest<PullRequestFileContentInput>()(({ repository, path, ref }) =>
+	GitHubService.use((github) => github.getFileContent(repository, path, ref)),
+)
 
 // === Derived selection atoms ===
 export const selectedDiffKeyAtom = Atom.make((get) => {

@@ -21,6 +21,8 @@ export interface DiffFilePatch {
 	readonly patch: string
 }
 
+export const isMarkdownFile = (path: string): boolean => /\.(?:md|markdown)$/i.test(path)
+
 export interface DiffFileStats {
 	readonly additions: number
 	readonly deletions: number
@@ -322,6 +324,9 @@ export const splitPatchFiles = (patch: string): readonly DiffFilePatch[] => {
 		return { name, filetype: pathToFiletype(name), patch: filePatch }
 	})
 }
+
+// The PR's live head, like the files endpoint the diff reads; a cached headRefOid lags pushes.
+export const pullRequestHeadRef = (pullRequest: PullRequestItem) => `refs/pull/${pullRequest.number}/head`
 
 export const pullRequestDiffKey = (pullRequest: PullRequestItem) => `${pullRequest.repository}#${pullRequest.number}:${pullRequest.headRefOid}`
 

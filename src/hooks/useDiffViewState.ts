@@ -5,6 +5,7 @@ import {
 	diffCommentThreadsAtom,
 	diffCommentsLoadedAtom,
 	diffFileIndexAtom,
+	diffMarkdownPreviewAtom,
 	diffPreferredSideAtom,
 	diffRenderViewAtom,
 	diffScrollTopAtom,
@@ -21,6 +22,7 @@ import {
 export const useDiffViewState = () => {
 	const [diffFileIndex, setDiffFileIndex] = useAtom(diffFileIndexAtom)
 	const [diffScrollTop, setDiffScrollTop] = useAtom(diffScrollTopAtom)
+	const [diffMarkdownPreview, setDiffMarkdownPreview] = useAtom(diffMarkdownPreviewAtom)
 	const [diffRenderView, setDiffRenderView] = useAtom(diffRenderViewAtom)
 	const diffWrapMode = useAtomValue(diffWrapModeAtom)
 	const diffWhitespaceMode = useAtomValue(diffWhitespaceModeAtom)
@@ -35,6 +37,8 @@ export const useDiffViewState = () => {
 		setDiffFileIndex,
 		diffScrollTop,
 		setDiffScrollTop,
+		diffMarkdownPreview,
+		setDiffMarkdownPreview,
 		diffRenderView,
 		setDiffRenderView,
 		diffWrapMode,

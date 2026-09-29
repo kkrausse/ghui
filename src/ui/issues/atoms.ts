@@ -12,7 +12,7 @@ import { freshIssueLoad } from "../../issueCache.js"
 import { type IssueView, initialIssueView, issueViewCacheKey, issueViewMode, issueViewRepository, issueViewToListInput, issueViewToQuery } from "../../issueViews.js"
 import { CacheService } from "../../services/CacheService.js"
 import { GitHubService } from "../../services/GitHubService.js"
-import { githubRuntime, pullRequestPageSize } from "../../services/runtime.js"
+import { githubRequest, githubRuntime, pullRequestPageSize } from "../../services/runtime.js"
 import { selectedRepositoryAtom, workspaceSurfaceAtom } from "../../workspace/atoms.js"
 import { effectiveFilterQueryAtom } from "../filter/atoms.js"
 import { filterByScore, issueFilterScore } from "../filter/scoring.js"
@@ -104,9 +104,9 @@ export const selectedIssueAtom = Atom.make((get): IssueItem | null => {
 	return issues[get(selectedIssueIndexAtom)] ?? null
 })
 
-export const listIssuePageAtom = githubRuntime.fn<ItemListInput<"issue">>()((input) => GitHubService.use((github) => github.listIssuePage(input)))
+export const listIssuePageAtom = githubRequest<ItemListInput<"issue">>()((input) => GitHubService.use((github) => github.listIssuePage(input)))
 
-export const writeIssueQueueAtom = githubRuntime.fn<{ readonly viewer: string; readonly load: IssueLoad }>()(({ viewer, load }) =>
+export const writeIssueQueueAtom = githubRequest<{ readonly viewer: string; readonly load: IssueLoad }>()(({ viewer, load }) =>
 	CacheService.use((cache) => cache.writeIssueQueue(viewer, load)),
 )
 
@@ -135,14 +135,14 @@ export const issueLoadMoreSlotAvailableAtom = Atom.make((get) => {
 	return !get(issueFetchInFlightAtom) && !filterActive && get(hasMoreIssuesAtom) && get(issueListAtom).length > 0
 })
 
-export const addIssueLabelAtom = githubRuntime.fn<{ readonly repository: string; readonly number: number; readonly label: string }>()((input) =>
+export const addIssueLabelAtom = githubRequest<{ readonly repository: string; readonly number: number; readonly label: string }>()((input) =>
 	GitHubService.use((github) => github.addIssueLabel(input.repository, input.number, input.label)),
 )
 
-export const removeIssueLabelAtom = githubRuntime.fn<{ readonly repository: string; readonly number: number; readonly label: string }>()((input) =>
+export const removeIssueLabelAtom = githubRequest<{ readonly repository: string; readonly number: number; readonly label: string }>()((input) =>
 	GitHubService.use((github) => github.removeIssueLabel(input.repository, input.number, input.label)),
 )
 
-export const closeIssueAtom = githubRuntime.fn<{ readonly repository: string; readonly number: number }>()((input) =>
+export const closeIssueAtom = githubRequest<{ readonly repository: string; readonly number: number }>()((input) =>
 	GitHubService.use((github) => github.closeIssue(input.repository, input.number)),
 )

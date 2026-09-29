@@ -8,8 +8,9 @@ import type { IssueList } from "../ui/IssueList.js"
 import { type PullRequestGroups, type PullRequestListRow, pullRequestListVisualLineCount } from "../ui/PullRequestList.js"
 import type { PullRequestList } from "../ui/PullRequestList.js"
 import type { RepoList, RepositoryListItem } from "../ui/RepoList.js"
-import { workspaceTabSeparatorColumns } from "../ui/WorkspaceTabs.js"
+import { workspaceTabSeparatorColumns, type WorkspaceSurfaceCounts } from "../ui/WorkspaceTabs.js"
 import type { WorkspaceSurface } from "../workspaceSurfaces.js"
+import type { WorkspaceTab } from "../workspaceTabs.js"
 
 export interface WorkspaceDerivationsInput {
 	readonly contentWidth: number
@@ -26,10 +27,12 @@ export interface WorkspaceDerivationsInput {
 	readonly runsFullView: boolean
 	readonly commentsViewActive: boolean
 	readonly activeWorkspaceSurface: WorkspaceSurface
-	readonly workspaceTabSurfaces: readonly WorkspaceSurface[]
+	readonly workspaceTabSurfaces: readonly WorkspaceTab[]
+	readonly selectedWorkspaceTab?: WorkspaceTab
 	readonly selectedPullRequest: PullRequestItem | null
 	readonly selectedIssue: IssueItem | null
 	readonly selectedRepository: string | null
+	readonly repositoryPullRequestSections: boolean
 	readonly selectedComments: readonly PullRequestComment[]
 	readonly selectedCommentsStatus: DetailCommentsStatus
 	readonly isSelectedPullRequestDetailLoading: boolean
@@ -103,7 +106,7 @@ export interface WorkspaceDerivations {
 	readonly narrowIssueListNeedsScroll: boolean
 	readonly repoListNeedsScroll: boolean
 	readonly narrowRepoListNeedsScroll: boolean
-	readonly workspaceTabCounts: { readonly repos: number; readonly pullRequests: number | string; readonly issues: number | string }
+	readonly workspaceTabCounts: WorkspaceSurfaceCounts
 	readonly filterPlaceholder: string
 	readonly workspaceTabJunctions: readonly number[]
 	readonly workspaceTopDividerJunctions: readonly { readonly at: number; readonly char: string }[]
@@ -132,6 +135,7 @@ export const computeWorkspaceDerivations = (input: WorkspaceDerivationsInput): W
 		selectedPullRequest,
 		selectedIssue,
 		selectedRepository,
+		repositoryPullRequestSections,
 		selectedComments,
 		selectedCommentsStatus,
 		isSelectedPullRequestDetailLoading,
@@ -220,6 +224,7 @@ export const computeWorkspaceDerivations = (input: WorkspaceDerivationsInput): W
 		onSelectLoadMore,
 		showTitle: false,
 		showRepositoryGroups: selectedRepository === null,
+		repositorySections: repositoryPullRequestSections,
 		compact: compactPullRequestRows,
 	} as const
 	const issueListProps = {
@@ -260,13 +265,17 @@ export const computeWorkspaceDerivations = (input: WorkspaceDerivationsInput): W
 	const narrowIssueListNeedsScroll = issuesStatus === "ready" && issueVisualLineCount > narrowIssueRowsHeight
 	const repoListNeedsScroll = repositoryItems.length > wideBodyHeight
 	const narrowRepoListNeedsScroll = repositoryItems.length > narrowRepoListHeight
-	const workspaceTabCounts = {
+	const workspaceTabCounts: WorkspaceSurfaceCounts = {
 		repos: repositoryItems.length,
-		pullRequests: hasMorePullRequests ? `${visiblePullRequests.length}+` : visiblePullRequests.length,
 		issues: hasMoreIssues ? `${issues.length}+` : issues.length,
 	}
+	if (selectedRepository || activeWorkspaceSurface === "pullRequests") {
+		workspaceTabCounts[selectedRepository ? "pullRequests" : (input.selectedWorkspaceTab ?? "pullRequests")] = hasMorePullRequests
+			? `${visiblePullRequests.length}+`
+			: visiblePullRequests.length
+	}
 	const filterPlaceholder = activeWorkspaceSurface === "pullRequests" ? "filter pull requests" : activeWorkspaceSurface === "issues" ? "filter issues" : "filter repositories"
-	const workspaceTabJunctions = workspaceTabSeparatorColumns(workspaceTabCounts, workspaceTabSurfaces)
+	const workspaceTabJunctions = workspaceTabSeparatorColumns(workspaceTabCounts, workspaceTabSurfaces, contentWidth)
 	// Three horizontal dividers, three junction sets. The diff file panel
 	// (when visible) introduces a vertical rail that starts at the top divider
 	// and stops at the pre-footer divider, so we add `┬` and `┴` at those

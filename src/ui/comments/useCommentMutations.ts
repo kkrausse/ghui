@@ -10,7 +10,7 @@ import {
 	editReviewCommentAtom,
 	replyToReviewCommentAtom,
 } from "./atoms.js"
-import { useAtomSet } from "@effect/atom-react"
+import { useRequest } from "../../hooks/useRequest.js"
 import type { CommentModalState, DeleteCommentModalState, FrozenCommentSubject } from "../modals.js"
 import { initialCommentModalState } from "../modals.js"
 
@@ -93,13 +93,13 @@ export interface UseCommentMutationsResult {
  * cache touches (diff thread map, issue commentCount).
  */
 export const useCommentMutations = (input: UseCommentMutationsInput): UseCommentMutationsResult => {
-	const createPullRequestComment = useAtomSet(createPullRequestCommentAtom, { mode: "promise" })
-	const createPullRequestIssueComment = useAtomSet(createPullRequestIssueCommentAtom, { mode: "promise" })
-	const replyToReviewComment = useAtomSet(replyToReviewCommentAtom, { mode: "promise" })
-	const editPullRequestIssueComment = useAtomSet(editPullRequestIssueCommentAtom, { mode: "promise" })
-	const editReviewComment = useAtomSet(editReviewCommentAtom, { mode: "promise" })
-	const deletePullRequestIssueComment = useAtomSet(deletePullRequestIssueCommentAtom, { mode: "promise" })
-	const deleteReviewComment = useAtomSet(deleteReviewCommentAtom, { mode: "promise" })
+	const createPullRequestComment = useRequest(createPullRequestCommentAtom)
+	const createPullRequestIssueComment = useRequest(createPullRequestIssueCommentAtom)
+	const replyToReviewComment = useRequest(replyToReviewCommentAtom)
+	const editPullRequestIssueComment = useRequest(editPullRequestIssueCommentAtom)
+	const editReviewComment = useRequest(editReviewCommentAtom)
+	const deletePullRequestIssueComment = useRequest(deletePullRequestIssueCommentAtom)
+	const deleteReviewComment = useRequest(deleteReviewCommentAtom)
 
 	const {
 		selectedCommentSubject,

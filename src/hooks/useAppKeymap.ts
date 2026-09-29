@@ -13,6 +13,7 @@ import type {
 import { canEditComment } from "../ui/comments/useCommentMutations.js"
 import type { RunsViewCtx } from "../keymap/runsView.js"
 import type { WorkspaceSurface } from "../workspaceSurfaces.js"
+import type { WorkspaceTab } from "../workspaceTabs.js"
 import { useKeymapWiring } from "./useKeymapWiring.js"
 import type { CommentEditorValue } from "../ui/commentEditor.js"
 
@@ -35,6 +36,7 @@ export interface UseAppKeymapInput {
 	readonly commandPaletteActive: boolean
 	readonly filterMode: boolean
 	readonly diffFullView: boolean
+	readonly markdownPreviewActive: boolean
 	readonly runsFullView: boolean
 	readonly detailFullView: boolean
 	readonly commentsViewActive: boolean
@@ -47,7 +49,7 @@ export interface UseAppKeymapInput {
 
 	// Surfaces
 	readonly activeWorkspaceSurface: WorkspaceSurface
-	readonly workspaceTabSurfaces: readonly WorkspaceSurface[]
+	readonly workspaceTabSurfaces: readonly WorkspaceTab[]
 
 	// Modal action handlers
 	readonly closeActiveModal: () => void
@@ -97,10 +99,16 @@ export interface UseAppKeymapInput {
 	readonly setDiffCommentRangeStartIndex: (next: number | null) => void
 	readonly runCommandById: (id: string, options?: { readonly notifyDisabled?: boolean }) => boolean
 	readonly openSelectedDiffComment: () => void
+	readonly copySelectedDiffLineLink: () => void
 	readonly moveDiffCommentAnchor: (delta: number, options?: { readonly preserveViewportRow?: boolean }) => void
 	readonly moveDiffCommentToBoundary: (boundary: "first" | "last") => void
 	readonly alignSelectedDiffCommentAnchor: (position: "top" | "center" | "bottom") => void
 	readonly selectDiffCommentSide: (side: DiffCommentSide) => void
+	readonly closeMarkdownPreview: () => void
+	readonly scrollMarkdownPreviewBy: (delta: number) => void
+	readonly scrollMarkdownPreviewTo: (y: number) => void
+	readonly copyMarkdownPreview: () => void
+	readonly reloadMarkdownPreview: () => void
 
 	// Detail actions
 	readonly scrollDetailFullViewBy: (delta: number) => void
@@ -137,7 +145,7 @@ export interface UseAppKeymapInput {
 	readonly openFilterModal: () => void
 	readonly goUpWorkspaceScope: () => boolean
 	readonly switchQueueMode: (delta: 1 | -1) => void
-	readonly switchWorkspaceSurface: (next: WorkspaceSurface) => void
+	readonly switchWorkspaceSurface: (next: WorkspaceTab) => void
 	readonly cycleWorkspaceSurface: (delta: 1 | -1) => void
 	readonly scrollDetailPreviewBy: (y: number) => void
 	readonly scrollDetailPreviewTo: (y: number) => void
@@ -192,6 +200,7 @@ export const useAppKeymap = (i: UseAppKeymapInput): void => {
 				commandPaletteActive: i.commandPaletteActive,
 				filterMode: i.filterMode,
 				diffFullView: i.diffFullView,
+				markdownPreviewActive: i.markdownPreviewActive,
 				runsFullView: i.runsFullView,
 				detailFullView: i.detailFullView,
 				commentsViewActive: i.commentsViewActive,
@@ -268,10 +277,19 @@ export const useAppKeymap = (i: UseAppKeymapInput): void => {
 				setDiffCommentRangeStartIndex: i.setDiffCommentRangeStartIndex,
 				runCommandById: i.runCommandById,
 				openSelectedDiffComment: i.openSelectedDiffComment,
+				copySelectedDiffLineLink: i.copySelectedDiffLineLink,
 				moveDiffCommentAnchor: i.moveDiffCommentAnchor,
 				moveDiffCommentToBoundary: i.moveDiffCommentToBoundary,
 				alignSelectedDiffCommentAnchor: i.alignSelectedDiffCommentAnchor,
 				selectDiffCommentSide: i.selectDiffCommentSide,
+			},
+			markdownPreview: {
+				halfPage: i.halfPage,
+				close: i.closeMarkdownPreview,
+				scrollBy: i.scrollMarkdownPreviewBy,
+				scrollTo: i.scrollMarkdownPreviewTo,
+				copy: i.copyMarkdownPreview,
+				reload: i.reloadMarkdownPreview,
 			},
 			runs: i.runsViewCtx,
 			detail: {

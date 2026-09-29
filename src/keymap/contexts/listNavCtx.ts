@@ -1,4 +1,5 @@
 import type { WorkspaceSurface } from "../../workspaceSurfaces.ts"
+import type { WorkspaceTab } from "../../workspaceTabs.js"
 import type { ListNavCtx } from "../listNav.ts"
 
 export interface BuildListNavCtxInput {
@@ -6,7 +7,7 @@ export interface BuildListNavCtxInput {
 	readonly visibleCount: number
 	readonly hasFilter: boolean
 	readonly activeSurface: WorkspaceSurface
-	readonly surfaces: readonly WorkspaceSurface[]
+	readonly surfaces: readonly WorkspaceTab[]
 	readonly canGoUpWorkspace: boolean
 	readonly canScrollDetailPreview: boolean
 	readonly runCommandById: (id: string) => void
@@ -17,7 +18,7 @@ export interface BuildListNavCtxInput {
 	readonly openFilterModal: () => void
 	readonly goUpWorkspace: () => void
 	readonly switchQueueMode: (delta: 1 | -1) => void
-	readonly switchWorkspaceSurface: (surface: WorkspaceSurface) => void
+	readonly switchWorkspaceSurface: (surface: WorkspaceTab) => void
 	readonly cycleWorkspaceSurface: (delta: 1 | -1) => void
 	readonly scrollDetailPreviewBy: (delta: number) => void
 	readonly scrollDetailPreviewTo: (line: number) => void

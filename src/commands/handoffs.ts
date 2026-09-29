@@ -25,6 +25,8 @@ type Handoff =
 	| "refreshIssues"
 	| "loadMorePullRequests"
 	| "openCommentsView"
+	| "previousConversationBlock"
+	| "nextConversationBlock"
 	| "openReplyToSelectedComment"
 	| "openEditSelectedComment"
 	| "openDeleteSelectedComment"
