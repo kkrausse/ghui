@@ -21,7 +21,7 @@ export interface UseKeymapWiringInput {
  */
 export const useKeymapWiring = ({ disabled, ctxInput, textInput }: UseKeymapWiringInput): void => {
 	const subscribe = useOpenTuiSubscribe()
-	const gatedSubscribe = useMemo<KeySubscribe>(() => (handler) => subscribe((stroke) => disabled || handler(stroke)), [disabled, subscribe])
+	const gatedSubscribe = useMemo<KeySubscribe>(() => (handler) => subscribe((stroke) => (disabled ? false : handler(stroke))), [disabled, subscribe])
 	useKeymap(appKeymap, buildAppCtx(ctxInput), gatedSubscribe)
 	useTextInputDispatcher({ ...textInput, disabled })
 }

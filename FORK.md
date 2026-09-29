@@ -6,6 +6,11 @@ proposed upstream later.
 
 ## Status
 
+The full Linear TUI has been copied into `src/linearWorkspace` and is being
+integrated as a native Linear tab. This migration is recorded in local checkpoint
+commits only: no push or publication. The original app is retained pending parity/security
+audits. See `plans/linear-workspace-migration.md` for scope and follow-up work.
+
 The URL-only pull request copy command and context-aware process title are
 implemented on the fork branch.
 
@@ -25,8 +30,9 @@ documents, or issue trackers.
   queue and pull request detail views.
 - Show a brief success notice after copying and preserve the existing clipboard
   error handling.
-- Add `Shift+Y` as the direct keyboard shortcut. `y` remains assigned to
-  **Copy pull request metadata**.
+- Add `Shift+Y` as the direct keyboard shortcut. In the queue, `y` remains
+  assigned to **Copy pull request metadata**. In description/comments, `y`
+  copies the selected conversation link; metadata remains in the palette.
 - Include the action in relevant footer hints without overcrowding narrow
   layouts.
 

@@ -1,13 +1,14 @@
 import { context } from "@ghui/keymap"
 import { countedVerticalBindings } from "./helpers.ts"
 import type { WorkspaceSurface } from "../workspaceSurfaces.ts"
+import type { WorkspaceTab } from "../workspaceTabs.js"
 
 export interface ListNavCtx {
 	readonly halfPage: number
 	readonly visibleCount: number
 	readonly hasFilter: boolean
 	readonly activeSurface: WorkspaceSurface
-	readonly surfaces: readonly WorkspaceSurface[]
+	readonly surfaces: readonly WorkspaceTab[]
 	readonly canGoUpWorkspace: boolean
 	readonly canScrollDetailPreview: boolean
 	readonly runCommandById: (id: string) => void
@@ -18,7 +19,7 @@ export interface ListNavCtx {
 	readonly openFilterModal: () => void
 	readonly goUpWorkspace: () => void
 	readonly switchQueueMode: (delta: 1 | -1) => void
-	readonly switchWorkspaceSurface: (surface: WorkspaceSurface) => void
+	readonly switchWorkspaceSurface: (surface: WorkspaceTab) => void
 	readonly cycleWorkspaceSurface: (delta: 1 | -1) => void
 	readonly scrollDetailPreviewBy: (delta: number) => void
 	readonly scrollDetailPreviewTo: (line: number) => void
@@ -50,6 +51,10 @@ export const listNavKeymap = List(
 	{ id: "workspace.first", title: "First surface", keys: ["1"], run: (s) => (surfaceAt(s, 0) ? s.switchWorkspaceSurface(surfaceAt(s, 0)!) : undefined) },
 	{ id: "workspace.second", title: "Second surface", keys: ["2"], run: (s) => (surfaceAt(s, 1) ? s.switchWorkspaceSurface(surfaceAt(s, 1)!) : undefined) },
 	{ id: "workspace.third", title: "Third surface", keys: ["3"], run: (s) => (surfaceAt(s, 2) ? s.switchWorkspaceSurface(surfaceAt(s, 2)!) : undefined) },
+	{ id: "workspace.fourth", title: "Fourth tab", keys: ["4"], run: (s) => (surfaceAt(s, 3) ? s.switchWorkspaceSurface(surfaceAt(s, 3)!) : undefined) },
+	{ id: "workspace.fifth", title: "Fifth tab", keys: ["5"], run: (s) => (surfaceAt(s, 4) ? s.switchWorkspaceSurface(surfaceAt(s, 4)!) : undefined) },
+	{ id: "workspace.sixth", title: "Sixth tab", keys: ["6"], run: (s) => (surfaceAt(s, 5) ? s.switchWorkspaceSurface(surfaceAt(s, 5)!) : undefined) },
+	{ id: "workspace.seventh", title: "Linear tab", keys: ["7"], run: (s) => (surfaceAt(s, 6) ? s.switchWorkspaceSurface(surfaceAt(s, 6)!) : undefined) },
 	{ id: "workspace.next-tab", title: "Next surface", keys: ["tab"], run: (s) => s.cycleWorkspaceSurface(1) },
 	{ id: "workspace.prev-tab", title: "Previous surface", keys: ["shift+tab"], run: (s) => s.cycleWorkspaceSurface(-1) },
 	{ id: "workspace.go-home", title: "Go home", keys: ["g h"], run: goHome },
@@ -80,6 +85,9 @@ export const listNavKeymap = List(
 	{ id: "list.copy-url", title: "Copy pull request link", keys: ["shift+y"], when: pullRequestsActive, run: (s) => s.runCommandById("pull.copy-url") },
 	{ id: "list.issue-copy", title: "Copy metadata", keys: ["y"], when: issuesActive, run: (s) => s.runCommandById("issue.copy-metadata") },
 	{ id: "list.detail.open", title: "Open selected", keys: ["return"], enabled: itemSelected, run: (s) => s.openSelection() },
+	{ id: "list.repository.right", title: "Open repository", keys: ["right"], when: reposActive, enabled: itemSelected, run: (s) => s.openSelection() },
+	{ id: "list.detail.right", title: "Open PR details", keys: ["right"], when: pullRequestsActive, enabled: itemSelected, run: (s) => s.runCommandById("detail.open") },
+	{ id: "workspace.left", title: "Go to repositories", keys: ["left"], when: (s) => s.canGoUpWorkspace, run: (s) => s.goUpWorkspace() },
 
 	// Escape goes one level up: clear local filter first, otherwise leave repo scope.
 	{

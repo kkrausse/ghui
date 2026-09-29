@@ -3,6 +3,9 @@ import type { MutableRefObject } from "react"
 import type { PullRequestItem } from "../domain.js"
 import { type CommentEditorValue } from "../ui/commentEditor.js"
 import type { CommentModalState, SubmitReviewModalState } from "../ui/modals/types.js"
+import { RegistryContext } from "@effect/atom-react"
+import { useContext } from "react"
+import { rememberLinkedPullRequestPage } from "../workspace/linearPullRequestNavigation.js"
 
 export interface UseImperativeActionsInput {
 	readonly contentWidth: number
@@ -63,44 +66,48 @@ export const useImperativeActions = ({
 	selectedPullRequest,
 	resetDiffLineColors,
 	loadPullRequestDiff,
-}: UseImperativeActionsInput): ImperativeActions => ({
-	scrollDetailPreviewBy: (y) => {
-		detailPreviewScrollRef.current?.scrollBy({ x: 0, y })
-	},
-	scrollDetailPreviewTo: (y) => {
-		detailPreviewScrollRef.current?.scrollTo({ x: 0, y })
-	},
-	scrollDetailFullViewBy: (delta) => {
-		detailScrollRef.current?.scrollBy({ x: 0, y: delta })
-		setDetailScrollOffset((current) => Math.max(0, current + delta))
-	},
-	scrollDetailFullViewTo: (y) => {
-		detailScrollRef.current?.scrollTo({ x: 0, y })
-		setDetailScrollOffset(y)
-	},
-	setCommentEditorValue: (body, cursor) => {
-		setCommentModal((current) => (current.body === body && current.cursor === cursor && current.error === null ? current : { ...current, body, cursor, error: null }))
-	},
-	editSubmitReview: (transform) => {
-		setSubmitReviewModal((current) => {
-			const next = transform({ body: current.body, cursor: current.cursor })
-			if (next.body === current.body && next.cursor === current.cursor && current.error === null) return current
-			return { ...current, body: next.body, cursor: next.cursor, error: null }
-		})
-	},
-	openDiffView: () => {
-		if (!selectedPullRequest) return
-		resetDiffLineColors()
-		setDiffFullView(true)
-		setDetailFullView(false)
-		setCommentsViewActive(false)
-		setDiffFileIndex(0)
-		setDiffScrollTop(0)
-		setDiffCommentAnchorIndex(0)
-		setDiffPreferredSide(null)
-		setDiffCommentRangeStartIndex(null)
-		setDiffRenderView(contentWidth >= 100 ? "split" : "unified")
-		diffScrollRef.current?.scrollTo({ x: 0, y: 0 })
-		loadPullRequestDiff(selectedPullRequest, { includeComments: true })
-	},
-})
+}: UseImperativeActionsInput): ImperativeActions => {
+	const registry = useContext(RegistryContext)
+	return {
+		scrollDetailPreviewBy: (y) => {
+			detailPreviewScrollRef.current?.scrollBy({ x: 0, y })
+		},
+		scrollDetailPreviewTo: (y) => {
+			detailPreviewScrollRef.current?.scrollTo({ x: 0, y })
+		},
+		scrollDetailFullViewBy: (delta) => {
+			detailScrollRef.current?.scrollBy({ x: 0, y: delta })
+			setDetailScrollOffset((current) => Math.max(0, current + delta))
+		},
+		scrollDetailFullViewTo: (y) => {
+			detailScrollRef.current?.scrollTo({ x: 0, y })
+			setDetailScrollOffset(y)
+		},
+		setCommentEditorValue: (body, cursor) => {
+			setCommentModal((current) => (current.body === body && current.cursor === cursor && current.error === null ? current : { ...current, body, cursor, error: null }))
+		},
+		editSubmitReview: (transform) => {
+			setSubmitReviewModal((current) => {
+				const next = transform({ body: current.body, cursor: current.cursor })
+				if (next.body === current.body && next.cursor === current.cursor && current.error === null) return current
+				return { ...current, body: next.body, cursor: next.cursor, error: null }
+			})
+		},
+		openDiffView: () => {
+			if (!selectedPullRequest) return
+			rememberLinkedPullRequestPage(registry, "diff")
+			resetDiffLineColors()
+			setDiffFullView(true)
+			setDetailFullView(false)
+			setCommentsViewActive(false)
+			setDiffFileIndex(0)
+			setDiffScrollTop(0)
+			setDiffCommentAnchorIndex(0)
+			setDiffPreferredSide(null)
+			setDiffCommentRangeStartIndex(null)
+			setDiffRenderView(contentWidth >= 100 ? "split" : "unified")
+			diffScrollRef.current?.scrollTo({ x: 0, y: 0 })
+			loadPullRequestDiff(selectedPullRequest, { includeComments: true })
+		},
+	}
+}

@@ -4,6 +4,10 @@ Terminal UI for keeping up with your open GitHub pull requests across repositori
 
 `ghui` gives you one keyboard-driven place to review PR details, inspect diffs, leave diff comments, manage labels, toggle draft state, merge, open PRs in GitHub, and copy PR metadata without leaving the terminal.
 
+PR descriptions and full comment/review threads render Markdown with OpenTUI's
+native renderer, the same component used by OpenCode. Headings, emphasis, lists,
+quotes, tables, and fenced code follow the active ghui theme.
+
 <img width="1420" height="856" alt="image" src="https://github.com/user-attachments/assets/5e560a4a-5887-4baa-a6d4-e1f4f0410c70" />
 
 ## Install
@@ -39,6 +43,28 @@ ghui
 ```
 
 ## Local Development
+
+### Local fork: experimental Linear workspace
+
+This checkout now includes a native **LINEAR** tab containing the migrated
+Linear TUI (inbox, My Issues, projects, search, details, editing, and comments).
+It shares GHUI's renderer; it does not launch another CLI. The original app in
+`kevin-scripts` remains untouched until migration audits are complete.
+
+- Click **LINEAR**, or press `7` from the home list (`3` in a repository).
+- `ctrl+left` / `ctrl+right` (or `ctrl+tab` / `ctrl+shift+tab` where supported)
+  switch host tabs. Plain `tab` remains Linear's pane-navigation key.
+- Finish or cancel a Linear picker/search input/composer before leaving its tab.
+- Linear credentials are resolved on the first visit, from `LINEAR_API_TOKEN`
+  or the local macOS Keychain item `linear-api-token`. No credential is bundled.
+- Setup: `ghui --linear-login`; removal: `ghui --linear-logout`. Source-mode
+  equivalents are `bun src/index.tsx --linear-login` / `--linear-logout`.
+- Current PR links still open in the browser. Nested PR child rows and direct
+  navigation into GHUI's PR workspace are a follow-up, not part of this first pass.
+
+This migration is local and unpushed. Company-specific fixtures/examples still
+require sanitization, source licensing/ownership review, and additional audits
+before public sharing. See `plans/linear-workspace-migration.md`.
 
 Clone, install, and link:
 
@@ -154,14 +180,22 @@ Requires the GitHub CLI (`gh`) the same as the rest of ghui; nothing extra to co
 
 ## Keybindings
 
+The home tabs are **Repos**, **My PRs**, **Review requested**, **Assigned PRs**,
+**Mentioned PRs**, and **Issues**. PR queues span all repositories; **Review
+requested** shows open PRs requesting your review. Inside a repository, the tabs
+are **Pull Requests** and **Issues**. Click a tab or use the shortcuts below.
+
 - `up` / `down`: move selection
 - `k` / `j`: move selection
+- `left` / `right`: navigate PR list ↔ PR details/description ↔ diff (no wrapping); inputs and modals keep their own arrow behavior
 - `gg` / `G`: jump to first or last pull request
 - `ctrl-u` / `ctrl-d`: page up or down
-- `tab` / `shift-tab`: switch PR queue
+- `tab` / `shift-tab`: switch top-level tabs
+- `1`–`6`: select a home tab by position (`1`–`2` inside a repository)
 - `ctrl-p` / `cmd-k`: open the command palette
 - `/`: filter
 - `enter`: expand details; normal PR actions still work while details are expanded
+- Expanded PR details show the description followed by the conversation in one scroll area. Use `↑` / `↓` or `j` / `k` to select the description or a comment; page keys and the wheel scroll independently. `y` copies the selected link, while `shift-y` always copies the PR link. `enter` on a comment opens the existing reply editor (also available as **Reply to comment** in the command palette). `c` opens the dedicated comments view at the selected comment for additional actions.
 - `esc`: return from expanded details, leave diff/comment mode, or close modal
 - `r`: refresh
 - `d`: view stacked diff for all changed files
@@ -170,10 +204,12 @@ Requires the GitHub CLI (`gh`) the same as the rest of ghui; nothing extra to co
 - `up` / `down` / `pageup` / `pagedown`: move comment target while viewing a diff
 - `enter`: open a commented diff line, or start a comment on an uncommented line
 - `v`: start or clear a multi-line diff comment range
+- `y`: copy a link to the selected diff line, or to the range selected with `v` and the movement keys
 - `n` / `p`: jump between diff comment threads
 - `f`: open the changed-files navigator while viewing a diff
-- `left` / `right`: choose the deleted or added side while in split diff comment mode
+- `h` / `l`: choose the deleted or added side while in split diff comment mode
 - `[` / `]`: switch files while viewing or commenting on a diff
+- `m`: preview the selected `.md` or `.markdown` file in a nearly full-height rendered Markdown dialog; drag to select rendered text, then press `y` / `cmd-c` to copy the selection (the complete source is copied when nothing is selected), and use `m` / `esc` to close
 - `shift-y`: copy only the selected pull request's GitHub link
 - `s`: toggle draft or ready-for-review state
 - `m`: merge
@@ -182,7 +218,7 @@ Requires the GitHub CLI (`gh`) the same as the rest of ghui; nothing extra to co
 - `l`: manage labels
 - `o`: open PR in browser
 - `e`: open PR in your editor (configurable; see `editorCommand` / `repoPaths`)
-- `y`: copy PR metadata
+- `y`: copy PR metadata in the list; copy the selected link in description/comments. **Copy pull request metadata** remains available in the command palette.
 - `q`: quit
 
 Authored-only pull request views render compact one-line rows because the

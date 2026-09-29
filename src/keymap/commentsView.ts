@@ -10,13 +10,17 @@ export interface CommentsViewCtx extends Scrollable {
 	readonly confirmSelection: () => void
 	readonly editSelected: () => void
 	readonly deleteSelected: () => void
+	readonly copyLink: () => void
+	readonly copyPullRequestUrl: () => void
 }
 
 const Comments = context<CommentsViewCtx>()
 
 export const commentsViewKeymap = Comments(
 	scrollCommands<CommentsViewCtx>(),
-	{ id: "comments-view.close", title: "Close comments", keys: ["escape", "c"], run: (s) => s.closeCommentsView() },
+	{ id: "comments-view.copy-link", title: "Copy comment link", keys: ["y"], run: (s) => s.copyLink() },
+	{ id: "comments-view.copy-pr-link", title: "Copy pull request link", keys: ["shift+y"], run: (s) => s.copyPullRequestUrl() },
+	{ id: "comments-view.close", title: "Close comments", keys: ["escape", "left", "c"], run: (s) => s.closeCommentsView() },
 	{ id: "comments-view.confirm", title: "Reply / new comment", keys: ["return"], run: (s) => s.confirmSelection() },
 	{ id: "comments-view.new", title: "New comment", keys: ["a"], run: (s) => s.newComment() },
 	{ id: "comments-view.open-browser", title: "Open in browser", keys: ["o"], run: (s) => s.openInBrowser() },

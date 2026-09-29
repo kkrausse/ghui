@@ -1,8 +1,9 @@
 import { RegistryContext, useAtom, useAtomSet, useAtomValue } from "@effect/atom-react"
-import { useRenderer, useTerminalDimensions } from "@opentui/react"
+import { useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/react"
 import * as AsyncResult from "effect/unstable/reactivity/AsyncResult"
 import { useContext, useEffect, useRef, useState } from "react"
 import type { AppCommand } from "../commands.js"
+import { errorMessage } from "../errors.js"
 import { parseRepositoryInput } from "../pullRequestViews.js"
 
 import { colors } from "../ui/colors.js"
@@ -50,7 +51,7 @@ import { useViewModeState } from "./useViewModeState.js"
 import { useFilterModal } from "../ui/filter/useFilterModal.js"
 import { DIFF_FILE_PANEL_AUTO_THRESHOLD, diffFilePanelOverrideAtom, selectedDiffKeyAtom, selectedDiffStateAtom } from "../ui/diff/atoms.js"
 import { runsFullViewAtom } from "../ui/runs/atoms.js"
-import { diffCommentThreadMapKey } from "../ui/diff/comments.js"
+import { diffCommentRangeSelection, diffCommentThreadMapKey } from "../ui/diff/comments.js"
 import { useDiffLineColors } from "../ui/diff/useDiffLineColors.js"
 import { useDiffLocationPreservation } from "../ui/diff/useDiffLocationPreservation.js"
 import { useDiffPrefetch } from "../ui/diff/useDiffPrefetch.js"
@@ -63,18 +64,27 @@ import { useCommandHandoffs } from "./useCommandHandoffs.js"
 import { useDiffCommentDerivations } from "./useDiffCommentDerivations.js"
 import { useDiffCommentNavigator } from "./useDiffCommentNavigator.js"
 import { useItemModalActions } from "../item/useItemModalActions.js"
-import { repositoryWorkspaceSurfaces, userWorkspaceSurfaces, type WorkspaceSurface } from "../workspaceSurfaces.js"
+import { repositoryWorkspaceSurfaces } from "../workspaceSurfaces.js"
+import { activeWorkspaceTab, userWorkspaceTabs, type WorkspaceTab } from "../workspaceTabs.js"
 import { detectedRepository, mockRepositoryCatalog, mockWorkspacePreferencesPath } from "../services/runtime.js"
+import { copyTextRequest } from "../services/clipboardRequest.js"
+import { diffLineUrl } from "../ui/diff/links.js"
 import { processTitleFor, setApplicationTitle } from "../processTitle.js"
+import { useRequest } from "./useRequest.js"
+import { useLinearPullRequestNavigation } from "./useLinearPullRequestNavigation.js"
 
 export interface UseAppShellInput {
 	readonly systemThemeGeneration: number
+	readonly linearNavigationLocked?: boolean
+	readonly linearNavigationLockRef?: { readonly current: boolean }
 }
 
-export const useAppShell = ({ systemThemeGeneration }: UseAppShellInput) => {
+export const useAppShell = ({ systemThemeGeneration, linearNavigationLocked = false, linearNavigationLockRef }: UseAppShellInput) => {
 	const renderer = useRenderer()
+	const copyText = useRequest(copyTextRequest)
 	const { width, height } = useTerminalDimensions()
 	const registry = useContext(RegistryContext)
+	const [activeWorkspaceSurface, setActiveWorkspaceSurface] = useAtom(workspaceSurfaceAtom)
 
 	const setQueueSelection = useAtomSet(queueSelectionAtom)
 	const [selectedIndex, setSelectedIndex] = useAtom(selectedIndexAtom)
@@ -106,6 +116,8 @@ export const useAppShell = ({ systemThemeGeneration }: UseAppShellInput) => {
 		setDiffFileIndex,
 		diffScrollTop,
 		setDiffScrollTop,
+		diffMarkdownPreview,
+		setDiffMarkdownPreview,
 		diffRenderView,
 		setDiffRenderView,
 		diffWrapMode,
@@ -121,6 +133,12 @@ export const useAppShell = ({ systemThemeGeneration }: UseAppShellInput) => {
 		setDiffCommentsLoaded,
 		setPullRequestDiffCache,
 	} = useDiffViewState()
+	useEffect(() => {
+		if (!diffFullView && diffMarkdownPreview) setDiffMarkdownPreview(false)
+	}, [diffFullView, diffMarkdownPreview, setDiffMarkdownPreview])
+	useEffect(() => {
+		renderer.clearSelection()
+	}, [diffMarkdownPreview, renderer])
 	const setPullRequestComments = useAtomSet(pullRequestCommentsAtom)
 	const setPullRequestCommentsLoaded = useAtomSet(pullRequestCommentsLoadedAtom)
 	const themeId = useAtomValue(themeIdAtom)
@@ -192,7 +210,7 @@ export const useAppShell = ({ systemThemeGeneration }: UseAppShellInput) => {
 	const terminalHeight = height ?? 24
 	const terminalTooSmall = isTerminalTooSmall(terminalWidth, terminalHeight)
 	const runsFullView = useAtomValue(runsFullViewAtom)
-	const showWorkspaceTabs = !detailFullView && !diffFullView && !runsFullView && !commentsViewActive
+	const showWorkspaceTabs = activeWorkspaceSurface === "linear" || (!detailFullView && !diffFullView && !runsFullView && !commentsViewActive)
 	const diffFilePanelOverride = useAtomValue(diffFilePanelOverrideAtom)
 	const setDiffFilePanelOverride = useAtomSet(diffFilePanelOverrideAtom)
 	// Effective panel visibility: the override (true/false) wins if set, else
@@ -221,10 +239,12 @@ export const useAppShell = ({ systemThemeGeneration }: UseAppShellInput) => {
 		diffPaneWidth,
 	} = layout
 	const refreshGenerationRef = useRef(0)
+	const [markdownPreviewReloadKey, setMarkdownPreviewReloadKey] = useState(0)
 	const {
 		detailScrollRef,
 		detailPreviewScrollRef,
 		diffScrollRef,
+		markdownPreviewScrollRef,
 		prListScrollRef,
 		issueListScrollRef,
 		prListScrollPersistedRef,
@@ -247,7 +267,6 @@ export const useAppShell = ({ systemThemeGeneration }: UseAppShellInput) => {
 		[],
 	)
 
-	const [activeWorkspaceSurface, setActiveWorkspaceSurface] = useAtom(workspaceSurfaceAtom)
 	const visibleFilterText = filterMode ? filterDraft : filterQuery
 	const username = AsyncResult.isSuccess(usernameResult) ? usernameResult.value : null
 
@@ -301,15 +320,15 @@ export const useAppShell = ({ systemThemeGeneration }: UseAppShellInput) => {
 		resetHydration,
 		selectPullRequestByUrl,
 	} = prSurface
-	const isInitialLoading = !startupLoadComplete && pullRequestStatus === "loading" && pullRequests.length === 0
+	const isInitialLoading = activeWorkspaceSurface !== "linear" && !startupLoadComplete && pullRequestStatus === "loading" && pullRequests.length === 0
 	const processTitle = processTitleFor({
 		repository: selectedRepository,
 		pullRequest: selectedPullRequest,
 		pullRequestFocused: activeWorkspaceSurface === "pullRequests" && (detailFullView || diffFullView || runsFullView || commentsViewActive),
 	})
 	useEffect(() => {
-		setApplicationTitle(processTitle)
-	}, [processTitle])
+		setApplicationTitle(activeWorkspaceSurface === "linear" ? "ghui — Linear" : processTitle)
+	}, [activeWorkspaceSurface, processTitle])
 
 	const issueSurface = useIssueSurface({
 		username,
@@ -351,7 +370,8 @@ export const useAppShell = ({ systemThemeGeneration }: UseAppShellInput) => {
 		if (!issueFetchInFlight && !isLoadingMoreIssues) refreshIssues()
 	}
 
-	const workspaceTabSurfaces: readonly WorkspaceSurface[] = selectedRepository ? repositoryWorkspaceSurfaces : userWorkspaceSurfaces
+	const workspaceTabSurfaces: readonly WorkspaceTab[] = selectedRepository ? repositoryWorkspaceSurfaces : userWorkspaceTabs
+	const selectedWorkspaceTab = activeWorkspaceTab(activeWorkspaceSurface, activeView, selectedRepository)
 	const repo = useRepoSurface({
 		pullRequests,
 		allIssues,
@@ -438,6 +458,8 @@ export const useAppShell = ({ systemThemeGeneration }: UseAppShellInput) => {
 	})
 
 	const { switchViewTo, switchQueueMode, switchWorkspaceSurface, cycleWorkspaceSurface, goUpWorkspaceScope } = useWorkspaceNavigation({
+		linearNavigationLocked,
+		...(linearNavigationLockRef ? { linearNavigationLockRef } : {}),
 		registry,
 		activeView,
 		activeViews,
@@ -488,7 +510,6 @@ export const useAppShell = ({ systemThemeGeneration }: UseAppShellInput) => {
 		},
 	})
 	const { loadPullRequestComments, loadIssueComments } = useCommentsLoader({
-		refreshGenerationRef,
 		readCommentsLoadState: () => registry.get(pullRequestCommentsLoadedAtom),
 		setPullRequestComments,
 		setPullRequestCommentsLoaded,
@@ -635,8 +656,9 @@ export const useAppShell = ({ systemThemeGeneration }: UseAppShellInput) => {
 
 	useDiffPrefetch({
 		pullRequest: selectedPullRequest,
-		skip: diffFullView,
-		onPrefetch: (pr) => loadPullRequestDiff(pr),
+		fullView: diffFullView,
+		diffState: selectedDiffState,
+		onPrefetch: (pr) => loadPullRequestDiff(pr, { includeComments: diffFullView }),
 	})
 
 	// j/k navigates the *visual* (threaded) order, not the raw load order — so
@@ -701,6 +723,15 @@ export const useAppShell = ({ systemThemeGeneration }: UseAppShellInput) => {
 		initialCommentModalState,
 		flashNotice,
 	})
+	const copySelectedDiffLineLink = () => {
+		if (!selectedPullRequest || !selectedDiffCommentAnchor) return
+		const range = diffCommentRangeActive ? diffCommentRangeSelection(diffCommentRangeStartAnchor, selectedDiffCommentAnchor) : null
+		const url = diffLineUrl(selectedPullRequest.url, selectedDiffCommentAnchor, range)
+		void copyText(url).then(
+			() => flashNotice(range && range.start.line !== range.end.line ? "Diff line range link copied" : "Diff line link copied"),
+			(cause) => flashNotice(errorMessage(cause)),
+		)
+	}
 	const {
 		syncDiffScrollState,
 		ensureDiffLineVisible,
@@ -842,6 +873,7 @@ export const useAppShell = ({ systemThemeGeneration }: UseAppShellInput) => {
 		flashNotice(`Opened ${repository}`)
 	}
 	usePasteRouter({
+		disabled: activeWorkspaceSurface === "linear",
 		renderer,
 		commandPaletteActive,
 		openRepositoryModalActive,
@@ -954,11 +986,40 @@ export const useAppShell = ({ systemThemeGeneration }: UseAppShellInput) => {
 			closeActiveModal()
 			return
 		}
+		if (diffMarkdownPreview) {
+			setDiffMarkdownPreview(false)
+			return
+		}
 		runCommandById("app.quit")
 	}
 
+	const openLinearGitHubLink = useLinearPullRequestNavigation(flashNotice, linearNavigationLocked, linearNavigationLockRef)
+	// Host owns digits outside Linear inputs/pickers; plain Tab stays pane navigation.
+	useKeyboard((key) => {
+		if (
+			activeWorkspaceSurface === "linear" &&
+			!(linearNavigationLockRef?.current ?? linearNavigationLocked) &&
+			!key.ctrl &&
+			!key.meta &&
+			activeModal._tag === "None" &&
+			!terminalTooSmall &&
+			/^[1-9]$/.test(key.sequence)
+		) {
+			const tab = workspaceTabSurfaces[Number(key.sequence) - 1]
+			if (tab) {
+				key.preventDefault()
+				switchWorkspaceSurface(tab)
+			}
+			return
+		}
+		if (!key.ctrl || activeModal._tag !== "None" || terminalTooSmall) return
+		if (key.name !== "tab" && key.name !== "left" && key.name !== "right") return
+		key.preventDefault()
+		cycleWorkspaceSurface(key.name === "left" || key.shift ? -1 : 1)
+	})
+
 	useAppKeymap({
-		disabled: terminalTooSmall,
+		disabled: terminalTooSmall || activeWorkspaceSurface === "linear",
 		closeModalActive,
 		pullRequestStateModalActive,
 		mergeModalActive,
@@ -1024,10 +1085,33 @@ export const useAppShell = ({ systemThemeGeneration }: UseAppShellInput) => {
 		setDiffCommentRangeStartIndex,
 		runCommandById,
 		openSelectedDiffComment,
+		copySelectedDiffLineLink,
 		moveDiffCommentAnchor,
 		moveDiffCommentToBoundary,
 		alignSelectedDiffCommentAnchor,
 		selectDiffCommentSide,
+		markdownPreviewActive: diffMarkdownPreview,
+		closeMarkdownPreview: () => setDiffMarkdownPreview(false),
+		scrollMarkdownPreviewBy: (delta) => markdownPreviewScrollRef.current?.scrollBy({ x: 0, y: delta }),
+		scrollMarkdownPreviewTo: (y) => markdownPreviewScrollRef.current?.scrollTo({ x: 0, y }),
+		reloadMarkdownPreview: () => {
+			setMarkdownPreviewReloadKey((key) => key + 1)
+			runCommandById("diff.reload")
+		},
+		copyMarkdownPreview: () => {
+			const selectedText = renderer.getSelection()?.getSelectedText() ?? ""
+			if (selectedText.length === 0) {
+				runCommandById("diff.copy-markdown-source")
+				return
+			}
+			void copyText(selectedText).then(
+				() => {
+					renderer.clearSelection()
+					flashNotice("Selection copied")
+				},
+				(cause) => flashNotice(errorMessage(cause)),
+			)
+		},
 		scrollDetailFullViewBy,
 		scrollDetailFullViewTo,
 		commentsRowCount,
@@ -1081,10 +1165,21 @@ export const useAppShell = ({ systemThemeGeneration }: UseAppShellInput) => {
 	})
 
 	if (isInitialLoading) {
-		return { isInitialLoading: true as const, terminalTooSmall, terminalWidth, terminalHeight, contentWidth, detailPlaceholderContent, loadingFrame }
+		return {
+			openLinearGitHubLink,
+			linearNavigationNotice: notice,
+			isInitialLoading: true as const,
+			terminalTooSmall,
+			terminalWidth,
+			terminalHeight,
+			contentWidth,
+			detailPlaceholderContent,
+			loadingFrame,
+		}
 	}
 
 	const derivations = computeWorkspaceDerivations({
+		selectedWorkspaceTab,
 		contentWidth,
 		isWideLayout,
 		leftPaneWidth,
@@ -1103,6 +1198,7 @@ export const useAppShell = ({ systemThemeGeneration }: UseAppShellInput) => {
 		selectedPullRequest,
 		selectedIssue,
 		selectedRepository,
+		repositoryPullRequestSections: activeView._tag === "Repository",
 		selectedComments,
 		selectedCommentsStatus,
 		isSelectedPullRequestDetailLoading,
@@ -1154,6 +1250,7 @@ export const useAppShell = ({ systemThemeGeneration }: UseAppShellInput) => {
 		longestDiffFileName: changedFilesModalActive ? readyDiffFiles.reduce((max, file) => Math.max(max, file.name.length), 0) : 0,
 		changedFilesModalActive,
 	})
+	const markdownPreviewWidth = Math.min(200, Math.max(48, terminalWidth - 4))
 	const commentAnchorLabel = ((): string => {
 		if (commentModalActive) {
 			if (commentModal.target.kind === "issue") return selectedCommentSubject ? `New comment on #${selectedCommentSubject.number}` : "New comment"
@@ -1194,7 +1291,10 @@ export const useAppShell = ({ systemThemeGeneration }: UseAppShellInput) => {
 		retryProgress,
 	})
 	return {
+		openLinearGitHubLink,
+		linearNavigationNotice: notice,
 		isInitialLoading: false as const,
+		quit: () => runCommandById("app.quit"),
 		terminalTooSmall,
 		terminalWidth,
 		terminalHeight,
@@ -1205,6 +1305,7 @@ export const useAppShell = ({ systemThemeGeneration }: UseAppShellInput) => {
 		workspaceTabSurfaces,
 		workspaceTabCounts,
 		activeWorkspaceSurface,
+		selectedWorkspaceTab,
 		switchWorkspaceSurface,
 		workspaceTopDividerJunctions,
 		workspaceBottomDividerJunctions,
@@ -1287,6 +1388,21 @@ export const useAppShell = ({ systemThemeGeneration }: UseAppShellInput) => {
 			// Picker takes over the docked panel when visible; suppressing the
 			// modal here keeps both presentations from rendering at once.
 			suppressChangedFilesModal: diffFilePanelVisible,
+			markdownPreview:
+				diffMarkdownPreview && selectedPullRequest && readyDiffFiles[diffFileIndex]
+					? {
+							pullRequest: selectedPullRequest,
+							path: readyDiffFiles[diffFileIndex]!.name,
+							modalWidth: markdownPreviewWidth,
+							modalHeight: Math.max(14, terminalHeight - 2),
+							offsetLeft: Math.max(0, Math.floor((terminalWidth - markdownPreviewWidth) / 2)),
+							offsetTop: 1,
+							scrollRef: markdownPreviewScrollRef,
+							reloadKey: markdownPreviewReloadKey,
+							showScrollbar: showScrollbars,
+							onLinkOpen: openInlineLink,
+						}
+					: null,
 		},
 	}
 }

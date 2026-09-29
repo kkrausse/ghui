@@ -14,12 +14,13 @@ import type { PullRequestLoad } from "../../pullRequestLoad.js"
 import { activePullRequestViews, initialPullRequestView, type PullRequestView, viewCacheKey, viewRepository, viewToListInput } from "../../pullRequestViews.js"
 import { CacheService } from "../../services/CacheService.js"
 import { GitHubService } from "../../services/GitHubService.js"
-import { githubRuntime, pullRequestPageSize } from "../../services/runtime.js"
+import { githubRequest, githubRuntime, pullRequestPageSize } from "../../services/runtime.js"
 import { effectiveFilterQueryAtom } from "../filter/atoms.js"
 import { filterByScore, pullRequestFilterScore } from "../filter/scoring.js"
 import { initialRetryProgress, RetryProgress } from "../FooterHints.js"
 import { selectedIndexAtom } from "../listSelection/atoms.js"
 import { groupBy } from "../pullRequests.js"
+import { linearPullRequestAtom } from "./linkedSelection.js"
 
 const MAX_REPOSITORY_CACHE_ENTRIES = 8
 
@@ -90,16 +91,12 @@ export const pullRequestsAtom = githubRuntime.atom(
 
 export const usernameAtom = githubRuntime.atom(GitHubService.use((github) => github.getAuthenticatedUser())).pipe(Atom.keepAlive)
 
-export const listOpenPullRequestPageAtom = githubRuntime.fn<ItemListInput<"pullRequest">>()((input) => GitHubService.use((github) => github.listPullRequestPage(input)))
+export const listOpenPullRequestPageAtom = githubRequest<ItemListInput<"pullRequest">>()((input) => GitHubService.use((github) => github.listPullRequestPage(input)))
 
-// Family of one atom per repository. The empty string is a sentinel "no
-// selection" — the atom resolves to null without hitting the service, so the
-// caller can read it unconditionally from React.
-//
-// These are singleton imperative actions; repository is their input value.
-export const readCachedRepositoryDetailsAtom = githubRuntime.fn<string>()((repository) => CacheService.use((cache) => cache.readRepositoryDetails(repository)))
-export const writeRepositoryDetailsAtom = githubRuntime.fn<RepositoryDetails>()((details) => CacheService.use((cache) => cache.writeRepositoryDetails(details)))
-export const fetchRepositoryDetailsAtom = githubRuntime.fn<string>()((repository) => GitHubService.use((github) => github.getRepositoryDetails(repository)))
+// Imperative request factories: every invocation owns its result atom.
+export const readCachedRepositoryDetailsAtom = githubRequest<string>()((repository) => CacheService.use((cache) => cache.readRepositoryDetails(repository)))
+export const writeRepositoryDetailsAtom = githubRequest<RepositoryDetails>()((details) => CacheService.use((cache) => cache.writeRepositoryDetails(details)))
+export const fetchRepositoryDetailsAtom = githubRequest<string>()((repository) => GitHubService.use((github) => github.getRepositoryDetails(repository)))
 
 // Background hydration of `repository_details` for the user's set of repos
 // (favorites + recents + cwd). Skips fetches for repos whose cached row is
@@ -190,29 +187,29 @@ export const pullRequestDetailsForRevision = Atom.family((revisionKey: string) =
 		.pipe(Atom.setIdleTTL(0)),
 )
 
-export const writeQueueCacheAtom = githubRuntime.fn<{ readonly viewer: string; readonly load: PullRequestLoad }>()(({ viewer, load }) =>
+export const writeQueueCacheAtom = githubRequest<{ readonly viewer: string; readonly load: PullRequestLoad }>()(({ viewer, load }) =>
 	CacheService.use((cache) => cache.writeQueue(viewer, load)),
 )
 export const pruneCacheAtom = githubRuntime.fn<void>()(() => CacheService.use((cache) => cache.prune()))
 
-export const addPullRequestLabelAtom = githubRuntime.fn<{ readonly repository: string; readonly number: number; readonly label: string }>()((input) =>
+export const addPullRequestLabelAtom = githubRequest<{ readonly repository: string; readonly number: number; readonly label: string }>()((input) =>
 	GitHubService.use((github) => github.addPullRequestLabel(input.repository, input.number, input.label)),
 )
-export const removePullRequestLabelAtom = githubRuntime.fn<{ readonly repository: string; readonly number: number; readonly label: string }>()((input) =>
+export const removePullRequestLabelAtom = githubRequest<{ readonly repository: string; readonly number: number; readonly label: string }>()((input) =>
 	GitHubService.use((github) => github.removePullRequestLabel(input.repository, input.number, input.label)),
 )
-export const toggleDraftAtom = githubRuntime.fn<{ readonly repository: string; readonly number: number; readonly isDraft: boolean }>()((input) =>
+export const toggleDraftAtom = githubRequest<{ readonly repository: string; readonly number: number; readonly isDraft: boolean }>()((input) =>
 	GitHubService.use((github) => github.toggleDraftStatus(input.repository, input.number, input.isDraft)),
 )
 
-export const getPullRequestMergeInfoAtom = githubRuntime.fn<{ readonly repository: string; readonly number: number }>()((input) =>
+export const getPullRequestMergeInfoAtom = githubRequest<{ readonly repository: string; readonly number: number }>()((input) =>
 	GitHubService.use((github) => github.getPullRequestMergeInfo(input.repository, input.number)),
 )
-export const getRepositoryMergeMethodsAtom = githubRuntime.fn<string>()((repository) => GitHubService.use((github) => github.getRepositoryMergeMethods(repository)))
-export const mergePullRequestAtom = githubRuntime.fn<{ readonly repository: string; readonly number: number; readonly action: PullRequestMergeAction }>()((input) =>
+export const getRepositoryMergeMethodsAtom = githubRequest<string>()((repository) => GitHubService.use((github) => github.getRepositoryMergeMethods(repository)))
+export const mergePullRequestAtom = githubRequest<{ readonly repository: string; readonly number: number; readonly action: PullRequestMergeAction }>()((input) =>
 	GitHubService.use((github) => github.mergePullRequest(input.repository, input.number, input.action)),
 )
-export const closePullRequestAtom = githubRuntime.fn<{ readonly repository: string; readonly number: number }>()((input) =>
+export const closePullRequestAtom = githubRequest<{ readonly repository: string; readonly number: number }>()((input) =>
 	GitHubService.use((github) => github.closePullRequest(input.repository, input.number)),
 )
 
@@ -307,7 +304,14 @@ export const displayedPullRequestsAtom = Atom.make((get) => {
 	const orphans = Object.values(recentlyCompleted).filter((pullRequest) => inScope(pullRequest) && !seenUrls.has(pullRequest.url))
 	// Sort by updatedAt DESC. Server already sorts this way, but pagination
 	// drift and merged orphans can scramble the order — guarantee it here.
-	return [...open, ...orphans].sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())
+	const sorted = [...open, ...orphans].sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())
+	if (view._tag !== "Repository") return sorted
+	let mergedCount = 0
+	return sorted.filter((pullRequest) => {
+		if (pullRequest.state === "closed") return false
+		if (pullRequest.state !== "merged") return true
+		return ++mergedCount <= 20
+	})
 })
 
 export const filteredPullRequestsAtom = Atom.make((get) => {
@@ -336,7 +340,19 @@ export const visibleRepoOrderAtom = Atom.make((get) => {
 		.map(([repo]) => repo)
 })
 
-export const visibleGroupsAtom = Atom.make((get) => groupBy(get(filteredPullRequestsAtom), (pullRequest) => pullRequest.repository, get(visibleRepoOrderAtom)))
+export const visibleGroupsAtom = Atom.make((get) => {
+	const pullRequests = get(filteredPullRequestsAtom)
+	const view = get(activeViewAtom)
+	const ordered =
+		view._tag === "Repository"
+			? [
+					...pullRequests.filter((pr) => pr.state === "open" && pr.reviewStatus !== "draft"),
+					...pullRequests.filter((pr) => pr.state === "open" && pr.reviewStatus === "draft"),
+					...pullRequests.filter((pr) => pr.state === "merged"),
+				]
+			: pullRequests
+	return groupBy(ordered, (pullRequest) => pullRequest.repository, get(visibleRepoOrderAtom))
+})
 
 export const visiblePullRequestsAtom = Atom.make((get) => get(visibleGroupsAtom).flatMap(([, pullRequests]) => pullRequests))
 
@@ -351,6 +367,8 @@ export const groupStartsAtom = Atom.make((get) => {
 })
 
 export const selectedPullRequestAtom = Atom.make((get) => {
+	const linked = get(linearPullRequestAtom)
+	if (linked) return get(pullRequestOverridesAtom)[linked.url] ?? linked
 	const pullRequests = get(visiblePullRequestsAtom)
 	const index = get(selectedIndexAtom)
 	return pullRequests[index] ?? null

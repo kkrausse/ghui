@@ -12,6 +12,7 @@ import { singleLineText } from "../ui/singleLineInput.js"
 import { usePasteHandler } from "../ui/usePasteHandler.js"
 
 export interface UsePasteRouterInput {
+	readonly disabled?: boolean
 	readonly renderer: { readonly keyInput: unknown }
 	readonly commandPaletteActive: boolean
 	readonly openRepositoryModalActive: boolean
@@ -39,6 +40,7 @@ export interface UsePasteRouterInput {
  * (e.g. the in-modal comment editor handles its own paste).
  */
 export const usePasteRouter = ({
+	disabled = false,
 	renderer,
 	commandPaletteActive,
 	openRepositoryModalActive,
@@ -58,6 +60,7 @@ export const usePasteRouter = ({
 	setFilterDraft,
 }: UsePasteRouterInput): void => {
 	const insertPastedText = (text: string): boolean => {
+		if (disabled) return false
 		if (text.length === 0) return false
 		if (commandPaletteActive) {
 			setCommandPalette((current) => ({ ...current, query: current.query + singleLineText(text), selectedIndex: 0 }))

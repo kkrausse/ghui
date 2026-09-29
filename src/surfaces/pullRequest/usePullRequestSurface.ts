@@ -41,6 +41,7 @@ import { useScrollPersistence } from "../../ui/useScrollPersistence.js"
 import { AUTO_REFRESH_JITTER_MS, FOCUS_RETURN_REFRESH_MIN_MS, FOCUSED_IDLE_REFRESH_MS } from "../../workspace/placeholders.js"
 import { selectedRepositoryAtom } from "../../workspace/atoms.js"
 import type { WorkspaceSurface } from "../../workspaceSurfaces.js"
+import { linearPullRequestAtom } from "../../ui/pullRequests/linkedSelection.js"
 
 type SetState<T> = (next: T | ((prev: T) => T)) => void
 
@@ -173,6 +174,7 @@ export const usePullRequestSurface = (input: UsePullRequestSurfaceInput): PullRe
 	const queueLoadCache = useAtomValue(queueLoadCacheAtom)
 	const setQueueLoadCache = useAtomSet(queueLoadCacheAtom)
 	const setPullRequestOverrides = useAtomSet(pullRequestOverridesAtom)
+	const setLinearPullRequest = useAtomSet(linearPullRequestAtom)
 	const setRecentlyCompletedPullRequests = useAtomSet(recentlyCompletedPullRequestsAtom)
 	const setPullRequestComments = useAtomSet(pullRequestCommentsAtom)
 	const setPullRequestCommentsLoaded = useAtomSet(pullRequestCommentsLoadedAtom)
@@ -239,6 +241,7 @@ export const usePullRequestSurface = (input: UsePullRequestSurfaceInput): PullRe
 		() =>
 			buildPullRequestListRows({
 				groups: visibleGroups,
+				repositorySections: activeView._tag === "Repository",
 				status: pullRequestStatus,
 				error: pullRequestError,
 				filterText: visibleFilterText,
@@ -247,7 +250,17 @@ export const usePullRequestSurface = (input: UsePullRequestSurfaceInput): PullRe
 				isLoadingMore: isLoadingMorePullRequests,
 				compact: compactPullRequestRows,
 			}),
-		[visibleGroups, pullRequestStatus, pullRequestError, visibleFilterText, loadedPullRequestCount, loadMoreSlotAvailable, isLoadingMorePullRequests, compactPullRequestRows],
+		[
+			visibleGroups,
+			activeView,
+			pullRequestStatus,
+			pullRequestError,
+			visibleFilterText,
+			loadedPullRequestCount,
+			loadMoreSlotAvailable,
+			isLoadingMorePullRequests,
+			compactPullRequestRows,
+		],
 	)
 	const selectedPullRequestRowIndex = pullRequestListRowIndex(pullRequestListRows, selectedPullRequest?.url ?? null, loadMoreRowSelected)
 
@@ -316,6 +329,7 @@ export const usePullRequestSurface = (input: UsePullRequestSurfaceInput): PullRe
 	const selectPullRequestByUrl = (url: string) => {
 		const index = visiblePullRequests.findIndex((pullRequest) => pullRequest.url === url)
 		if (index >= 0) {
+			setLinearPullRequest(null)
 			setSelectedIndex(index)
 			setQueueSelection((current) => ({ ...current, [currentQueueCacheKey]: index }))
 		}

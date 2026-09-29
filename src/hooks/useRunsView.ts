@@ -1,5 +1,5 @@
-import { useAtom, useAtomSet, useAtomValue } from "@effect/atom-react"
-import { useCallback, useMemo } from "react"
+import { RegistryContext, useAtom, useAtomSet, useAtomValue } from "@effect/atom-react"
+import { useCallback, useMemo, useContext } from "react"
 import * as AsyncResult from "effect/unstable/reactivity/AsyncResult"
 import type { PullRequestItem, WorkflowRun, WorkflowRunDetails } from "../domain.js"
 import type { RunsViewCtx } from "../keymap/runsView.js"
@@ -15,6 +15,7 @@ import {
 	workflowRunDetailsFor,
 } from "../ui/runs/atoms.js"
 import { failureRowIndices, flattenRunRows, type RunDetailRow } from "../ui/runs/runsRows.js"
+import { restoreLinkedPullRequestPage } from "../workspace/linearPullRequestNavigation.js"
 
 const clamp = (value: number, max: number) => Math.max(0, Math.min(value, Math.max(0, max)))
 
@@ -52,6 +53,7 @@ export const useRunsView = (selectedPullRequest: PullRequestItem | null, halfPag
 	const [runsSelection, setRunsSelection] = useAtom(runsListSelectionAtom)
 	const [detailSelection, setDetailSelection] = useAtom(runDetailSelectionAtom)
 	const openUrl = useAtomSet(openUrlAtom, { mode: "promise" })
+	const registry = useContext(RegistryContext)
 
 	const runsListKey = selectedPullRequest ? runsKey(selectedPullRequest) : null
 	const runsResult = useAtomValue(pullRequestRunsFor(runsListKey ?? "\u0000\u0000"))
@@ -68,7 +70,8 @@ export const useRunsView = (selectedPullRequest: PullRequestItem | null, halfPag
 	const closeRunsView = useCallback(() => {
 		setRunsFullView(false)
 		setSelectedRunId(null)
-	}, [setRunsFullView, setSelectedRunId])
+		restoreLinkedPullRequestPage(registry)
+	}, [setRunsFullView, setSelectedRunId, registry])
 
 	const backToList = useCallback(() => {
 		setSelectedRunId(null)

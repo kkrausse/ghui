@@ -24,7 +24,7 @@ export interface UseLoadingStatusInput {
 	readonly isLoadingMorePullRequests: boolean
 	readonly issueFetchInFlight: boolean
 	readonly isLoadingMoreIssues: boolean
-	readonly activeWorkspaceSurface: "pullRequests" | "issues" | "repos"
+	readonly activeWorkspaceSurface: "pullRequests" | "issues" | "repos" | "linear"
 	readonly selectedCommentsStatus: "idle" | "loading" | "ready" | "error"
 	readonly selectedDiffState: PullRequestDiffState | undefined
 	readonly labelModal: LabelModalState
@@ -110,10 +110,10 @@ export const useLoadingStatus = ({
 	}, [startupLoadComplete, pullRequestStatus, setStartupLoadComplete])
 
 	useEffect(() => {
-		if (pullRequestStatus !== "ready" || !selectedPullRequest) return
+		if (pullRequestStatus !== "ready" || selectedCommentsStatus !== "idle" || !selectedPullRequest) return
 		loadPullRequestComments(selectedPullRequest)
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [pullRequestStatus, selectedPullRequest?.url, selectedPullRequest?.headRefOid, selectedPullRequest?.repository, selectedPullRequest?.number])
+	}, [pullRequestStatus, selectedCommentsStatus, selectedPullRequest?.url, selectedPullRequest?.headRefOid, selectedPullRequest?.repository, selectedPullRequest?.number])
 
 	return {
 		selectedPullRequestDetailError,

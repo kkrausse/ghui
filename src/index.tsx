@@ -14,6 +14,11 @@ import { LoadingLogoPane } from "./ui/LoadingLogo.js"
 import { SPINNER_INTERVAL_MS } from "./ui/spinner.js"
 import { refreshApplicationTitle, setApplicationTitle } from "./processTitle.js"
 
+if (Bun.argv[2] === "--linear-login" || Bun.argv[2] === "--linear-logout") {
+	const { login, logout } = await import("./linearWorkspace/login.js")
+	process.exit(await (Bun.argv[2] === "--linear-login" ? login() : logout()))
+}
+
 process.env.OTUI_USE_ALTERNATE_SCREEN = "true"
 setApplicationTitle("ghui")
 

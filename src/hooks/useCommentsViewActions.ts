@@ -1,5 +1,8 @@
 import type { IssueItem, PullRequestComment, PullRequestItem } from "../domain.js"
 import { errorMessage } from "../errors.js"
+import { RegistryContext } from "@effect/atom-react"
+import { useContext } from "react"
+import { rememberLinkedPullRequestPage, restoreLinkedPullRequestPage } from "../workspace/linearPullRequestNavigation.js"
 
 interface OrderedComment {
 	readonly comment: PullRequestComment
@@ -48,6 +51,7 @@ export const useCommentsViewActions = ({
 	selectedIssue,
 	selectedPullRequest,
 	selectedComments,
+	orderedComments,
 	commentsViewSelection,
 	commentsRowCount,
 	selectedOrderedComment,
@@ -62,6 +66,7 @@ export const useCommentsViewActions = ({
 	openUrl,
 	flashNotice,
 }: UseCommentsViewActionsInput): CommentsViewActions => {
+	const registry = useContext(RegistryContext)
 	const openCommentsView = () => {
 		if (activeWorkspaceSurface === "issues") {
 			if (!selectedIssue) return
@@ -70,13 +75,22 @@ export const useCommentsViewActions = ({
 			if (!selectedPullRequest) return
 			loadPullRequestComments(selectedPullRequest, true)
 		}
+		rememberLinkedPullRequestPage(registry, "comments")
 		setCommentsViewActive(true)
 		setDetailFullView(false)
 		setDiffFullView(false)
-		setCommentsViewSelection(0)
+		setCommentsViewSelection(
+			Math.max(
+				0,
+				orderedComments.findIndex(({ comment }) => comment.id === selectedOrderedComment?.id),
+			),
+		)
 	}
 
-	const closeCommentsView = () => setCommentsViewActive(false)
+	const closeCommentsView = () => {
+		setCommentsViewActive(false)
+		restoreLinkedPullRequestPage(registry)
+	}
 
 	const moveCommentsSelection = (delta: number) =>
 		setCommentsViewSelection((current) => {

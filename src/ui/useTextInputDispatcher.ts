@@ -1,5 +1,6 @@
 import { useKeyboard } from "@opentui/react"
 import type { WorkspaceSurface } from "../workspaceSurfaces.js"
+import type { WorkspaceTab } from "../workspaceTabs.js"
 import { type CommentEditorValue, insertText } from "./commentEditor.js"
 import type { ChangedFilesModalState, CommandPaletteState, LabelModalState, OpenRepositoryModalState, SubmitReviewModalState, ThemeModalState } from "./modals.js"
 import { editSingleLineInput, isSingleLineInputKey, printableKeyText } from "./singleLineInput.js"
@@ -24,10 +25,10 @@ export interface UseTextInputDispatcherInput {
 	readonly themeModal: ThemeModalState
 	readonly submitReviewModal: SubmitReviewModalState
 
-	// Workspace surface tabs (for 1/2/3 numeric shortcuts)
-	readonly workspaceTabSurfaces: readonly WorkspaceSurface[]
+	// Workspace tabs (numeric shortcuts follow the visible order).
+	readonly workspaceTabSurfaces: readonly WorkspaceTab[]
 	readonly activeWorkspaceSurface: WorkspaceSurface
-	readonly switchWorkspaceSurface: (surface: WorkspaceSurface) => void
+	readonly switchWorkspaceSurface: (surface: WorkspaceTab) => void
 
 	// Per-modal text-input setters
 	readonly setCommandPalette: (next: CommandPaletteState | ((prev: CommandPaletteState) => CommandPaletteState)) => void
@@ -79,20 +80,13 @@ export const useTextInputDispatcher = (input: UseTextInputDispatcherInput): void
 			return
 		}
 
-		// Numeric tab shortcuts (1/2/3) — only active in list mode (no modal,
+		// Numeric tab shortcuts — only active in list mode (no modal,
 		// no full-view, no filter editing).
 		if (!input.filterMode && !input.detailFullView && !input.diffFullView && !input.commentsViewActive) {
 			const text = printableKeyText(key)
-			if (text === "1") {
-				input.switchWorkspaceSurface(input.workspaceTabSurfaces[0] ?? input.activeWorkspaceSurface)
-				return
-			}
-			if (text === "2") {
-				input.switchWorkspaceSurface(input.workspaceTabSurfaces[1] ?? input.activeWorkspaceSurface)
-				return
-			}
-			if (text === "3") {
-				input.switchWorkspaceSurface(input.workspaceTabSurfaces[2] ?? input.activeWorkspaceSurface)
+			if (text && /^[1-9]$/.test(text)) {
+				const tab = input.workspaceTabSurfaces[Number(text) - 1]
+				if (tab) input.switchWorkspaceSurface(tab)
 				return
 			}
 		}

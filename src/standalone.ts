@@ -9,10 +9,18 @@ Usage:
   ghui -v, --version
                     Print the installed version
   ghui -h, --help   Show this help message
+  ghui --linear-login
+                    Store a Linear API key in the local macOS Keychain
+  ghui --linear-logout
+                    Remove the locally stored Linear API key
 `
 
 const args = Bun.argv.slice(2)
 const command = args[0]
+if (command === "--linear-login" || command === "--linear-logout") {
+	const { login, logout } = await import("./linearWorkspace/login.js")
+	process.exit(await (command === "--linear-login" ? login() : logout()))
+}
 const commands = ["help", "version"]
 
 const editDistance = (a: string, b: string) => {

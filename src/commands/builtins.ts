@@ -6,9 +6,22 @@ import { Clipboard } from "../services/Clipboard.js"
 import { EditorOpener } from "../services/EditorOpener.js"
 import { GitHubService } from "../services/GitHubService.js"
 import { saveStoredDiffWhitespaceMode } from "../themeStore.js"
-import { commentsViewActiveAtom, selectedCommentKeyAtom } from "../ui/comments/atoms.js"
+import { commentsViewActiveAtom, selectedCommentKeyAtom, selectedOrderedCommentAtom } from "../ui/comments/atoms.js"
 import { detailFullViewAtom, detailScrollOffsetAtom } from "../ui/detail/atoms.js"
-import { diffCommentRangeStartIndexAtom, diffFullViewAtom, diffRenderViewAtom, diffWhitespaceModeAtom, diffWrapModeAtom } from "../ui/diff/atoms.js"
+import { linearPullRequestAtom } from "../ui/pullRequests/linkedSelection.js"
+import * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry"
+import { rememberLinkedPullRequestPage, restoreLinkedPullRequestPage } from "../workspace/linearPullRequestNavigation.js"
+import {
+	diffCommentRangeStartIndexAtom,
+	diffFileIndexAtom,
+	diffFullViewAtom,
+	diffMarkdownPreviewAtom,
+	diffRenderViewAtom,
+	diffWhitespaceModeAtom,
+	diffWrapModeAtom,
+	readyDiffFilesAtom,
+} from "../ui/diff/atoms.js"
+import { pullRequestHeadRef } from "../ui/diff.js"
 import { pullRequestRunsFor, runDetailSelectionAtom, runsFullViewAtom, runsKey, runsListSelectionAtom, selectedRunIdAtom } from "../ui/runs/atoms.js"
 import { filterDraftAtom, filterModeAtom, filterQueryAtom } from "../ui/filter/atoms.js"
 import { selectedIssueAtom } from "../ui/issues/atoms.js"
@@ -29,6 +42,9 @@ import {
 	diffCloseDisabledReasonAtom,
 	diffCommentAnchorSubtitleAtom,
 	diffFileSubtitleAtom,
+	diffMarkdownPreviewReasonAtom,
+	diffMarkdownPreviewSubtitleAtom,
+	diffMarkdownPreviewTitleAtom,
 	diffOpenCommentTargetTitleAtom,
 	diffOpenRequiredReasonAtom,
 	diffReloadDisabledReasonAtom,
@@ -94,7 +110,7 @@ const queueViewCommands = pullRequestQueueModes.map(
 		}),
 )
 
-const workspaceSurfaceCommands = workspaceSurfaces.map((surface, index): CommandDefinition => {
+const workspaceSurfaceCommands = workspaceSurfaces.map((surface): CommandDefinition => {
 	const subtitleAtom = workspaceSurfaceSubtitleAtom(surface)
 	const disabledAtom = workspaceSurfaceAlreadyActiveReasonAtom(surface)
 	return defineCommand({
@@ -102,7 +118,6 @@ const workspaceSurfaceCommands = workspaceSurfaces.map((surface, index): Command
 		title: `Show ${workspaceSurfaceLabels[surface]}`,
 		scope: "View",
 		subtitle: subtitleAtom,
-		shortcut: `${index + 1}`,
 		keywords: [workspaceSurfaceLabels[surface], "workspace", "surface", "tab"],
 		disabledReason: disabledAtom,
 		run: switchWorkspaceSurfaceEffect(surface),
@@ -115,6 +130,7 @@ function switchWorkspaceSurfaceEffect(surface: WorkspaceSurface) {
 		if (!allowed.includes(surface)) return
 		const current = yield* Atom.get(workspaceSurfaceAtom)
 		if (current === surface) return
+		yield* Atom.set(linearPullRequestAtom, null)
 		yield* Atom.set(workspaceSurfaceAtom, surface)
 		yield* Atom.set(detailFullViewAtom, false)
 		yield* Atom.set(diffFullViewAtom, false)
@@ -195,6 +211,10 @@ export const globalCommands: readonly CommandDefinition[] = [
 		run: Effect.gen(function* () {
 			yield* Atom.set(detailFullViewAtom, false)
 			yield* Atom.set(detailScrollOffsetAtom, 0)
+			if (yield* Atom.get(linearPullRequestAtom)) {
+				yield* Atom.set(linearPullRequestAtom, null)
+				yield* Atom.set(workspaceSurfaceAtom, "linear")
+			}
 		}),
 	}),
 	// === Diff render-mode toggles ===
@@ -202,6 +222,36 @@ export const globalCommands: readonly CommandDefinition[] = [
 	// they trigger by calling the "preserveDiffLocation" handoff *synchronously*
 	// before the atom write. The diff-location-preservation hook captured
 	// the pre-mutation anchor + screenOffset at that moment.
+	defineCommand({
+		id: "diff.toggle-markdown-preview",
+		title: diffMarkdownPreviewTitleAtom,
+		scope: "Diff",
+		subtitle: diffMarkdownPreviewSubtitleAtom,
+		shortcut: "m",
+		keywords: ["markdown", "rendered", "preview", "documentation", "docs"],
+		disabledReason: diffMarkdownPreviewReasonAtom,
+		run: Atom.update(diffMarkdownPreviewAtom, (active) => !active),
+	}),
+	defineCommand({
+		id: "diff.copy-markdown-source",
+		title: "Copy Markdown source",
+		scope: "Diff",
+		subtitle: diffMarkdownPreviewSubtitleAtom,
+		shortcut: "y",
+		keywords: ["markdown", "clipboard", "copy", "source"],
+		disabledReason: diffMarkdownPreviewReasonAtom,
+		run: Effect.gen(function* () {
+			const pr = yield* Atom.get(selectedPullRequestAtom)
+			const file = (yield* Atom.get(readyDiffFilesAtom))[yield* Atom.get(diffFileIndexAtom)]
+			if (!pr || !file) return
+			const content = yield* GitHubService.use((github) => github.getFileContent(pr.repository, file.name, pullRequestHeadRef(pr))).pipe(Effect.catch(flashErrorEffect))
+			if (content === undefined) return
+			yield* Clipboard.use((clipboard) => clipboard.copy(content)).pipe(
+				Effect.tap(() => Atom.set(noticeAtom, `Copied ${file.name}`)),
+				Effect.catch(flashErrorEffect),
+			)
+		}),
+	}),
 	defineCommand({
 		id: "diff.toggle-view",
 		title: "Toggle diff split/unified view",
@@ -251,11 +301,29 @@ export const globalCommands: readonly CommandDefinition[] = [
 		disabledReason: diffCloseDisabledReasonAtom,
 		run: Effect.gen(function* () {
 			yield* Atom.set(diffFullViewAtom, false)
+			yield* Atom.set(diffMarkdownPreviewAtom, false)
 			yield* Atom.set(diffCommentRangeStartIndexAtom, null)
+			restoreLinkedPullRequestPage(yield* AtomRegistry.AtomRegistry)
 		}),
 	}),
 
 	// === Runs cluster (per-PR workflow runs view) ===
+	defineCommand({
+		id: "diff.back-to-detail",
+		title: "Return to PR details",
+		scope: "Diff",
+		subtitle: "Return to the description, even when the diff was opened from the queue",
+		shortcut: "left",
+		disabledReason: diffCloseDisabledReasonAtom,
+		run: Effect.gen(function* () {
+			yield* Atom.set(detailFullViewAtom, true)
+			yield* Atom.set(diffFullViewAtom, false)
+			yield* Atom.set(diffMarkdownPreviewAtom, false)
+			yield* Atom.set(diffCommentRangeStartIndexAtom, null)
+			restoreLinkedPullRequestPage(yield* AtomRegistry.AtomRegistry)
+		}),
+	}),
+
 	defineCommand({
 		id: "runs.open",
 		title: "Open workflow runs",
@@ -267,6 +335,7 @@ export const globalCommands: readonly CommandDefinition[] = [
 		run: Effect.gen(function* () {
 			const pr = yield* Atom.get(selectedPullRequestAtom)
 			if (!pr) return
+			rememberLinkedPullRequestPage(yield* AtomRegistry.AtomRegistry, "runs")
 			yield* Atom.set(selectedRunIdAtom, null)
 			yield* Atom.set(runsListSelectionAtom, 0)
 			yield* Atom.set(runDetailSelectionAtom, 0)
@@ -286,6 +355,7 @@ export const globalCommands: readonly CommandDefinition[] = [
 		run: Effect.gen(function* () {
 			yield* Atom.set(runsFullViewAtom, false)
 			yield* Atom.set(selectedRunIdAtom, null)
+			restoreLinkedPullRequestPage(yield* AtomRegistry.AtomRegistry)
 		}),
 	}),
 	defineCommand({
@@ -519,7 +589,6 @@ export const globalCommands: readonly CommandDefinition[] = [
 		title: "Copy pull request metadata",
 		scope: "Pull request",
 		subtitle: selectedPullRequestLabelAtom,
-		shortcut: "y",
 		keywords: ["clipboard", "url", "title"],
 		disabledReason: noPullRequestReasonAtom,
 		run: Effect.gen(function* () {
@@ -554,7 +623,6 @@ export const globalCommands: readonly CommandDefinition[] = [
 		title: "Copy issue metadata",
 		scope: "Comments",
 		subtitle: selectedIssueLabelAtom,
-		shortcut: "y",
 		keywords: ["clipboard", "url", "title"],
 		disabledReason: issueSelectedReasonAtom,
 		run: Effect.gen(function* () {
@@ -733,7 +801,7 @@ export const globalCommands: readonly CommandDefinition[] = [
 		subtitle: diffCommentAnchorSubtitleAtom,
 		shortcut: "v",
 		disabledReason: selectedDiffLineReasonAtom,
-		keywords: ["review", "comment", "range", "visual"],
+		keywords: ["select", "selection", "lines", "review", "comment", "range", "visual"],
 		run: Effect.sync(() => invokeHandoff("toggleDiffCommentRange")),
 	}),
 	defineCommand({
@@ -768,11 +836,66 @@ export const globalCommands: readonly CommandDefinition[] = [
 
 	// === Comment mutations ===
 	defineCommand({
+		id: "conversation.previous",
+		title: "Select previous conversation block",
+		scope: "Comments",
+		disabledReason: Atom.make((get) => (get(detailFullViewAtom) && get(workspaceSurfaceAtom) === "pullRequests" ? null : "Open a pull request description first.")),
+		run: Effect.sync(() => invokeHandoff("previousConversationBlock")),
+	}),
+	defineCommand({
+		id: "conversation.next",
+		title: "Select next conversation block",
+		scope: "Comments",
+		disabledReason: Atom.make((get) => (get(detailFullViewAtom) && get(workspaceSurfaceAtom) === "pullRequests" ? null : "Open a pull request description first.")),
+		run: Effect.sync(() => invokeHandoff("nextConversationBlock")),
+	}),
+	defineCommand({
+		id: "conversation.confirm",
+		title: "Reply to selected comment / close description",
+		scope: "Comments",
+		disabledReason: detailCloseDisabledReasonAtom,
+		run: Effect.gen(function* () {
+			if (yield* Atom.get(selectedOrderedCommentAtom)) invokeHandoff("openReplyToSelectedComment")
+			else {
+				yield* Atom.set(detailFullViewAtom, false)
+				yield* Atom.set(detailScrollOffsetAtom, 0)
+			}
+		}),
+	}),
+	defineCommand({
+		id: "comments.copy-link",
+		title: "Copy selected conversation link",
+		scope: "Comments",
+		shortcut: "y",
+		keywords: ["clipboard", "permalink", "url"],
+		disabledReason: Atom.make((get) => (get(detailFullViewAtom) || get(commentsViewActiveAtom) ? get(noSelectedItemReasonAtom) : "Open description or comments first.")),
+		run: Effect.gen(function* () {
+			const comment = yield* Atom.get(selectedOrderedCommentAtom)
+			const inComments = yield* Atom.get(commentsViewActiveAtom)
+			const subject = yield* Atom.get(selectedCommentSubjectAtom)
+			const url = comment ? comment.url : inComments ? null : subject?.url
+			// API URLs are not shareable browser permalinks. Optimistic comments
+			// have no URL yet; never silently copy the PR URL in their place.
+			if (!url || !/^https?:\/\//.test(url) || (comment && !/#(?:issuecomment-|discussion_r|pullrequestreview-)\d+/.test(url))) {
+				yield* Atom.set(noticeAtom, "No comment permalink available yet")
+				return
+			}
+			const linkLabel = comment ? "Comment link" : (yield* Atom.get(workspaceSurfaceAtom)) === "issues" ? "Issue link" : "Pull request link"
+			// Give immediate feedback while the OS clipboard command runs. Changing
+			// the notice also restarts its lifetime when copying the same link again.
+			yield* Atom.set(noticeAtom, `Copying ${linkLabel.toLowerCase()}…`)
+			yield* Clipboard.use((clipboard) => clipboard.copy(url)).pipe(
+				Effect.tap(() => Atom.set(noticeAtom, `${linkLabel} copied`)),
+				Effect.catch(flashErrorEffect),
+			)
+		}),
+	}),
+	defineCommand({
 		id: "comments.reply",
 		title: "Reply to comment",
 		scope: "Comments",
 		subtitle: selectedItemLabelAtom,
-		shortcut: "shift-r",
+		shortcut: "enter",
 		disabledReason: selectedCommentReasonAtom,
 		keywords: ["respond", "thread"],
 		run: Effect.sync(() => invokeHandoff("openReplyToSelectedComment")),

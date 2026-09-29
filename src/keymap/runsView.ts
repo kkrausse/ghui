@@ -22,7 +22,7 @@ export interface RunsViewCtx {
 const Runs = context<RunsViewCtx>()
 
 export const runsViewKeymap = Runs(
-	{ id: "runs.escape", title: "Back / close runs", keys: ["escape"], run: (s) => s.handleEscape() },
+	{ id: "runs.escape", title: "Back / close runs", keys: ["escape", "left"], run: (s) => s.handleEscape() },
 	{ id: "runs.open", title: "Open run / expand log", keys: ["return", "right", "l"], run: (s) => s.openSelected() },
 
 	{ id: "runs.half-up", title: "Half page up", keys: ["pageup", "ctrl+u"], run: (s) => s.moveSelection(-s.halfPage) },

@@ -1,21 +1,26 @@
 import type { MutableRefObject } from "react"
 import type * as Atom from "effect/unstable/reactivity/Atom"
-import { useAtomSet } from "@effect/atom-react"
+import { useAtomRefresh, useAtomSet } from "@effect/atom-react"
+import * as AsyncResult from "effect/unstable/reactivity/AsyncResult"
 import { devLog } from "../devLog.js"
 import type { PullRequestItem } from "../domain.js"
 import { type PullRequestView, nextView, viewCacheKey, viewEquals } from "../pullRequestViews.js"
 import { issueViewForPullRequestView } from "../viewSync.js"
-import { type WorkspaceSurface, nextWorkspaceSurface } from "../workspaceSurfaces.js"
-import { queueSelectionAtom } from "../ui/pullRequests/atoms.js"
+import type { WorkspaceSurface } from "../workspaceSurfaces.js"
+import { activeWorkspaceTab, isQueueTab, nextWorkspaceTab, type WorkspaceTab } from "../workspaceTabs.js"
+import { pullRequestsAtom, queueSelectionAtom } from "../ui/pullRequests/atoms.js"
 import { recentRepositoriesAtom, workspaceScopeAtom } from "../workspace/atoms.js"
 import type { IssueView } from "../issueViews.js"
 import { workspaceScopeForRepository } from "../workspaceScope.js"
+import { linearPullRequestAtom } from "../ui/pullRequests/linkedSelection.js"
 
 interface AtomRegistryShape {
 	get<T>(atom: Atom.Atom<T>): T
 }
 
 export interface UseWorkspaceNavigationInput {
+	readonly linearNavigationLocked?: boolean
+	readonly linearNavigationLockRef?: { readonly current: boolean }
 	readonly registry: AtomRegistryShape
 	readonly activeView: PullRequestView
 	readonly activeViews: readonly PullRequestView[]
@@ -39,7 +44,7 @@ export interface UseWorkspaceNavigationInput {
 	readonly setRecentlyCompletedPullRequests: (next: Record<string, PullRequestItem>) => void
 	readonly setActiveWorkspaceSurface: (next: WorkspaceSurface) => void
 	readonly activeWorkspaceSurface: WorkspaceSurface
-	readonly workspaceTabSurfaces: readonly WorkspaceSurface[]
+	readonly workspaceTabSurfaces: readonly WorkspaceTab[]
 	readonly selectedRepository: string | null
 	readonly refreshGenerationRef: MutableRefObject<number>
 	readonly resetHydration: () => void
@@ -49,7 +54,7 @@ export interface UseWorkspaceNavigationInput {
 export interface WorkspaceNavigation {
 	readonly switchViewTo: (view: PullRequestView) => void
 	readonly switchQueueMode: (delta: 1 | -1) => void
-	readonly switchWorkspaceSurface: (surface: WorkspaceSurface) => void
+	readonly switchWorkspaceSurface: (surface: WorkspaceTab) => void
 	readonly cycleWorkspaceSurface: (delta: 1 | -1) => void
 	readonly goUpWorkspaceScope: () => boolean
 }
@@ -94,8 +99,11 @@ export const useWorkspaceNavigation = (input: UseWorkspaceNavigationInput): Work
 	} = input
 	const setRecentRepositories = useAtomSet(recentRepositoriesAtom)
 	const setWorkspaceScope = useAtomSet(workspaceScopeAtom)
+	const setLinearPullRequest = useAtomSet(linearPullRequestAtom)
+	const refreshPullRequests = useAtomRefresh(pullRequestsAtom)
 
 	const switchViewTo = (view: PullRequestView) => {
+		setLinearPullRequest(null)
 		devLog("switchViewTo:enter", { from: activeView, to: view, equal: viewEquals(view, activeView) })
 		if (viewEquals(view, activeView)) {
 			if (view.repository !== selectedRepository) setWorkspaceScope(workspaceScopeForRepository(view.repository))
@@ -124,13 +132,23 @@ export const useWorkspaceNavigation = (input: UseWorkspaceNavigationInput): Work
 		} else if (view.repository === null && selectedRepository !== null) {
 			setActiveWorkspaceSurface("repos")
 		}
+		// A settled runtime atom can retain its previous view after rapid
+		// switches. Restart only when reactive invalidation has not started
+		// a load for the newly selected queue.
+		const result = registry.get(pullRequestsAtom)
+		if (!result.waiting && AsyncResult.isSuccess(result) && !viewEquals(result.value.view, view)) refreshPullRequests()
 	}
 
 	const switchQueueMode = (delta: 1 | -1) => switchViewTo(nextView(activeView, activeViews, delta))
 
-	const switchWorkspaceSurface = (surface: WorkspaceSurface) => {
-		if (!workspaceTabSurfaces.includes(surface)) return
-		if (surface === activeWorkspaceSurface) return
+	const switchWorkspaceSurface = (tab: WorkspaceTab) => {
+		if (activeWorkspaceSurface === "linear" && (input.linearNavigationLockRef?.current ?? input.linearNavigationLocked)) return
+		if (tab !== "pullRequests" && !workspaceTabSurfaces.includes(tab)) return
+		setLinearPullRequest(null)
+		const surface = isQueueTab(tab) ? "pullRequests" : tab
+		if (isQueueTab(tab)) {
+			switchViewTo({ _tag: "Queue", mode: tab, repository: null })
+		} else if (surface === activeWorkspaceSurface) return
 		setActiveWorkspaceSurface(surface)
 		setDetailFullView(false)
 		setDiffFullView(false)
@@ -152,7 +170,8 @@ export const useWorkspaceNavigation = (input: UseWorkspaceNavigationInput): Work
 		// shrunk in the meantime.
 	}
 
-	const cycleWorkspaceSurface = (delta: 1 | -1) => switchWorkspaceSurface(nextWorkspaceSurface(activeWorkspaceSurface, delta, workspaceTabSurfaces))
+	const cycleWorkspaceSurface = (delta: 1 | -1) =>
+		switchWorkspaceSurface(nextWorkspaceTab(activeWorkspaceTab(activeWorkspaceSurface, activeView, selectedRepository), delta, workspaceTabSurfaces))
 
 	const goUpWorkspaceScope = (): boolean => {
 		if (!selectedRepository) return false

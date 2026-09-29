@@ -272,7 +272,19 @@ export const MockGitHubService = {
 		return Layer.succeed(
 			GitHubService,
 			GitHubService.of({
-				getPullRequestDetails: (repository, number) => Effect.succeed(findPullRequest(repository, number)),
+				getPullRequestDetails: (repository, number) => {
+					const item = findPullRequest(repository, number)
+					return Effect.succeed(
+						item.repository === repository && item.number === number
+							? item
+							: {
+									...item,
+									repository,
+									number,
+									url: `https://github.com/${repository}/pull/${number}`,
+								},
+					)
+				},
 				getRepositoryDetails: (repository: string) => {
 					const seed = Array.from(repository).reduce((acc, ch) => (acc * 31 + ch.charCodeAt(0)) >>> 0, 0)
 					const openIssueCount = issues.filter((issue) => issue.repository === repository).length
@@ -293,6 +305,8 @@ export const MockGitHubService = {
 				},
 				getAuthenticatedUser: () => Effect.succeed(username),
 				getPullRequestDiff: (repository, number) => Effect.succeed(fixturePullRequest(repository, number)?.diff ?? mockDiff),
+				getFileContent: (_repository, path, ref) =>
+					Effect.succeed(`# ${path}\n\nRendered Markdown preview from mock revision \`${ref}\`.\n\n- Complete file content\n- Native OpenTUI rendering\n`),
 				listWorkflowRunsForCommit: (repository, headSha) => Effect.succeed(mockWorkflowRuns(repository, headSha)),
 				getWorkflowRunDetails: (repository, runId) => {
 					for (const pr of [...items, ...userItems]) {
