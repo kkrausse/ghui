@@ -231,4 +231,22 @@ describe("item view atoms", () => {
 		const stdout = await runIsolatedProbe(probe)
 		expect(stdout).toBe("closed|0")
 	})
+
+	test("a summary override cannot hide a linked PR's loaded details", async () => {
+		const probe = `
+			import * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry"
+			import { pullRequestOverridesAtom, selectedPullRequestAtom } from "./src/ui/pullRequests/atoms.ts"
+			import { linearPullRequestAtom } from "./src/ui/pullRequests/linkedSelection.ts"
+			const registry = AtomRegistry.make()
+			const url = "https://github.com/owner/repo/pull/1"
+			const detail = { repository: "owner/repo", number: 1, url, body: "Body", labels: [], changedFiles: 3, detailLoaded: true, autoMergeEnabled: false }
+			registry.set(linearPullRequestAtom, detail)
+			// A queue summary written by an optimistic update or merge rollback.
+			registry.set(pullRequestOverridesAtom, { [url]: { ...detail, body: "", changedFiles: 0, detailLoaded: false, autoMergeEnabled: true } })
+			const selected = registry.get(selectedPullRequestAtom)
+			console.log([selected.detailLoaded, selected.body, selected.changedFiles, selected.autoMergeEnabled].join("|"))
+		`
+		const stdout = await runIsolatedProbe(probe)
+		expect(stdout).toBe("true|Body|3|true")
+	})
 })

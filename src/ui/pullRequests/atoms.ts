@@ -368,7 +368,13 @@ export const groupStartsAtom = Atom.make((get) => {
 
 export const selectedPullRequestAtom = Atom.make((get) => {
 	const linked = get(linearPullRequestAtom)
-	if (linked) return get(pullRequestOverridesAtom)[linked.url] ?? linked
+	if (linked) {
+		// Overrides copy queue rows, which may be summaries, and detail hydration
+		// never updates an override: keep the linked PR's details under it.
+		const override = get(pullRequestOverridesAtom)[linked.url]
+		if (!override) return linked
+		return override.detailLoaded || !linked.detailLoaded ? override : mergePullRequestDetail(override, linked)
+	}
 	const pullRequests = get(visiblePullRequestsAtom)
 	const index = get(selectedIndexAtom)
 	return pullRequests[index] ?? null
