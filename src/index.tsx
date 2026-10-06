@@ -3,8 +3,11 @@
 import { addDefaultParsers, createCliRenderer } from "@opentui/core"
 import { createRoot, useRenderer, useTerminalDimensions } from "@opentui/react"
 import { Effect } from "effect"
+import { appendFileSync, mkdirSync } from "node:fs"
 import { appendFile } from "node:fs/promises"
-import { useEffect, useState } from "react"
+import { homedir } from "node:os"
+import { dirname, join } from "node:path"
+import { Component, useEffect, useState, type ErrorInfo, type ReactNode } from "react"
 import { errorMessage } from "./errors.js"
 import { createSystemThemeReloader, type SystemThemeReloadEvent } from "./systemThemeReload.js"
 import { setTuiSuspender } from "./tuiSuspension.js"
@@ -82,7 +85,8 @@ const renderer = await createCliRenderer({
 	onDestroy: () => {
 		process.stdout.write(FOCUS_REPORTING_DISABLE)
 		setApplicationTitle("ghui")
-		process.exit(0)
+		if (crashMessage) process.stderr.write(crashMessage)
+		process.exit(crashMessage ? 1 : 0)
 	},
 })
 
@@ -181,4 +185,37 @@ globalThis.setTimeout(() => {
 	renderer.requestRender()
 }, 0)
 
-createRoot(renderer).render(<Bootstrap />)
+// OpenTUI's own boundary renders the error as text, which fails when the
+// failure is native text-buffer exhaustion; React then unmounts everything and
+// leaves a blank screen that ignores input. Log, restore the terminal, and exit.
+const CRASH_LOG = join(homedir(), ".cache", "ghui", "crash.log")
+let crashMessage: string | null = null
+
+class CrashBoundary extends Component<{ readonly children: ReactNode }, { readonly failed: boolean }> {
+	override state = { failed: false }
+
+	static getDerivedStateFromError() {
+		return { failed: true }
+	}
+
+	override componentDidCatch(error: unknown, info: ErrorInfo) {
+		try {
+			mkdirSync(dirname(CRASH_LOG), { recursive: true })
+			appendFileSync(CRASH_LOG, `${new Date().toISOString()} ${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n${info.componentStack ?? ""}\n\n`)
+		} catch {
+			// A broken log file must not block the exit.
+		}
+		crashMessage = `ghui crashed: ${errorMessage(error)}\nDetails: ${CRASH_LOG}\n`
+		globalThis.setTimeout(() => renderer.destroy(), 0)
+	}
+
+	override render() {
+		return this.state.failed ? null : this.props.children
+	}
+}
+
+createRoot(renderer).render(
+	<CrashBoundary>
+		<Bootstrap />
+	</CrashBoundary>,
+)

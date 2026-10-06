@@ -3,7 +3,7 @@ import { act, useState } from "react"
 import { testRender } from "@opentui/react/test-utils"
 import { createMockMouse } from "@opentui/core/testing"
 import { CodeRenderable, type Renderable, type ScrollBoxRenderable } from "@opentui/core"
-import { MarkdownBody } from "../src/ui/MarkdownBody.js"
+import { capTableRows, MarkdownBody } from "../src/ui/MarkdownBody.js"
 import { CommentsPane, ConversationSection, orderCommentsForDisplay } from "../src/ui/CommentsPane.js"
 import type { CommentLoadState } from "../src/ui/comments/loadState.js"
 import type { PullRequestComment } from "../src/domain.js"
@@ -194,4 +194,16 @@ test("comment selection reaches the add row after a tall Markdown body", async (
 	} finally {
 		await act(async () => setup.renderer.destroy())
 	}
+})
+
+test("caps long markdown tables and leaves code fences alone", () => {
+	const table = ["| file | cov |", "| --- | --- |", ...Array.from({ length: 80 }, (_, i) => `| f${i} | ${i}% |`)].join("\n")
+	const fenced = ["```", "| a | b |", "| --- | --- |", ...Array.from({ length: 80 }, () => "| x | y |"), "```"].join("\n")
+	const capped = capTableRows(`intro\n\n${table}\n\nafter\n\n${fenced}`, 50)
+	expect(capped).toContain("| f49 | 49% |")
+	expect(capped).not.toContain("| f50 | 50% |")
+	expect(capped).toContain("*… 30 more table rows not shown*")
+	expect(capped).toContain("after")
+	expect(capped.split("\n").filter((line) => line === "| x | y |")).toHaveLength(80)
+	expect(capTableRows(table, 100)).toBe(table)
 })

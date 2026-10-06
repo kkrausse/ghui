@@ -65,6 +65,33 @@ const linkLabels = (chunks: TextChunk[], links: { label: string; url: string }[]
 	})
 }
 
+// OpenTUI's grid table allocates a native text buffer per cell, and the native
+// pool runs out near 22k live buffers. Bot reports with 800-row tables exceed
+// that, React unmounts the whole app, and the screen goes blank.
+export const MAX_TABLE_ROWS = 50
+const TABLE_SEPARATOR_ROW = /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?$/
+const FENCE = /^\s*(```|~~~)/
+
+export const capTableRows = (body: string, maxRows = MAX_TABLE_ROWS): string => {
+	const lines = body.split("\n")
+	const out: string[] = []
+	let inFence = false
+	for (let index = 0; index < lines.length; index++) {
+		const line = lines[index]!
+		if (FENCE.test(line)) inFence = !inFence
+		out.push(line)
+		if (inFence || !line.includes("|") || !TABLE_SEPARATOR_ROW.test((lines[index + 1] ?? "").trim())) continue
+		out.push(lines[++index]!)
+		let rows = 0
+		while (index + 1 < lines.length && lines[index + 1]!.includes("|") && lines[index + 1]!.trim().length > 0) {
+			index++
+			if (rows++ < maxRows) out.push(lines[index]!)
+		}
+		if (rows > maxRows) out.push("", `*… ${rows - maxRows} more table rows not shown*`, "")
+	}
+	return out.join("\n")
+}
+
 /** OpenCode's Markdown renderer, using ghui's active (including system) palette. */
 export const MarkdownBody = ({
 	body,
@@ -151,6 +178,7 @@ export const MarkdownBody = ({
 		[palette],
 	)
 	useEffect(() => () => syntaxStyle.destroy(), [syntaxStyle])
+	const cappedBody = useMemo(() => capTableRows(body), [body])
 
 	return (
 		<markdown
@@ -167,7 +195,7 @@ export const MarkdownBody = ({
 					onLinkOpen(url)
 				}
 			}}
-			content={body}
+			content={cappedBody}
 			syntaxStyle={syntaxStyle}
 			fg={colors.text}
 			{...(width === undefined ? {} : { width: Math.max(1, width) })}
