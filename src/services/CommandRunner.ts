@@ -1,5 +1,6 @@
-import { Context, Effect, Layer, Schema } from "effect"
+import { Cause, Context, Effect, Exit, Layer, Schema } from "effect"
 import { config } from "../config.js"
+import { devLog } from "../devLog.js"
 import { errorMessage } from "../errors.js"
 import { classifyGitHubRateLimit } from "./githubRateLimit.js"
 
@@ -141,6 +142,19 @@ export class CommandRunner extends Context.Service<
 					Effect.withSpan("ghui.command.runProcess", {
 						attributes,
 					}),
+					Effect.onExit((exit) =>
+						Effect.sync(() =>
+							devLog("command", {
+								argv: [command, ...args].map((arg) => (arg.length > 80 ? `${arg.slice(0, 80)}…` : arg)),
+								ms: Date.now() - startedAt,
+								...(Exit.isSuccess(exit)
+									? { exitCode: exit.value.exitCode, ...(exit.value.exitCode === 0 ? {} : { stderr: exit.value.stderr.slice(0, 1000) }) }
+									: Cause.hasInterruptsOnly(exit.cause)
+										? { interrupted: true }
+										: { cause: Cause.pretty(exit.cause) }),
+							}),
+						),
+					),
 				)
 				if (result.exitCode !== 0) {
 					const detail = result.stderr.trim() || result.stdout.trim() || `exit code ${result.exitCode}`

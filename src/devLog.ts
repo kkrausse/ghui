@@ -1,49 +1,52 @@
-// Append-only JSONL trace logger for diagnosing live bugs in `bun run dev`.
+// Append-only rolling trace log, always on.
 //
-// Enabled by setting `GHUI_DEBUG_LOG=<path>`. The `dev` script in
-// `package.json` defaults this to `/tmp/ghui-debug.log` so developers get
-// a trace by default; production binaries never set the env var so this
-// module is a no-op there.
-//
-// Truncates the log at the first call per process so each session is
-// self-contained. Every call is `appendFileSync` to keep ordering stable
-// across React renders, Effect fibers, and the renderer event loop —
-// we want the trace to reflect actual execution order, not async-flushed
-// gibberish. Swallows all errors: a broken log file must never crash
-// the app.
+// Writes to `GHUI_DEBUG_LOG` if set, else `~/.cache/ghui/ghui.log`. When the
+// file passes 5 MB it is renamed to `<path>.1` (replacing the previous one),
+// so disk use stays under ~10 MB. Off under `bun test` unless the env var is
+// set. Every call is `appendFileSync` so the trace reflects real execution
+// order across React renders, Effect fibers, and the renderer event loop.
+// Swallows all errors: a broken log file must never crash the app.
 
-import { appendFileSync, writeFileSync } from "node:fs"
+import { appendFileSync, mkdirSync, renameSync, statSync } from "node:fs"
+import { homedir } from "node:os"
+import { dirname, join } from "node:path"
 
-const LOG_PATH = process.env.GHUI_DEBUG_LOG ?? null
+const MAX_BYTES = 5 * 1024 * 1024
 
-let initialized = false
-const ensureInit = () => {
-	if (initialized || !LOG_PATH) return
-	initialized = true
+export const devLogPath: string | null = process.env.GHUI_DEBUG_LOG ?? (process.env.NODE_ENV === "test" ? null : join(homedir(), ".cache", "ghui", "ghui.log"))
+
+let bytes = -1
+
+const write = (line: string) => {
+	if (!devLogPath) return
 	try {
-		writeFileSync(LOG_PATH, `=== ghui session ${new Date().toISOString()} pid=${process.pid} ===\n`)
+		if (bytes < 0) {
+			mkdirSync(dirname(devLogPath), { recursive: true })
+			bytes = statSync(devLogPath, { throwIfNoEntry: false })?.size ?? 0
+			line = `=== ghui session ${new Date().toISOString()} pid=${process.pid} ===\n${line}`
+		}
+		if (bytes > MAX_BYTES) {
+			renameSync(devLogPath, `${devLogPath}.1`)
+			bytes = 0
+		}
+		appendFileSync(devLogPath, line)
+		bytes += Buffer.byteLength(line)
 	} catch {
 		// no-op
 	}
 }
 
-export const devLogEnabled = LOG_PATH !== null
+const serialize = (data: unknown): string => {
+	if (data === undefined) return ""
+	if (data instanceof Error) return ` ${data.stack ?? data.message}`
+	try {
+		return ` ${JSON.stringify(data)}`
+	} catch {
+		return ` ${String(data)}`
+	}
+}
 
-// Cheap when disabled — early-return before any work. When enabled,
-// serialises `data` with a defensive fallback so circular objects
-// don't kill the call.
 export const devLog = (scope: string, data?: unknown): void => {
-	if (!LOG_PATH) return
-	ensureInit()
-	let body: string
-	try {
-		body = data === undefined ? "" : ` ${JSON.stringify(data)}`
-	} catch {
-		body = ` ${String(data)}`
-	}
-	try {
-		appendFileSync(LOG_PATH, `${new Date().toISOString()} [${scope}]${body}\n`)
-	} catch {
-		// no-op
-	}
+	if (!devLogPath) return
+	write(`${new Date().toISOString()} [${scope}]${serialize(data)}\n`)
 }

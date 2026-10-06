@@ -70,6 +70,7 @@ import { UpdateDetail } from "./ui/UpdateDetail.tsx"
 import { UpdateList } from "./ui/UpdateList.tsx"
 import { buildIssueRows, issuePullRequests, selectableIssueRows, reconcileIssueRow, type SelectableIssueRow } from "./issueRows.js"
 import { LinearLinkContext } from "./ui/Markdown.js"
+import { devLog } from "../devLog.js"
 
 const SIDEBAR_WIDTH = 26
 
@@ -250,6 +251,7 @@ export function App({
 	 */
 	const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 	const notify = useCallback((msg: string) => {
+		devLog("linear:notice", msg)
 		if (flashTimer.current) clearTimeout(flashTimer.current)
 		setFlash(msg)
 		flashTimer.current = setTimeout(() => setFlash(null), 3000)

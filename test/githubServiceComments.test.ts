@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { Effect, Layer, Schema } from "effect"
+import { Effect, Fiber, Layer, Schema } from "effect"
 import { CommandRunner, type CommandResult } from "../src/services/CommandRunner.ts"
 import { GitHubService } from "../src/services/GitHubService.ts"
 import { classifyGitHubRateLimit, isGitHubRateLimitError } from "../src/services/githubRateLimit.ts"
@@ -58,7 +58,7 @@ const runWith = <A>(effect: Effect.Effect<A, unknown, GitHubService>, layer: Lay
 	Effect.runPromise(effect.pipe(Effect.provide(layer)) as Effect.Effect<A>)
 
 const operationCall = (recorder: readonly RecordedCall[]) => {
-	expect(recorder.filter((call) => call.args[0] === "api" && call.args[1] === "user")).toHaveLength(1)
+	expect(recorder.filter((call) => call.args[0] === "api" && call.args[1] === "user").length).toBeLessThanOrEqual(1)
 	const call = recorder.find((call) => !(call.args[0] === "api" && call.args[1] === "user"))
 	if (!call) throw new Error("Expected a GitHub operation after authentication")
 	return call
@@ -104,6 +104,30 @@ describe("GitHubService list queries", () => {
 		)
 
 		expect(users).toEqual(["kit", "kit", "kit"])
+		expect(recorder.filter((call) => call.args[0] === "api" && call.args[1] === "user")).toHaveLength(1)
+	})
+
+	test("a canceled caller does not cancel the shared authenticated-user lookup", async () => {
+		const recorder: RecordedCall[] = []
+		const runner = fakeCommandRunner(JSON.stringify({ login: "kit" }), recorder)
+		const slowRunner = Layer.effect(
+			CommandRunner,
+			Effect.map(CommandRunner, (fake) => CommandRunner.of({ ...fake, runSchema: (schema, command, args) => Effect.delay(fake.runSchema(schema, command, args), "20 millis") })),
+		).pipe(Layer.provide(runner))
+		const layer = GitHubService.layerNoDeps.pipe(Layer.provide(slowRunner))
+		const user = await runWith(
+			GitHubService.use((github) =>
+				Effect.gen(function* () {
+					const first = yield* Effect.forkChild(github.getAuthenticatedUser())
+					yield* Effect.sleep("5 millis")
+					yield* Fiber.interrupt(first)
+					return yield* github.getAuthenticatedUser()
+				}),
+			),
+			layer,
+		)
+
+		expect(user).toBe("kit")
 		expect(recorder.filter((call) => call.args[0] === "api" && call.args[1] === "user")).toHaveLength(1)
 	})
 
@@ -165,7 +189,6 @@ describe("GitHubService fork checks", () => {
 		const calls: RecordedCall[] = []
 		const detail = JSON.parse(repositoryPullRequestListResponse).data.repository.pullRequests.nodes[0]
 		const responses = [
-			{ login: "kit" },
 			{
 				data: {
 					repository: {
@@ -202,7 +225,7 @@ describe("GitHubService fork checks", () => {
 		expect(pr.checkStatus).toBe("pending")
 		expect(pr.checkSummary).toBe("checks 1/2")
 		expect(pr.checks[1]?.name).toBe("CI (approval required)")
-		expect(calls[2]?.args).toContain("abc123")
+		expect(calls[1]?.args).toContain("abc123")
 	})
 })
 

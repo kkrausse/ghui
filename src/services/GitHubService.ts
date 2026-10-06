@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, Schema, Stream } from "effect"
+import { Context, Effect, Fiber, Layer, Schema, Stream } from "effect"
 import * as Option from "effect/Option"
 import { config } from "../config.js"
 import {
@@ -283,11 +283,28 @@ export class GitHubService extends Context.Service<
 				return detail
 			})
 
-			const authenticatedUser = yield* ghJson("getAuthenticatedUser", ViewerSchema, ["api", "user"]).pipe(
-				Effect.map((viewer) => viewer.login),
-				Effect.cachedWithTTL("5 minutes"),
-			)
-			const getAuthenticatedUser = () => authenticatedUser
+			// One detached lookup shared by all callers for 5 minutes. Callers only join
+			// it, so canceling one cannot cancel the lookup. (`Effect.cachedWithTTL` ran
+			// it in the first caller and cached that caller's interrupt for 5 minutes.)
+			let viewer: { readonly fiber: Fiber.Fiber<string, GitHubError>; readonly expiresAt: number } | null = null
+			const getAuthenticatedUser = () =>
+				Effect.gen(function* () {
+					if (!viewer || Date.now() >= viewer.expiresAt) {
+						const fiber = yield* ghJson("getAuthenticatedUser", ViewerSchema, ["api", "user"]).pipe(
+							Effect.map(({ login }) => login),
+							Effect.forkDetach,
+						)
+						viewer = { fiber, expiresAt: Date.now() + 5 * 60_000 }
+					}
+					const { fiber } = viewer
+					return yield* Fiber.join(fiber).pipe(
+						Effect.tapError(() =>
+							Effect.sync(() => {
+								if (viewer?.fiber === fiber) viewer = null
+							}),
+						),
+					)
+				})
 
 			const getRepositoryDetails = Effect.fn("GitHubService.getRepositoryDetails")(function* (repository: string) {
 				const repo = repositoryParts(repository)

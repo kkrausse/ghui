@@ -8,6 +8,7 @@ import { appendFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { dirname, join } from "node:path"
 import { Component, useEffect, useState, type ErrorInfo, type ReactNode } from "react"
+import { devLog } from "./devLog.js"
 import { errorMessage } from "./errors.js"
 import { createSystemThemeReloader, type SystemThemeReloadEvent } from "./systemThemeReload.js"
 import { setTuiSuspender } from "./tuiSuspension.js"
@@ -97,6 +98,9 @@ const renderer = await createCliRenderer({
 	},
 })
 process.stdout.write(EXTENDED_KEYS_ENABLE)
+// OpenTUI already handles these (it keeps running), so listening here only logs.
+process.on("uncaughtException", (error) => devLog("error:uncaughtException", error))
+process.on("unhandledRejection", (reason) => devLog("error:unhandledRejection", reason))
 
 // Let editor-launch (and any future hand-off) suspend the renderer so an
 // interactive subprocess (nvim, etc.) can own the terminal, then reacquire it.
@@ -209,6 +213,7 @@ class CrashBoundary extends Component<{ readonly children: ReactNode }, { readon
 	}
 
 	override componentDidCatch(error: unknown, info: ErrorInfo) {
+		devLog("error:render", { error: error instanceof Error ? (error.stack ?? error.message) : String(error), componentStack: info.componentStack })
 		try {
 			mkdirSync(dirname(CRASH_LOG), { recursive: true })
 			appendFileSync(CRASH_LOG, `${new Date().toISOString()} ${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n${info.componentStack ?? ""}\n\n`)

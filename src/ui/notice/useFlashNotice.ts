@@ -1,5 +1,6 @@
 import { useAtomSet } from "@effect/atom-react"
 import { useEffect, useRef } from "react"
+import { devLog } from "../../devLog.js"
 import { noticeAtom } from "./atoms.js"
 
 const NOTICE_TIMEOUT_MS = 2500
@@ -16,6 +17,7 @@ export const useFlashNotice = (): ((message: string) => void) => {
 	)
 
 	return (message: string) => {
+		devLog("notice", message)
 		if (timeoutRef.current !== null) clearTimeout(timeoutRef.current)
 		setNotice(message)
 		timeoutRef.current = globalThis.setTimeout(() => {

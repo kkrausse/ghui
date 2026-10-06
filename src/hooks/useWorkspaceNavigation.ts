@@ -144,6 +144,7 @@ export const useWorkspaceNavigation = (input: UseWorkspaceNavigationInput): Work
 	const switchWorkspaceSurface = (tab: WorkspaceTab) => {
 		if (activeWorkspaceSurface === "linear" && (input.linearNavigationLockRef?.current ?? input.linearNavigationLocked)) return
 		if (tab !== "pullRequests" && !workspaceTabSurfaces.includes(tab)) return
+		devLog("switchWorkspaceSurface", { from: activeWorkspaceSurface, to: tab })
 		setLinearPullRequest(null)
 		const surface = isQueueTab(tab) ? "pullRequests" : tab
 		if (isQueueTab(tab)) {

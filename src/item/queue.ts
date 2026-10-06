@@ -1,5 +1,6 @@
-import { Effect } from "effect"
+import { Cause, Effect } from "effect"
 import * as Atom from "effect/unstable/reactivity/Atom"
+import { devLog } from "../devLog.js"
 import type { ItemPage } from "../item.js"
 import type { ItemLoad } from "./load.js"
 
@@ -56,4 +57,8 @@ export const loadItemQueue = <View extends ItemQueueView, Item, Requirements>(
 		})
 		if (viewer) yield* adapter.writeCached(viewer, load)
 		return load
-	})
+	}).pipe(
+		Effect.tapCause((cause) =>
+			Effect.sync(() => (Cause.hasInterruptsOnly(cause) ? devLog("queue:interrupted", { view }) : devLog("queue:failed", { view, cause: Cause.pretty(cause) }))),
+		),
+	)

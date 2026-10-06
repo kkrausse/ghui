@@ -6,6 +6,7 @@
  * a dotfile. See README for the one-time `security add-generic-password` call.
  */
 import * as v from "valibot"
+import { devLog } from "../../devLog.js"
 
 export const LINEAR_ENDPOINT = "https://api.linear.app/graphql"
 
@@ -86,40 +87,47 @@ const GraphQLErrorsSchema = v.object({
  * errors rather than undefined field reads deep inside a render pass.
  */
 export async function gql<TSchema extends v.GenericSchema>(document: string, variables: Record<string, unknown>, schema: TSchema): Promise<v.InferOutput<TSchema>> {
-	const token = await resolveToken()
+	const startedAt = Date.now()
+	try {
+		const token = await resolveToken()
 
-	const res = await fetch(LINEAR_ENDPOINT, {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-			Authorization: token,
-			"User-Agent": "kevin-scripts-linear-tui/0.1",
-		},
-		body: JSON.stringify({ query: document, variables }),
-	})
+		const res = await fetch(LINEAR_ENDPOINT, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				Authorization: token,
+				"User-Agent": "kevin-scripts-linear-tui/0.1",
+			},
+			body: JSON.stringify({ query: document, variables }),
+		})
 
-	if (res.status === 401 || res.status === 403) {
-		throw new Error(`Linear rejected the token (HTTP ${res.status}). If you scoped it to specific ` + `teams, the data you requested may sit outside that scope.`)
+		if (res.status === 401 || res.status === 403) {
+			throw new Error(`Linear rejected the token (HTTP ${res.status}). If you scoped it to specific ` + `teams, the data you requested may sit outside that scope.`)
+		}
+
+		const raw: unknown = await res.json().catch(() => null)
+		if (raw === null) throw new Error(`Linear returned non-JSON (HTTP ${res.status})`)
+
+		const withErrors = v.safeParse(GraphQLErrorsSchema, raw)
+		if (withErrors.success && withErrors.output.errors?.length) {
+			throw new Error(withErrors.output.errors.map((e) => e.message).join("; "))
+		}
+
+		if (!res.ok) throw new Error(`Linear HTTP ${res.status}`)
+
+		const data = (raw as { data?: unknown }).data
+		const parsed = v.safeParse(schema, data)
+		if (!parsed.success) {
+			const first = parsed.issues[0]
+			const path = first?.path?.map((p) => String(p.key)).join(".") ?? "?"
+			throw new Error(`Unexpected Linear response at "${path}": ${first?.message}`)
+		}
+		return parsed.output
+	} catch (e) {
+		const operation = /^\s*(?:query|mutation)\s+(\w+)/.exec(document)?.[1] ?? "anonymous"
+		devLog("linear:failed", { operation, ms: Date.now() - startedAt, error: e instanceof Error ? e.message : String(e) })
+		throw e
 	}
-
-	const raw: unknown = await res.json().catch(() => null)
-	if (raw === null) throw new Error(`Linear returned non-JSON (HTTP ${res.status})`)
-
-	const withErrors = v.safeParse(GraphQLErrorsSchema, raw)
-	if (withErrors.success && withErrors.output.errors?.length) {
-		throw new Error(withErrors.output.errors.map((e) => e.message).join("; "))
-	}
-
-	if (!res.ok) throw new Error(`Linear HTTP ${res.status}`)
-
-	const data = (raw as { data?: unknown }).data
-	const parsed = v.safeParse(schema, data)
-	if (!parsed.success) {
-		const first = parsed.issues[0]
-		const path = first?.path?.map((p) => String(p.key)).join(".") ?? "?"
-		throw new Error(`Unexpected Linear response at "${path}": ${first?.message}`)
-	}
-	return parsed.output
 }
 
 /**
