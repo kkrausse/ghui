@@ -72,6 +72,12 @@ const buildPullRequest = (index: number, options: Required<MockOptions>): PullRe
 		state: "open",
 		reviewStatus: review,
 		...synthCheckSummary(passed, total),
+		reviewers:
+			review === "approved"
+				? [{ login: mockAuthor(index + 1), state: "approved" }]
+				: review === "changes"
+					? [{ login: mockAuthor(index + 1), state: "changes" }]
+					: [{ login: mockAuthor(index + 1), state: "requested" }],
 		autoMergeEnabled: index % 11 === 0,
 		detailLoaded: true,
 		createdAt,

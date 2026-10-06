@@ -21,6 +21,7 @@ export const mergeQueuePullRequest: PullRequestItem = {
 	checkStatus: "passing",
 	checkSummary: "checks 1/1",
 	checks: [{ name: "ci", status: "completed", conclusion: "success" }],
+	reviewers: [],
 	autoMergeEnabled: false,
 	detailLoaded: true,
 	createdAt: new Date("2026-08-21T12:00:00Z"),

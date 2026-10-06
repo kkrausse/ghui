@@ -22,6 +22,7 @@ const open: PullRequestItem = {
 	checkStatus: "passing",
 	checkSummary: "checks 5/5",
 	checks: [],
+	reviewers: [],
 	autoMergeEnabled: false,
 	detailLoaded: true,
 	createdAt: new Date("2026-01-01"),

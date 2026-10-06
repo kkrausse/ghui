@@ -81,8 +81,21 @@ export const RawPullRequestSummaryNodeSchema = Schema.Struct({
 	statusCheckRollup: Schema.optionalKey(Schema.NullOr(RawStatusCheckRollupSchema)),
 })
 
+const RawReviewConnectionSchema = Schema.Struct({ nodes: Schema.Array(Schema.Struct({ state: Schema.String, author: RawAuthorSchema })) })
+
 export const RawPullRequestNodeSchema = Schema.Struct({
 	...RawPullRequestSummaryFields,
+	latestOpinionatedReviews: Schema.optionalKey(Schema.NullOr(RawReviewConnectionSchema)),
+	latestReviews: Schema.optionalKey(Schema.NullOr(RawReviewConnectionSchema)),
+	reviewRequests: Schema.optionalKey(
+		Schema.NullOr(
+			Schema.Struct({
+				nodes: Schema.Array(
+					Schema.Struct({ requestedReviewer: Schema.NullOr(Schema.Struct({ login: Schema.optionalKey(Schema.String), name: Schema.optionalKey(Schema.String) })) }),
+				),
+			}),
+		),
+	),
 	body: Schema.String,
 	labels: Schema.Struct({ nodes: Schema.Array(RawLabelSchema) }),
 	additions: Schema.Number,
@@ -347,7 +360,10 @@ const DETAIL_FIELDS_FRAGMENT = `${SUMMARY_FIELDS_FRAGMENT}
 		additions
 		deletions
 		changedFiles
-		labels(first: 20) { nodes { name color } }${STATUS_CHECK_FRAGMENT}`
+		labels(first: 20) { nodes { name color } }
+		latestOpinionatedReviews(first: 50) { nodes { state author { login } } }
+		latestReviews(first: 50) { nodes { state author { login } } }
+		reviewRequests(first: 20) { nodes { requestedReviewer { ... on User { login } ... on Bot { login } ... on Mannequin { login } ... on Team { name } } } }${STATUS_CHECK_FRAGMENT}`
 
 export const pullRequestDetailQuery = `
 query PullRequest($owner: String!, $name: String!, $number: Int!) {

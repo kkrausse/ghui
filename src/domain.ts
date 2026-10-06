@@ -42,6 +42,14 @@ export type CheckRollupStatus = (typeof checkRollupStatuses)[number]
 export const reviewStatuses = ["draft", "approved", "changes", "review", "none"] as const
 export type ReviewStatus = (typeof reviewStatuses)[number]
 
+export const reviewerStates = ["approved", "changes", "commented", "dismissed", "requested"] as const
+export type ReviewerState = (typeof reviewerStates)[number]
+
+export interface PullRequestReviewer {
+	readonly login: string
+	readonly state: ReviewerState
+}
+
 export type Mergeable = "mergeable" | "conflicting" | "unknown"
 
 // DiffCommentSide is the only literal type still consumed at runtime — GitHubService
@@ -152,6 +160,7 @@ export interface PullRequestItem {
 	readonly checkStatus: CheckRollupStatus
 	readonly checkSummary: string | null
 	readonly checks: readonly CheckItem[]
+	readonly reviewers: readonly PullRequestReviewer[]
 	readonly autoMergeEnabled: boolean
 	readonly detailLoaded: boolean
 	readonly createdAt: Date

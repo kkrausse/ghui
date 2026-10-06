@@ -23,6 +23,7 @@ const samplePullRequest = (number: number): PullRequestItem => ({
 	checkStatus: "none",
 	checkSummary: null,
 	checks: [],
+	reviewers: [],
 	autoMergeEnabled: false,
 	detailLoaded: false,
 	createdAt: new Date(`2026-01-${String(number).padStart(2, "0")}T00:00:00Z`),

@@ -12,6 +12,7 @@ const cleanInfo: PullRequestMergeInfo = {
 	reviewStatus: "approved",
 	checkStatus: "passing",
 	checkSummary: "checks 5/5",
+	reviewers: [],
 	autoMergeEnabled: false,
 	viewerCanMergeAsAdmin: false,
 	mergeQueueEnabled: false,

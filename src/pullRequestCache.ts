@@ -31,6 +31,7 @@ export const mergePullRequestDetail = (summary: PullRequestItem, detail: PullReq
 	checkStatus: detail.checkStatus,
 	checkSummary: detail.checkSummary,
 	checks: detail.checks,
+	reviewers: detail.reviewers,
 	detailLoaded: true,
 })
 

@@ -1,7 +1,7 @@
 import { TextAttributes } from "@opentui/core"
 import { Fragment } from "react"
 import { formatRelativeDate } from "../date.js"
-import type { CheckItem, PullRequestComment, PullRequestItem, PullRequestLabel } from "../domain.js"
+import type { CheckItem, PullRequestComment, PullRequestItem, PullRequestLabel, PullRequestReviewer, ReviewerState } from "../domain.js"
 import { colors, type ThemeId } from "./colors.js"
 import { commentCountText, type CommentSegment } from "./comments.js"
 import { diffStatText } from "./diff.js"
@@ -420,8 +420,57 @@ const ChecksSection = ({ checks, contentWidth }: { checks: readonly CheckItem[];
 	)
 }
 
+const REVIEWER_DISPLAY: Record<ReviewerState, { icon: string; color: () => string }> = {
+	approved: { icon: "✓", color: () => colors.status.passing },
+	changes: { icon: "✗", color: () => colors.status.failing },
+	requested: { icon: "○", color: () => colors.status.pending },
+	commented: { icon: "·", color: () => colors.muted },
+	dismissed: { icon: "–", color: () => colors.muted },
+}
+const REVIEWER_ORDER: readonly ReviewerState[] = ["approved", "changes", "requested", "commented", "dismissed"]
+const REVIEWS_LABEL = "Reviews  "
+
+// Greedy-wrap reviewers into rows that fit beside the label column.
+export const reviewerRows = (reviewers: readonly PullRequestReviewer[], width: number): readonly (readonly PullRequestReviewer[])[] => {
+	const sorted = [...reviewers].sort((left, right) => REVIEWER_ORDER.indexOf(left.state) - REVIEWER_ORDER.indexOf(right.state))
+	const available = Math.max(1, width - REVIEWS_LABEL.length)
+	const rows: PullRequestReviewer[][] = [[]]
+	let used = 0
+	for (const reviewer of sorted) {
+		const entry = 2 + reviewer.login.length // "✓ login"
+		if (used > 0 && used + 2 + entry > available) {
+			rows.push([])
+			used = 0
+		}
+		used += (used > 0 ? 2 : 0) + entry
+		rows.at(-1)!.push(reviewer)
+	}
+	return rows
+}
+
+const ReviewersLine = ({ reviewers, first }: { reviewers: readonly PullRequestReviewer[]; first: boolean }) => (
+	<TextLine>
+		{first ? (
+			<span fg={colors.count} attributes={TextAttributes.BOLD}>
+				{REVIEWS_LABEL}
+			</span>
+		) : (
+			<span>{" ".repeat(REVIEWS_LABEL.length)}</span>
+		)}
+		{reviewers.length === 0 ? <span fg={colors.muted}>none yet</span> : null}
+		{reviewers.map((reviewer, index) => (
+			<Fragment key={reviewer.login}>
+				{index > 0 ? <span>{"  "}</span> : null}
+				<span fg={REVIEWER_DISPLAY[reviewer.state].color()}>{REVIEWER_DISPLAY[reviewer.state].icon} </span>
+				<span fg={reviewer.state === "approved" || reviewer.state === "changes" ? colors.text : colors.muted}>{reviewer.login}</span>
+			</Fragment>
+		))}
+	</TextLine>
+)
+
 interface DetailHeaderLayout {
 	readonly titleLines: number
+	readonly reviewRows: readonly (readonly PullRequestReviewer[])[]
 	readonly uniqueChecks: readonly CheckItem[]
 	readonly labelRows: readonly (readonly PullRequestLabel[])[]
 	readonly hasChecks: boolean
@@ -436,16 +485,18 @@ interface DetailHeaderLayout {
 const computeDetailHeaderLayout = (pullRequest: PullRequestItem, paneWidth: number, showChecks: boolean): DetailHeaderLayout => {
 	const titleLines = wrapText(pullRequest.title, Math.max(1, paneWidth - 2)).length
 	const labelRows = pullRequest.detailLoaded ? labelChipRows(pullRequest.labels, Math.max(1, paneWidth - 2)) : []
+	const reviewRows = pullRequest.detailLoaded ? reviewerRows(pullRequest.reviewers, Math.max(1, paneWidth - 2)) : []
 	const uniqueChecks = deduplicateChecks(pullRequest.checks)
 	const hasChecks = showChecks && (uniqueChecks.length > 0 || pullRequest.detailLoaded)
 	const checkRowsCount = uniqueChecks.length > 0 ? Math.ceil(uniqueChecks.length / 2) : 1
 	const checksHeight = hasChecks ? checkRowsCount + 1 : 0
 	const bottomDividerHeight = hasChecks ? 1 : 0
-	const headerDividerRow = titleLines + 2 + labelRows.length
+	const headerDividerRow = titleLines + 2 + reviewRows.length + labelRows.length
 	const bottomDividerRow = bottomDividerHeight === 1 ? headerDividerRow + checksHeight + 1 : -1
-	const headerHeight = titleLines + 3 + labelRows.length + checksHeight + bottomDividerHeight
+	const headerHeight = titleLines + 3 + reviewRows.length + labelRows.length + checksHeight + bottomDividerHeight
 	return {
 		titleLines,
+		reviewRows,
 		uniqueChecks,
 		labelRows,
 		hasChecks,
@@ -537,7 +588,7 @@ export const DetailHeader = ({
 }) => {
 	const wrappedTitle = wrapText(pullRequest.title, Math.max(1, paneWidth - 2))
 	const layout = computeDetailHeaderLayout(pullRequest, paneWidth, showChecks)
-	const { hasChecks, checkRowsCount, bottomDividerHeight, labelRows } = layout
+	const { hasChecks, checkRowsCount, bottomDividerHeight, labelRows, reviewRows } = layout
 	const statsText = diffStatText(pullRequest, loadingIndicator)
 	const commentsText = commentsStatus === "ready" && comments.length > 0 ? commentCountText(comments.length) : null
 	const opened = formatRelativeDate(pullRequest.createdAt)
@@ -565,6 +616,11 @@ export const DetailHeader = ({
 					<DiffStats pullRequest={pullRequest} loadingIndicator={loadingIndicator} />
 				</TextLine>
 			</PaddedRow>
+			{reviewRows.map((row, index) => (
+				<PaddedRow key={`reviews-${index}`}>
+					<ReviewersLine reviewers={row} first={index === 0} />
+				</PaddedRow>
+			))}
 			{labelRows.map((row, index) => (
 				<PaddedRow key={index}>
 					<TextLine>

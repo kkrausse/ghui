@@ -8,8 +8,10 @@ import {
 	type PullRequestItem,
 	type PullRequestMergeInfo,
 	type PullRequestReviewComment,
+	type PullRequestReviewer,
 	type RepositoryDetails,
 	type RepositoryMergeMethods,
+	type ReviewerState,
 	type ReviewStatus,
 	type RunConclusion,
 	runConclusions,
@@ -62,6 +64,30 @@ export const getReviewStatus = (item: { readonly isDraft: boolean; readonly revi
 	if (item.isDraft) return "draft"
 	if (item.reviewDecision) return REVIEW_STATUS_BY_DECISION[item.reviewDecision] ?? "none"
 	return "none"
+}
+
+const REVIEWER_STATE_BY_RAW: Record<string, ReviewerState> = {
+	APPROVED: "approved",
+	CHANGES_REQUESTED: "changes",
+	COMMENTED: "commented",
+	DISMISSED: "dismissed",
+}
+
+// Opinionated reviews keep an approval visible after the reviewer later
+// comments; a pending re-request outranks both, matching GitHub's sidebar.
+export const getReviewers = (item: RawPullRequestNode): readonly PullRequestReviewer[] => {
+	const author = item.author?.login
+	const states = new Map<string, ReviewerState>()
+	for (const review of [...(item.latestReviews?.nodes ?? []), ...(item.latestOpinionatedReviews?.nodes ?? [])]) {
+		const login = review.author?.login
+		const state = REVIEWER_STATE_BY_RAW[review.state]
+		if (login && state && login !== author) states.set(login, state)
+	}
+	for (const request of item.reviewRequests?.nodes ?? []) {
+		const login = request.requestedReviewer?.login ?? request.requestedReviewer?.name
+		if (login) states.set(login, "requested")
+	}
+	return [...states].map(([login, state]) => ({ login, state }))
 }
 
 const CHECK_STATUS_BY_RAW: Record<string, CheckItem["status"]> = {
@@ -191,6 +217,7 @@ export const parsePullRequestSummary = (item: RawPullRequestSummaryNode): PullRe
 		checkStatus: checkInfo.checkStatus,
 		checkSummary: checkInfo.checkSummary,
 		checks: checkInfo.checks,
+		reviewers: [],
 		autoMergeEnabled: item.autoMergeRequest !== null,
 		detailLoaded: false,
 		createdAt: new Date(item.createdAt),
@@ -215,6 +242,7 @@ export const parsePullRequest = (item: RawPullRequestNode): PullRequestItem => {
 		checkStatus: checkInfo.checkStatus,
 		checkSummary: checkInfo.checkSummary,
 		checks: checkInfo.checks,
+		reviewers: getReviewers(item),
 		detailLoaded: true,
 	}
 }

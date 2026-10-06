@@ -140,6 +140,7 @@ export const probeMergeFlow = async (options: {
 				confirmationCalls: calls.slice(callsBeforeConfirm),
 				state: pr.state,
 				reviewStatus: pr.reviewStatus,
+				reviewers: [],
 				autoMergeEnabled: pr.autoMergeEnabled,
 				pendingConfirm: modal.pendingConfirm,
 				errorFrame,

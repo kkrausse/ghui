@@ -45,6 +45,7 @@ const pullRequest = (number: number, overrides: Partial<PullRequestItem> = {}): 
 	checkStatus: "passing",
 	checkSummary: "1/1",
 	checks: [{ name: "ci", status: "completed", conclusion: "success" }],
+	reviewers: [],
 	autoMergeEnabled: false,
 	detailLoaded: true,
 	createdAt: new Date(`2026-01-${String(number).padStart(2, "0")}T00:00:00Z`),

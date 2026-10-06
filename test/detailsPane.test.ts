@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { PullRequestComment, PullRequestItem } from "../src/domain.ts"
-import { bodyPreview, getDetailHeaderHeight, getDetailJunctionRows, getScrollableDetailBodyHeight, truncateConversationPath } from "../src/ui/DetailsPane.tsx"
+import { bodyPreview, getDetailHeaderHeight, getDetailJunctionRows, getScrollableDetailBodyHeight, reviewerRows, truncateConversationPath } from "../src/ui/DetailsPane.tsx"
 import { diffStatText } from "../src/ui/diff.ts"
 
 const pullRequest = (body: string): PullRequestItem => ({
@@ -22,6 +22,7 @@ const pullRequest = (body: string): PullRequestItem => ({
 	checkStatus: "none",
 	checkSummary: null,
 	checks: [],
+	reviewers: [],
 	autoMergeEnabled: false,
 	detailLoaded: true,
 	createdAt: new Date("2026-01-01T00:00:00Z"),
@@ -100,7 +101,8 @@ const comments: readonly PullRequestComment[] = [
 describe("detail pane junction rows", () => {
 	test("keeps comments in the metadata row without adding dividers", () => {
 		const pr = pullRequest("Line A\nLine B\nLine C")
-		const headerDividerRow = 3
+		// title, meta, branch, reviews
+		const headerDividerRow = 4
 
 		expect(getDetailJunctionRows({ pullRequest: pr, paneWidth: 60, comments, commentsStatus: "ready" })).toEqual([headerDividerRow])
 	})
@@ -122,5 +124,30 @@ describe("detail pane junction rows", () => {
 
 		expect(getDetailHeaderHeight(pr, 60, true, comments, "ready")).toBe(baseHeaderHeight)
 		expect(getScrollableDetailBodyHeight(pr, 58)).toBe(baseBodyHeight)
+	})
+})
+
+describe("reviewers", () => {
+	test("orders by state and wraps beside the label", () => {
+		const reviewers = [
+			{ login: "carol", state: "commented" as const },
+			{ login: "alice", state: "approved" as const },
+			{ login: "dave", state: "requested" as const },
+			{ login: "bob", state: "changes" as const },
+		]
+		// "Reviews  " (9) leaves 16 columns: "✓ alice  ✗ bob" is 14, so dave wraps.
+		expect(reviewerRows(reviewers, 25).map((row) => row.map((reviewer) => reviewer.login))).toEqual([
+			["alice", "bob"],
+			["dave", "carol"],
+		])
+	})
+
+	test("adds one header row per wrapped reviewer row once details load", () => {
+		const pr = pullRequest("Body")
+		const many = { ...pr, reviewers: Array.from({ length: 12 }, (_, index) => ({ login: `reviewer-${index}`, state: "approved" as const })) }
+		const rows = reviewerRows(many.reviewers, 58).length
+		expect(rows).toBeGreaterThan(1)
+		expect(getDetailHeaderHeight(many, 60)).toBe(getDetailHeaderHeight(pr, 60) + rows - 1)
+		expect(getDetailHeaderHeight({ ...pr, detailLoaded: false }, 60)).toBe(getDetailHeaderHeight(pr, 60) - 1)
 	})
 })
