@@ -354,16 +354,18 @@ export const PullRequestSurface = (props: PullRequestSurfaceProps) => {
 			<box height={wideBodyHeight} flexShrink={0} flexDirection="column">
 				{selectedPullRequest ? (
 					<>
-						<DetailHeader
-							pullRequest={selectedPullRequest}
-							contentWidth={fullscreenContentWidth}
-							paneWidth={contentWidth}
-							loadingIndicator={loadingIndicator}
-							showChecks
-							comments={selectedComments}
-							commentsStatus={selectedCommentsStatus}
-						/>
 						<scrollbox ref={detailScrollRef} focusable={false} flexGrow={1} minHeight={0} renderAfter={syncDetailScrollbar}>
+							<box flexDirection="column" flexShrink={0}>
+								<DetailHeader
+									pullRequest={selectedPullRequest}
+									contentWidth={fullscreenContentWidth}
+									paneWidth={contentWidth}
+									loadingIndicator={loadingIndicator}
+									showChecks
+									comments={selectedComments}
+									commentsStatus={selectedCommentsStatus}
+								/>
+							</box>
 							<box
 								flexDirection="column"
 								flexShrink={0}
@@ -539,15 +541,17 @@ export const PullRequestSurface = (props: PullRequestSurfaceProps) => {
 					</>
 				) : selectedPullRequest ? (
 					<>
-						<DetailHeader
-							pullRequest={selectedPullRequest}
-							contentWidth={fullscreenContentWidth}
-							paneWidth={contentWidth}
-							loadingIndicator={loadingIndicator}
-							comments={selectedComments}
-							commentsStatus={selectedCommentsStatus}
-						/>
 						<scrollbox ref={detailScrollRef} focusable={false} flexGrow={1} minHeight={0} renderAfter={syncDetailScrollbar}>
+							<box flexDirection="column" flexShrink={0}>
+								<DetailHeader
+									pullRequest={selectedPullRequest}
+									contentWidth={fullscreenContentWidth}
+									paneWidth={contentWidth}
+									loadingIndicator={loadingIndicator}
+									comments={selectedComments}
+									commentsStatus={selectedCommentsStatus}
+								/>
+							</box>
 							<box
 								flexDirection="column"
 								flexShrink={0}

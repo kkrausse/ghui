@@ -26,7 +26,8 @@ export const useConversationSelection = (active: boolean, scrollRef: MutableRefO
 		const scroll = scrollRef.current
 		const block = blocks.current.get(id)
 		if (!scroll || !block) return
-		const top = block.y - scroll.content.y
+		// The description is the first block; revealing it also reveals the header above it.
+		const top = id === "" ? 0 : block.y - scroll.content.y
 		const bottom = top + block.height
 		if (top < scroll.scrollTop || block.height > scroll.viewport.height) scroll.scrollTo({ x: 0, y: top })
 		else if (bottom > scroll.scrollTop + scroll.viewport.height) scroll.scrollTo({ x: 0, y: Math.max(0, bottom - scroll.viewport.height) })
