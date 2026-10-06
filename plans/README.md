@@ -19,6 +19,8 @@ When a plan ships, leave the file in place and update the **Status** line so we 
 
 - [`linear-workspace-migration.md`](./linear-workspace-migration.md) — local migration of the full Linear TUI into a native GHUI tab; supersedes the CLI-handoff proposal.
 - [`linear-workspace-follow-ups.md`](./linear-workspace-follow-ups.md) — centralized navigation/commands, parity, link-routing and privacy/licensing follow-ups for the native workspace.
+- [`linear-command-integration.md`](./linear-command-integration.md) — shared palette/registry integration implemented; staged migration of remaining Linear actions and keymap contexts.
+- [`linear-ticket-list-prs.md`](./linear-ticket-list-prs.md) — linked PR dropdowns across all Linear ticket lists and project previews.
 
 - [`linear-tui-handoff.md`](./linear-tui-handoff.md) — exploratory nested PR rows in Linear and a direct-PR handoff to the local GHUI fork; inline embedding alternative.
 

@@ -68,7 +68,7 @@ import { Sidebar } from "./ui/Sidebar.tsx"
 import { HelpOverlay, StatusBar } from "./ui/StatusBar.tsx"
 import { UpdateDetail } from "./ui/UpdateDetail.tsx"
 import { UpdateList } from "./ui/UpdateList.tsx"
-import { buildIssueRows, selectableIssueRows, reconcileIssueRow, type SelectableIssueRow } from "./issueRows.js"
+import { buildIssueRows, issuePullRequests, selectableIssueRows, reconcileIssueRow, type SelectableIssueRow } from "./issueRows.js"
 import { LinearLinkContext } from "./ui/Markdown.js"
 
 const SIDEBAR_WIDTH = 26
@@ -110,6 +110,8 @@ function is(key: { name: string; sequence: string }, ...candidates: string[]): b
 
 export type LinearWorkspaceProps = {
 	active?: boolean
+	inputBlocked?: boolean
+	onCommandsChange?: (actions: import("./commandActions.js").LinearActions) => void
 	width?: number
 	height?: number
 	onQuit?: () => void
@@ -119,7 +121,17 @@ export type LinearWorkspaceProps = {
 }
 
 /** Native workspace; never creates a renderer or starts another CLI. */
-export function App({ active = true, width: hostWidth, height: hostHeight, onQuit, onNavigationLockChange, onOpenGitHubLink, navigationNotice }: LinearWorkspaceProps = {}) {
+export function App({
+	active = true,
+	inputBlocked = false,
+	onCommandsChange,
+	width: hostWidth,
+	height: hostHeight,
+	onQuit,
+	onNavigationLockChange,
+	onOpenGitHubLink,
+	navigationNotice,
+}: LinearWorkspaceProps = {}) {
 	const renderer = useRenderer()
 	const dimensions = useTerminalDimensions()
 	const height = hostHeight ?? dimensions.height
@@ -167,12 +179,10 @@ export function App({ active = true, width: hostWidth, height: hostHeight, onQui
 	const [expandedIssues, setExpandedIssues] = useState<ReadonlySet<string>>(new Set())
 	const [issueRowKey, setIssueRowKeyState] = useState<string | null>(null)
 	const issueRowKeyRef = useRef<string | null>(null)
+	const issueRowTargetRef = useRef<Target | null>(null)
+	const issueRowSearchRef = useRef<string | null>(null)
 	const expandedIssuesRef = useRef<ReadonlySet<string>>(expandedIssues)
-	const setIssueRowKey = useCallback((key: string | null) => {
-		issueRowKeyRef.current = key
-		setIssueRowKeyState(key)
-	}, [])
-	const myIssuesOffsetRef = useRef(0)
+	const issueListOffsetRef = useRef(0)
 	const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null)
 	const [projectIssueSelectedId, setProjectIssueSelectedId] = useState<string | null>(null)
 
@@ -185,6 +195,16 @@ export function App({ active = true, width: hostWidth, height: hostHeight, onQui
 	 * and the term rides along so the header and title need no second state.
 	 */
 	const [search, setSearch] = useState<{ term: string; issues: Issue[]; page: PageInfo } | null>(null)
+	const searchTerm = search?.term ?? null
+	const setIssueRowKey = useCallback(
+		(key: string | null) => {
+			issueRowTargetRef.current = target
+			issueRowSearchRef.current = searchTerm
+			issueRowKeyRef.current = key
+			setIssueRowKeyState(key)
+		},
+		[target, searchTerm],
+	)
 	const [loadingMore, setLoadingMore] = useState(false)
 
 	const [detail, setDetail] = useState<Detail | null>(null)
@@ -293,6 +313,9 @@ export function App({ active = true, width: hostWidth, height: hostHeight, onQui
 		loadTarget(target)
 			.then((p) => {
 				if (stale) return
+				// The previous payload can remain visible while this target loads.
+				// Do not carry its occurrence key into the newly sorted ticket list.
+				setIssueRowKey(null)
 				setPayload(p)
 				setListSelected((i) => Math.min(i, Math.max(0, itemCount(p) - 1)))
 			})
@@ -354,8 +377,8 @@ export function App({ active = true, width: hostWidth, height: hostHeight, onQui
 
 	const issues: Issue[] = search?.issues ?? (payload?.type === "issues" ? payload.issues : [])
 	const projects: Project[] = showingProjects ? payload.projects : []
-	const projectListRows = target?.kind === "my-projects" ? projectRows(projects, expandedProjectId, projectPreview, groupBy) : []
-	const projectSelectableRows = projectListRows.filter((row) => row.kind === "project" || row.kind === "issue")
+	const projectListRows = target?.kind === "my-projects" ? projectRows(projects, expandedProjectId, projectPreview, groupBy, expandedIssues) : []
+	const projectSelectableRows = projectListRows.filter((row) => row.kind === "project" || row.kind === "issue" || row.kind === "pr")
 	const selectedProjectIssue = projectSelectableRows.find((row) => row.kind === "issue" && row.issue.id === projectIssueSelectedId)
 	const projectIssue = selectedProjectIssue?.kind === "issue" ? selectedProjectIssue.issue : null
 	const notifications: Notification[] = showingInbox ? payload.notifications : []
@@ -393,20 +416,33 @@ export function App({ active = true, width: hostWidth, height: hostHeight, onQui
 
 	/** Screen order of the issue rows; selection stays an index into `issues`. */
 	const issueOrder = useMemo(() => displayOrder(issues, effectiveGroupBy), [issues, effectiveGroupBy])
-	const nestedIssues = target?.kind === "my-issues" && !search
-	const nestedRows = useMemo(() => selectableIssueRows(buildIssueRows(issues, effectiveGroupBy, expandedIssues)), [issues, effectiveGroupBy, expandedIssues])
-	const selectedIssueRow = nestedIssues ? reconcileIssueRow(nestedRows, issueRowKey, listSelected) : null
-	const liveNestedRows = () => selectableIssueRows(buildIssueRows(issues, effectiveGroupBy, expandedIssuesRef.current))
-	const liveIssueRow = () => (nestedIssues ? reconcileIssueRow(liveNestedRows(), issueRowKeyRef.current, listSelected) : null)
+	const nestedIssues = showingIssues
+	const previewIssues = showingProjects && target?.kind === "my-projects"
+	const prDropdowns = nestedIssues || previewIssues
+	const dropdownIssues = previewIssues ? (projectPreview?.id === expandedProjectId ? projectPreview.issues : []) : issues
+	const dropdownGroupBy = previewIssues ? groupBy : effectiveGroupBy
+	const dropdownIndex = previewIssues ? dropdownIssues.findIndex((issue) => issue.id === projectIssueSelectedId) : listSelected
+	const nestedRows = useMemo(() => selectableIssueRows(buildIssueRows(dropdownIssues, dropdownGroupBy, expandedIssues)), [dropdownIssues, dropdownGroupBy, expandedIssues])
+	// A row key follows refresh/grouping within a view, not unrelated lists that
+	// happen to contain the same ticket. New views retain their issue-index cursor.
+	const issueRowInScope = issueRowTargetRef.current === target && issueRowSearchRef.current === searchTerm
+	const selectedIssueRow = prDropdowns && (!previewIssues || projectIssueSelectedId) ? reconcileIssueRow(nestedRows, issueRowInScope ? issueRowKey : null, dropdownIndex) : null
+	const liveNestedRows = () => selectableIssueRows(buildIssueRows(dropdownIssues, dropdownGroupBy, expandedIssuesRef.current))
+	const liveIssueRow = () =>
+		prDropdowns && (!previewIssues || projectIssueSelectedId) ? reconcileIssueRow(liveNestedRows(), issueRowInScope ? issueRowKeyRef.current : null, dropdownIndex) : null
 	useEffect(() => {
-		if (!nestedIssues) return
+		if (!prDropdowns || (previewIssues && !projectIssueSelectedId)) return
 		setIssueRowKey(selectedIssueRow?.key ?? null)
-		if (selectedIssueRow) setListSelected(selectedIssueRow.index)
-	}, [nestedIssues, selectedIssueRow?.key, selectedIssueRow?.index])
-	const selectIssueRow = useCallback((row: SelectableIssueRow) => {
-		setIssueRowKey(row.key)
-		setListSelected(row.index)
-	}, [])
+		if (selectedIssueRow && !previewIssues) setListSelected(selectedIssueRow.index)
+	}, [prDropdowns, previewIssues, projectIssueSelectedId, selectedIssueRow?.key, selectedIssueRow?.index, setIssueRowKey])
+	const selectIssueRow = useCallback(
+		(row: SelectableIssueRow) => {
+			setIssueRowKey(row.key)
+			if (previewIssues) setProjectIssueSelectedId(row.issue.id)
+			else setListSelected(row.index)
+		},
+		[previewIssues, setIssueRowKey],
+	)
 
 	const rowCount = showingProjects ? projects.length : showingInbox ? notifications.length : showingUpdates ? updates.length : showingOverview ? 0 : issues.length
 
@@ -414,7 +450,7 @@ export function App({ active = true, width: hostWidth, height: hostHeight, onQui
 		(delta: number) => {
 			if (nestedIssues) {
 				const rows = liveNestedRows()
-				const current = reconcileIssueRow(rows, issueRowKeyRef.current, listSelected)
+				const current = liveIssueRow()
 				const at = rows.findIndex((row) => row.key === current?.key)
 				const row = rows[Math.max(0, Math.min(rows.length - 1, at + delta))]
 				if (row) selectIssueRow(row)
@@ -424,12 +460,12 @@ export function App({ active = true, width: hostWidth, height: hostHeight, onQui
 			if (showingOverview) return
 			if (target?.kind === "my-projects") {
 				const at = projectSelectableRows.findIndex((row) =>
-					projectIssueSelectedId ? row.kind === "issue" && row.issue.id === projectIssueSelectedId : row.kind === "project" && row.index === listSelected,
+					projectIssueSelectedId ? (row.kind === "issue" || row.kind === "pr") && row.row.key === selectedIssueRow?.key : row.kind === "project" && row.index === listSelected,
 				)
 				const next = projectSelectableRows[Math.max(0, Math.min(projectSelectableRows.length - 1, at + delta))]
-				if (next?.kind === "issue") {
+				if (next?.kind === "issue" || next?.kind === "pr") {
 					setListSelected(next.projectIndex)
-					setProjectIssueSelectedId(next.issue.id)
+					selectIssueRow(next.row)
 				} else if (next?.kind === "project") {
 					setListSelected(next.index)
 					setProjectIssueSelectedId(null)
@@ -470,9 +506,9 @@ export function App({ active = true, width: hostWidth, height: hostHeight, onQui
 			if (showingOverview) return
 			if (target?.kind === "my-projects") {
 				const row = edge === "top" ? projectSelectableRows[0] : projectSelectableRows.at(-1)
-				if (row?.kind === "issue") {
+				if (row?.kind === "issue" || row?.kind === "pr") {
 					setListSelected(row.projectIndex)
-					setProjectIssueSelectedId(row.issue.id)
+					selectIssueRow(row.row)
 				} else if (row?.kind === "project") {
 					setListSelected(row.index)
 					setProjectIssueSelectedId(null)
@@ -1248,8 +1284,69 @@ export function App({ active = true, width: hostWidth, height: hostHeight, onQui
 		[openPicker, setMode],
 	)
 
+	const setAllPrsExpanded = (expand?: boolean) => {
+		const linkedIssues = dropdownIssues.filter((issue) => issuePullRequests(issue).length > 0)
+		const shouldExpand = expand ?? !linkedIssues.every((issue) => expandedIssuesRef.current.has(issue.id))
+		const next = new Set(expandedIssuesRef.current)
+		for (const issue of linkedIssues) {
+			if (shouldExpand) next.add(issue.id)
+			else next.delete(issue.id)
+		}
+		expandedIssuesRef.current = next
+		setExpandedIssues(next)
+		const row = liveIssueRow()
+		if (row) selectIssueRow(row)
+		notify(shouldExpand ? "expanded all linked PRs" : "collapsed all linked PRs")
+	}
+	const refreshCurrentView = () => {
+		prefixRef.current = null
+		invalidateCache()
+		refresh(modeRef.current === "detail" ? detailIssueIdRef.current : undefined)
+		refreshUnread()
+		notify("refreshing…")
+	}
+	const goTo = (kind: "my-issues" | "inbox") => {
+		const at = nav.findIndex((n) => n.kind === kind)
+		if (at !== -1) {
+			prefixRef.current = null
+			setSearch(null)
+			setParentTarget(null)
+			setMode("list")
+			setNavSelected(at)
+			setFocus("list")
+		}
+	}
+	// Publish live implementations, not synthetic keystrokes or a second palette.
+	// The host registers them in its existing Effect command registry.
+	useEffect(() => {
+		const actions: import("./commandActions.js").LinearActions = {}
+		if (active && boot && !fatal && !editBusy && (mode === "list" || mode === "detail" || mode === "update")) {
+			actions.myIssues = () => goTo("my-issues")
+			actions.inbox = () => goTo("inbox")
+			actions.refresh = refreshCurrentView
+			actions.help = () => setMode("help")
+			if (mode === "list") {
+				actions.search = startSearch
+				if (showingIssues || target?.kind === "my-projects") actions.group = openGroupPicker
+				if (prDropdowns) {
+					actions.toggleAllPrs = () => setAllPrsExpanded()
+					actions.expandAllPrs = () => setAllPrsExpanded(true)
+					actions.collapseAllPrs = () => setAllPrsExpanded(false)
+				}
+			}
+		}
+		for (const action of Object.keys(actions) as import("./commandActions.js").LinearAction[]) {
+			const run = actions[action]!
+			actions[action] = () => {
+				// A composer/picker can open before the next render republishes availability.
+				if (modeRef.current === "list" || modeRef.current === "detail" || modeRef.current === "update") run()
+			}
+		}
+		onCommandsChange?.(actions)
+	})
+
 	useKeyboard((key) => {
-		if (!active || (key.ctrl && (is(key, "tab") || is(key, "left", "right")))) return
+		if (!active || inputBlocked || key.defaultPrevented || (key.ctrl && (is(key, "tab") || is(key, "left", "right")))) return
 		// Text fields and the picker own their keystrokes; only cancel is global.
 		// The input owns its keystrokes; escape is the only one taken from it.
 		if (modeRef.current === "search") {
@@ -1289,11 +1386,7 @@ export function App({ active = true, width: hostWidth, height: hostHeight, onQui
 
 		// Handle Shift+R before detail's bare r, which also matches a shifted name.
 		if (is(key, "R") || (modeRef.current === "list" && is(key, "r"))) {
-			prefixRef.current = null
-			invalidateCache()
-			refresh(modeRef.current === "detail" ? detailIssueIdRef.current : undefined)
-			refreshUnread()
-			notify("refreshing…")
+			refreshCurrentView()
 			return
 		}
 
@@ -1483,11 +1576,7 @@ export function App({ active = true, width: hostWidth, height: hostHeight, onQui
 			}
 			const jumpTo = is(key, "i") ? "my-issues" : is(key, "n") ? "inbox" : null
 			if (jumpTo) {
-				const at = nav.findIndex((n) => n.kind === jumpTo)
-				if (at !== -1) {
-					setNavSelected(at)
-					setFocus("list")
-				}
+				goTo(jumpTo)
 			}
 			return
 		}
@@ -1513,7 +1602,12 @@ export function App({ active = true, width: hostWidth, height: hostHeight, onQui
 			return
 		}
 
-		if (is(key, "space", " ") && nestedIssues && focusRef.current === "list" && liveSelectedIssueRow) {
+		if (key.shift && is(key, "space", " ") && prDropdowns) {
+			setAllPrsExpanded()
+			return
+		}
+
+		if (is(key, "space", " ") && prDropdowns && focusRef.current === "list" && liveSelectedIssueRow) {
 			const id = liveIssueRow()?.issue.id
 			if (!id) return
 			const next = new Set(expandedIssuesRef.current)
@@ -1725,6 +1819,10 @@ export function App({ active = true, width: hostWidth, height: hostHeight, onQui
 						/>
 						<IssueList
 							title={title}
+							expanded={expandedIssues}
+							scrollOffsetRef={issueListOffsetRef}
+							selectedRowKey={selectedIssueRow?.key}
+							onPickRow={pickNestedRow}
 							issues={issues}
 							selected={listSelected}
 							focused={mode !== "search"}
@@ -1777,6 +1875,16 @@ export function App({ active = true, width: hostWidth, height: hostHeight, onQui
 								onPickIssue={pickProjectIssue}
 								onScroll={moveList}
 								selectedIssueId={target?.kind === "my-projects" ? projectIssueSelectedId : null}
+								selectedRowKey={selectedIssueRow?.key}
+								expandedIssues={previewIssues ? expandedIssues : undefined}
+								onPickIssueRow={
+									previewIssues
+										? (index, row) => {
+												setListSelected(index)
+												pickNestedRow(row)
+											}
+										: undefined
+								}
 								expandedProjectId={target?.kind === "my-projects" ? expandedProjectId : null}
 								expandable={target?.kind === "my-projects"}
 								preview={target?.kind === "my-projects" ? projectPreview : null}
@@ -1824,7 +1932,7 @@ export function App({ active = true, width: hostWidth, height: hostHeight, onQui
 							<IssueList
 								title={title}
 								expanded={nestedIssues ? expandedIssues : undefined}
-								scrollOffsetRef={nestedIssues ? myIssuesOffsetRef : undefined}
+								scrollOffsetRef={nestedIssues ? issueListOffsetRef : undefined}
 								selectedRowKey={nestedIssues ? selectedIssueRow?.key : undefined}
 								onPickRow={nestedIssues ? pickNestedRow : undefined}
 								issues={issues}

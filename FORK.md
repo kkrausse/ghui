@@ -1,8 +1,24 @@
 # kkrausse/ghui Fork Notes
 
 This repository is a fork of [`kitlangton/ghui`](https://github.com/kitlangton/ghui).
-It tracks small workflow improvements that are useful in this fork and may be
-proposed upstream later.
+It is the user's active local GHUI implementation, with ongoing workflow and
+native Linear workspace improvements. Some changes may be proposed upstream
+later; preserving the local fork is the default.
+
+## Canonical Local Baseline
+
+- Checkout: `/Users/kevinkrausse/Documents/kkrausse/ghui`.
+- Local development branch: `fork-workflow-improvements`. Continue new work from
+  this branch rather than treating `main` as the development baseline.
+- Remotes: `origin` = `kkrausse/ghui`, `upstream` = `kitlangton/ghui`.
+- Git's `origin/HEAD` currently names `origin/main`. The local development policy
+  above does not change GitHub's default branch, publish local commits, or imply
+  that this branch is pushed/tracking a remote branch.
+- `~/.bun/bin/ghui` resolves through Bun's global package link to this checkout.
+  Currently `bin/ghui.js` finds no installed platform binary and runs
+  `bun src/standalone.ts`, so source changes are used on the next launch.
+- `/opt/homebrew/bin/ghui` is a separate upstream installation. Do not replace
+  the fork with it or run `ghui upgrade` as part of local development.
 
 ## Status
 
@@ -103,6 +119,7 @@ bun run dev:mock
 ## Keeping the Fork Current
 
 The `origin` remote is `kkrausse/ghui`, and `upstream` is `kitlangton/ghui`.
-Before implementing a planned difference, sync from upstream and keep the fork
-notes accurate as decisions change. Once a feature ships, move it from planned
+Upstream synchronization is a deliberate maintenance task, not a prerequisite
+for each local change; do it only when requested, preserving local work. Keep
+the fork notes accurate as decisions change. Once a feature ships, move it from planned
 to an implemented-differences section and link its commit or pull request.

@@ -73,12 +73,13 @@ export const App = ({ systemThemeGeneration = 0 }: AppProps) => {
 							<WorkspaceContent {...shell.contentProps} />
 							<Divider width={shell.contentWidth} junctions={shell.preFooterDividerJunctions} />
 							<WorkspaceFooter {...shell.footerProps} />
-							<WorkspaceModals {...shell.modalsProps} />
 						</>
 					) : null}
+					<WorkspaceModals {...shell.modalsProps} />
 				</>
 			)}
 			<LinearWorkspace
+				inputBlocked={shell.linearInputBlocked}
 				onOpenGitHubLink={shell.openLinearGitHubLink}
 				navigationNotice={shell.linearNavigationNotice}
 				onNavigationLockChange={updateLinearNavigationLock}

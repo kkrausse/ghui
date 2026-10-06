@@ -4,7 +4,7 @@ import { githubRuntime } from "../services/runtime.js"
 import { commandsById } from "./index.js"
 
 // Dispatch a registered command by id. Lookup is O(1), gating is checked
-// against `disabledReason` (a no-op if the command is currently disabled),
+// against visibility and `disabledReason` (a no-op if hidden or disabled),
 // then the command's `run` Effect is yielded inside the github runtime so it
 // has access to GitHub/cache/observability services and the atom registry.
 //
@@ -16,6 +16,7 @@ export const dispatchCommand = (id: string) =>
 	Effect.gen(function* () {
 		const command = commandsById.get(id)
 		if (!command) return
+		if (command.when && !(yield* Atom.get(command.when))) return
 		if (command.disabledReason) {
 			const reason = yield* Atom.get(command.disabledReason)
 			if (reason !== null) return

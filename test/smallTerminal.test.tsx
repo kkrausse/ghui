@@ -64,6 +64,62 @@ const cleanup = (setup: Awaited<ReturnType<typeof setupApp>>) => {
 }
 
 describe("small terminal fallback", () => {
+	test("Linear uses the shared palette for PR expansion and isolates palette input", async () => {
+		const { installLinearStub, requests } = await import("./linear/stub.tsx")
+		const { invalidateCache } = await import("../src/linearWorkspace/linear/client.ts")
+		const { workspaceSurfaceAtom } = await import("../src/workspace/atoms.ts")
+		const { commandSnapshotsAtom } = await import("../src/commands/atoms.ts")
+		const token = process.env.LINEAR_API_TOKEN
+		const restore = installLinearStub()
+		invalidateCache()
+		const setup = await setupApp(140, 42)
+		const palette = async (query: string, useMeta = false) => {
+			act(() => setup.mockInput.pressKey(useMeta ? "k" : "p", useMeta ? { meta: true } : { ctrl: true }))
+			expect(await settle(setup.renderOnce, () => setup.captureCharFrame().includes("Commands"))).toBe(true)
+			await act(async () => {
+				await setup.mockInput.typeText(query)
+			})
+			await stepFrame(setup.renderOnce)
+		}
+		try {
+			expect(await settle(setup.renderOnce, () => setup.captureCharFrame().includes("LINEAR"))).toBe(true)
+			act(() => setup.mockInput.pressKey("1"))
+			expect(await settle(setup.renderOnce, () => setup.captureCharFrame().includes("BACKEND-1361"), 300)).toBe(true)
+			const commands = setup.registry.get(commandSnapshotsAtom)
+			expect(commands.some((c) => c.id === "linear.expandAllPrs" && !c.disabledReason)).toBe(true)
+			expect(commands.some((c) => c.id === "pull.copy-url" || c.id === "filter.open")).toBe(false)
+			const requestCount = requests.length
+			await palette("Expand all linked PR")
+			expect(setup.captureCharFrame()).toContain("Linear: Expand all linked PR")
+			expect(setup.registry.get(workspaceSurfaceAtom)).toBe("linear")
+			act(() => setup.mockInput.pressEnter())
+			expect(await settle(setup.renderOnce, () => setup.captureCharFrame().includes(" #783  ") && !setup.captureCharFrame().includes("Commands"))).toBe(true)
+			expect(setup.captureCharFrame()).toContain(" #575  ")
+			expect(requests.length).toBe(requestCount)
+
+			await palette("Collapse all linked PR", true)
+			act(() => setup.mockInput.pressEnter())
+			expect(await settle(setup.renderOnce, () => !setup.captureCharFrame().includes(" #783  ") && !setup.captureCharFrame().includes("Commands"))).toBe(true)
+			// Numeric input and Linear edit keys in the palette must not escape it.
+			await palette("2 status")
+			expect(setup.registry.get(workspaceSurfaceAtom)).toBe("linear")
+			act(() => setup.mockInput.pressEscape())
+			expect(await settle(setup.renderOnce, () => !setup.captureCharFrame().includes("Commands"))).toBe(true)
+			await stepFrame(setup.renderOnce, 40)
+			act(() => setup.mockInput.pressKey("/"))
+			expect(await settle(setup.renderOnce, () => setup.captureCharFrame().includes("text to search across every issue"))).toBe(true)
+			act(() => setup.mockInput.pressKey("p", { ctrl: true }))
+			await stepFrame(setup.renderOnce)
+			expect(setup.captureCharFrame()).not.toContain("Commands")
+			expect(requests.some((r) => r.query.includes("mutation"))).toBe(false)
+		} finally {
+			cleanup(setup)
+			restore()
+			if (token === undefined) delete process.env.LINEAR_API_TOKEN
+			else process.env.LINEAR_API_TOKEN = token
+		}
+	})
+
 	test("Linear PR child opens exact entity, nested views back to PR, then back to retained row", async () => {
 		const { installLinearStub, requests } = await import("./linear/stub.tsx")
 		const { invalidateCache } = await import("../src/linearWorkspace/linear/client.ts")
@@ -89,11 +145,11 @@ describe("small terminal fallback", () => {
 		}
 		try {
 			expect(await settle(setup.renderOnce, () => setup.captureCharFrame().includes("LINEAR"))).toBe(true)
-			await press("7")
+			await press("1")
 			expect(await settle(setup.renderOnce, () => setup.captureCharFrame().includes("BACKEND-1361"), 300)).toBe(true)
 			await arrow("right")
 			await press(" ")
-			expect(await settle(setup.renderOnce, () => setup.captureCharFrame().includes("PR #783"))).toBe(true)
+			expect(await settle(setup.renderOnce, () => setup.captureCharFrame().includes(" #783  "))).toBe(true)
 			await arrow("down")
 			await arrow("down")
 			await arrow("right")
@@ -118,14 +174,14 @@ describe("small terminal fallback", () => {
 			await arrow("left")
 			expect(setup.registry.get(workspaceSurfaceAtom)).toBe("linear")
 			expect(setup.registry.get(linearPullRequestAtom)).toBeNull()
-			expect(setup.captureCharFrame()).toContain("PR #783")
+			expect(setup.captureCharFrame()).toContain(" #783  ")
 			// Opening again without moving proves the same child stayed selected.
 			act(() => setup.mockInput.pressEnter())
 			expect(await settle(setup.renderOnce, () => setup.registry.get(workspaceSurfaceAtom) === "pullRequests")).toBe(true)
 			expect(setup.registry.get(selectedPullRequestAtom)?.number).toBe(783)
 			await arrow("left")
 			await press(" ") // collapse while a child is selected -> its own parent
-			expect(setup.captureCharFrame()).not.toContain("PR #783")
+			expect(setup.captureCharFrame()).not.toContain(" #783  ")
 			act(() => setup.mockInput.pressEnter())
 			expect(await settle(setup.renderOnce, () => setup.captureCharFrame().includes("Branch"))).toBe(true)
 			await press("O")
@@ -164,11 +220,11 @@ describe("small terminal fallback", () => {
 		}
 		try {
 			expect(await settle(setup.renderOnce, () => setup.captureCharFrame().includes("LINEAR"))).toBe(true)
-			await press("7")
+			await press("1")
 			expect(await settle(setup.renderOnce, () => setup.captureCharFrame().includes("BACKEND-1361"), 300)).toBe(true)
 			await press("2")
 			expect(setup.registry.get(workspaceSurfaceAtom)).toBe("pullRequests")
-			await press("7")
+			await press("1")
 			act(() => {
 				setup.mockInput.pressKey("/")
 				setup.mockInput.pressKey("2")
@@ -187,7 +243,7 @@ describe("small terminal fallback", () => {
 			expect(setup.registry.get(workspaceSurfaceAtom)).toBe("linear")
 			expect(setup.captureCharFrame()).toContain("Open · BACKEND-1361")
 			await escape()
-			await press("1")
+			await press("4")
 			expect(setup.registry.get(workspaceSurfaceAtom)).not.toBe("linear")
 		} finally {
 			cleanup(setup)
@@ -208,7 +264,7 @@ describe("small terminal fallback", () => {
 		try {
 			expect(await settle(setup.renderOnce, () => setup.captureCharFrame().includes("LINEAR"))).toBe(true)
 			expect(requests.length).toBe(start) // no Linear auth/query before visiting
-			act(() => setup.mockInput.pressKey("7"))
+			act(() => setup.mockInput.pressKey("1"))
 			const linearLoaded = await settle(setup.renderOnce, () => setup.captureCharFrame().includes("BACKEND-1361"), 300)
 			expect(linearLoaded, setup.captureCharFrame()).toBe(true)
 			expect(setup.captureCharFrame()).toContain("BACKEND-1361")

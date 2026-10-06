@@ -16,7 +16,10 @@
 // is a side-channel, not a parallel registry. Commands whose run is
 // atom-pure should not use this — they yield Atom.update/set directly.
 
+import type { LinearAction } from "../linearWorkspace/commandActions.js"
+
 type Handoff =
+	| `linear.${LinearAction}`
 	| "preserveDiffLocation"
 	| "quit"
 	| "openThemeModal"

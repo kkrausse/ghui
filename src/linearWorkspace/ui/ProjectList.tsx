@@ -1,7 +1,9 @@
 import { useRef } from "react"
 import type { Issue, Project } from "../linear/schema.ts"
-import { color, formatDate, healthStyle, projectStatusGlyph, stateColor } from "../theme.ts"
-import { groupIssues, type GroupBy } from "../views.ts"
+import { color, formatDate, healthStyle, projectStatusGlyph, stateColor, stateGlyph } from "../theme.ts"
+import { type GroupBy } from "../views.ts"
+import { buildIssueRows, issuePullRequests, type SelectableIssueRow } from "../issueRows.js"
+import { PullRequestRow } from "./IssueList.tsx"
 import { clip, fit, meter, windowFor } from "./layout.ts"
 import { wheel } from "./wheel.ts"
 
@@ -10,6 +12,8 @@ type Props = {
 	projects: Project[]
 	selected: number
 	selectedIssueId?: string | null
+	selectedRowKey?: string | null | undefined
+	expandedIssues?: ReadonlySet<string> | undefined
 	expandedProjectId?: string | null
 	expandable?: boolean
 	focused: boolean
@@ -21,14 +25,24 @@ type Props = {
 	/** First click selects, a click on the already-selected project drills in. */
 	onPick: (index: number) => void
 	onPickIssue?: (projectIndex: number, issue: Issue) => void
+	onPickIssueRow?: ((projectIndex: number, row: SelectableIssueRow) => void) | undefined
 	/** The wheel moves this pane's cursor, a row per event. */
 	onScroll?: (delta: number) => void
 }
 
-export type ProjectRow = { kind: "project"; project: Project; index: number } | { kind: "group" | "message"; text: string } | { kind: "issue"; issue: Issue; projectIndex: number }
+export type ProjectRow =
+	| { kind: "project"; project: Project; index: number }
+	| { kind: "group" | "message"; text: string }
+	| { kind: "issue" | "pr"; issue: Issue; projectIndex: number; row: SelectableIssueRow }
 
 /** Shared by drawing and keyboard navigation: headers are deliberately not selectable. */
-export function projectRows(projects: Project[], expandedProjectId: string | null, preview: Props["preview"], groupBy: GroupBy): ProjectRow[] {
+export function projectRows(
+	projects: Project[],
+	expandedProjectId: string | null,
+	preview: Props["preview"],
+	groupBy: GroupBy,
+	expandedIssues?: ReadonlySet<string>,
+): ProjectRow[] {
 	const rows: ProjectRow[] = []
 	for (const [index, project] of projects.entries()) {
 		rows.push({ kind: "project", project, index })
@@ -39,9 +53,9 @@ export function projectRows(projects: Project[], expandedProjectId: string | nul
 		}
 		if (preview.error) rows.push({ kind: "message", text: `  ${preview.error}` })
 		else {
-			for (const group of groupIssues(preview.issues, groupBy)) {
-				if (groupBy !== "none") rows.push({ kind: "group", text: `  ${group.label} (${group.issues.length})` })
-				for (const issue of group.issues) rows.push({ kind: "issue", issue, projectIndex: index })
+			for (const row of buildIssueRows(preview.issues, groupBy, expandedIssues)) {
+				if (row.t === "group") rows.push({ kind: "group", text: `  ${row.label} (${row.count})` })
+				else rows.push({ kind: row.t, issue: row.issue, projectIndex: index, row })
 			}
 			if (preview.loading) rows.push({ kind: "message", text: "  Loading tickets…" })
 			else if (!preview.issues.length) rows.push({ kind: "message", text: "  No tickets." })
@@ -55,6 +69,8 @@ export function ProjectList({
 	projects,
 	selected,
 	selectedIssueId,
+	selectedRowKey,
+	expandedIssues,
 	expandedProjectId = null,
 	expandable = false,
 	focused,
@@ -65,16 +81,21 @@ export function ProjectList({
 	groupBy = "status",
 	onPick,
 	onPickIssue,
+	onPickIssueRow,
 	onScroll,
 }: Props) {
 	const offsetRef = useRef(0)
 	const viewport = Math.max(1, height - 2)
-	const rows = projectRows(projects, expandedProjectId, preview, groupBy)
-	const selectedRow = rows.findIndex((row) => (selectedIssueId ? row.kind === "issue" && row.issue.id === selectedIssueId : row.kind === "project" && row.index === selected))
+	const rows = projectRows(projects, expandedProjectId, preview, groupBy, expandedIssues)
+	const isActive = (row: ProjectRow) =>
+		selectedIssueId
+			? (row.kind === "issue" || row.kind === "pr") && (selectedRowKey ? row.row.key === selectedRowKey : row.kind === "issue" && row.issue.id === selectedIssueId)
+			: row.kind === "project" && row.index === selected
+	const selectedRow = rows.findIndex(isActive)
 	offsetRef.current = windowFor(rows.length, Math.max(0, selectedRow), viewport, offsetRef.current)
 	const visible = rows.slice(offsetRef.current, offsetRef.current + viewport)
-	const selectable = rows.filter((row) => row.kind === "project" || row.kind === "issue")
-	const position = selectable.findIndex((row) => (selectedIssueId ? row.kind === "issue" && row.issue.id === selectedIssueId : row.kind === "project" && row.index === selected))
+	const selectable = rows.filter((row) => row.kind === "project" || row.kind === "issue" || row.kind === "pr")
+	const position = selectable.findIndex(isActive)
 
 	return (
 		<box
@@ -102,23 +123,32 @@ export function ProjectList({
 								{row.text}
 							</text>
 						)
-					if (row.kind === "issue") {
-						const active = row.issue.id === selectedIssueId
+					if (row.kind === "issue" || row.kind === "pr") {
+						const active = isActive(row)
 						return (
 							<box
-								key={`${row.projectIndex}-${row.issue.id}-${i}`}
+								key={`${row.projectIndex}-${row.row.key}`}
 								flexDirection="row"
 								height={1}
 								{...(active ? { backgroundColor: color.selectedBg } : {})}
-								onMouseDown={() => onPickIssue?.(row.projectIndex, row.issue)}
+								onMouseDown={() => (onPickIssueRow ? onPickIssueRow(row.projectIndex, row.row) : onPickIssue?.(row.projectIndex, row.issue))}
 							>
-								<text fg={active && focused ? color.accent : color.faint} flexShrink={0}>
-									{" "}
-									{row.issue.identifier}{" "}
-								</text>
-								<text fg={active ? color.fg : color.dim} flexGrow={1} wrapMode="none" truncate>
-									{row.issue.title}
-								</text>
+								{row.row.t === "pr" ? (
+									<PullRequestRow row={row.row} active={active} />
+								) : (
+									<>
+										<text fg={stateColor(row.issue.state?.type, row.issue.state?.color)} flexShrink={0}>
+											{`  ${stateGlyph(row.issue.state?.type)} `}
+										</text>
+										<text fg={active && focused ? color.accent : color.faint} flexShrink={0}>
+											{expandedIssues && issuePullRequests(row.issue).length ? (expandedIssues.has(row.issue.id) ? "▾ " : "▸ ") : "  "}
+											{fit(row.issue.identifier, 13)}
+										</text>
+										<text fg={active ? color.fg : color.dim} flexGrow={1} wrapMode="none" truncate>
+											{row.issue.title}
+										</text>
+									</>
+								)}
 							</box>
 						)
 					}

@@ -873,7 +873,7 @@ export const useAppShell = ({ systemThemeGeneration, linearNavigationLocked = fa
 		flashNotice(`Opened ${repository}`)
 	}
 	usePasteRouter({
-		disabled: activeWorkspaceSurface === "linear",
+		disabled: activeWorkspaceSurface === "linear" && activeModal._tag === "None",
 		renderer,
 		commandPaletteActive,
 		openRepositoryModalActive,
@@ -1019,7 +1019,8 @@ export const useAppShell = ({ systemThemeGeneration, linearNavigationLocked = fa
 	})
 
 	useAppKeymap({
-		disabled: terminalTooSmall || activeWorkspaceSurface === "linear",
+		disabled: terminalTooSmall,
+		linearInputLocked: () => linearNavigationLockRef?.current ?? linearNavigationLocked,
 		closeModalActive,
 		pullRequestStateModalActive,
 		mergeModalActive,
@@ -1168,6 +1169,7 @@ export const useAppShell = ({ systemThemeGeneration, linearNavigationLocked = fa
 		return {
 			openLinearGitHubLink,
 			linearNavigationNotice: notice,
+			linearInputBlocked: activeModal._tag !== "None",
 			isInitialLoading: true as const,
 			terminalTooSmall,
 			terminalWidth,
@@ -1293,6 +1295,7 @@ export const useAppShell = ({ systemThemeGeneration, linearNavigationLocked = fa
 	return {
 		openLinearGitHubLink,
 		linearNavigationNotice: notice,
+		linearInputBlocked: activeModal._tag !== "None",
 		isInitialLoading: false as const,
 		quit: () => runCommandById("app.quit"),
 		terminalTooSmall,

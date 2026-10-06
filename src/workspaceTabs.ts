@@ -4,7 +4,7 @@ import { workspaceSurfaceLabels, type WorkspaceSurface } from "./workspaceSurfac
 
 export type WorkspaceTab = WorkspaceSurface | PullRequestUserQueueMode
 
-export const userWorkspaceTabs: readonly WorkspaceTab[] = ["repos", "authored", "review", "assigned", "mentioned", "issues", "linear"]
+export const userWorkspaceTabs: readonly WorkspaceTab[] = ["linear", "authored", "review", "repos", "assigned", "mentioned", "issues"]
 
 export const workspaceTabLabels: Record<WorkspaceTab, string> = {
 	...workspaceSurfaceLabels,

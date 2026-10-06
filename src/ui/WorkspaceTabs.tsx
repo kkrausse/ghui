@@ -7,9 +7,14 @@ import { userWorkspaceTabs, workspaceTabLabels, type WorkspaceTab } from "../wor
 export type WorkspaceSurfaceCounts = Partial<Record<WorkspaceTab, number | string>>
 
 export const workspaceTabItems = (surfaces: readonly WorkspaceTab[], counts: WorkspaceSurfaceCounts, width = Infinity) => {
-	const build = (compact: boolean, showCounts: boolean) =>
-		surfaces.map((surface) => {
-			const label = compact ? ({ review: "REVIEWS", assigned: "ASSIGNED", mentioned: "MENTIONS" }[surface as string] ?? workspaceTabLabels[surface]) : workspaceTabLabels[surface]
+	const build = (compact: boolean, showCounts: boolean, minimal = false) =>
+		surfaces.map((surface, index) => {
+			const name = minimal
+				? ({ linear: "LIN", authored: "PRS", review: "REV", repos: "REP", assigned: "ASGN", mentioned: "MENT", issues: "ISS" }[surface as string] ?? workspaceTabLabels[surface])
+				: compact
+					? ({ review: "REVIEWS", assigned: "ASSIGNED", mentioned: "MENTIONS" }[surface as string] ?? workspaceTabLabels[surface])
+					: workspaceTabLabels[surface]
+			const label = `${index + 1} ${name}`
 			const count = showCounts ? counts[surface] : undefined
 			return { surface, label, count, text: count === undefined ? ` ${label} ` : ` ${label} ${count} ` }
 		})
@@ -17,7 +22,9 @@ export const workspaceTabItems = (surfaces: readonly WorkspaceTab[], counts: Wor
 	const full = build(false, true)
 	if (fits(full)) return full
 	const compact = build(true, true)
-	return fits(compact) ? compact : build(true, false)
+	if (fits(compact)) return compact
+	const withoutCounts = build(true, false)
+	return fits(withoutCounts) ? withoutCounts : build(true, false, true)
 }
 
 export const workspaceTabSeparatorColumns = (counts: WorkspaceSurfaceCounts, surfaces: readonly WorkspaceTab[] = userWorkspaceTabs, width = Infinity) => {

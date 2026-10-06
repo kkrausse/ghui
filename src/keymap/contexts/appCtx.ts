@@ -48,6 +48,8 @@ export interface BuildOpenRepositoryModalCtxInput {
 }
 
 export interface BuildAppCtxFlags {
+	readonly linearWorkspaceActive?: boolean
+	readonly linearInputLocked?: () => boolean
 	readonly closeModalActive: boolean
 	readonly pullRequestStateModalActive: boolean
 	readonly mergeModalActive: boolean

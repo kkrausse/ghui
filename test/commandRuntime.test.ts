@@ -3,6 +3,33 @@ import { invokeHandoff, registerHandoff } from "../src/commands/handoffs.ts"
 import { runIsolatedProbe } from "./isolatedProbe.ts"
 
 describe("command runtime", () => {
+	test("Linear commands share dispatch and reject unavailable or hidden actions", async () => {
+		const probe = `
+			import { Effect } from "effect"
+			import * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry"
+			import { dispatchCommand } from "./src/commands/dispatch.ts"
+			import { registerHandoff } from "./src/commands/handoffs.ts"
+			import { linearAvailableActionsAtom } from "./src/commands/linear.ts"
+			import { workspaceSurfaceAtom } from "./src/workspace/atoms.ts"
+			import { filterModeAtom } from "./src/ui/filter/atoms.ts"
+			const registry = AtomRegistry.make()
+			const called = []
+			const unregister = registerHandoff("linear.expandAllPrs", () => called.push("expand"))
+			const run = (id) => Effect.runPromise(dispatchCommand(id).pipe(Effect.provideService(AtomRegistry.AtomRegistry, registry)))
+			registry.set(workspaceSurfaceAtom, "linear")
+			await run("linear.expandAllPrs")
+			registry.set(linearAvailableActionsAtom, ["expandAllPrs"])
+			await run("linear.expandAllPrs")
+			await run("filter.open")
+			registry.set(workspaceSurfaceAtom, "pullRequests")
+			await run("linear.expandAllPrs")
+			console.log(JSON.stringify({ called, filter: registry.get(filterModeAtom) }))
+			unregister()
+			registry.dispose()
+		`
+		expect(JSON.parse(await runIsolatedProbe(probe))).toEqual({ called: ["expand"], filter: false })
+	})
+
 	test("an actual workspace command resets cross-view state", async () => {
 		const probe = `
 			import { Effect } from "effect"

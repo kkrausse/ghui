@@ -15,6 +15,9 @@ import { wheel } from "./wheel.ts"
  */
 const PR_COL = 9
 
+/** Issue status, caret, priority and the 13-wide identifier, less the 2-cell tree mark. */
+const PR_TREE_INDENT = 17
+
 type Props = {
 	scrollOffsetRef?: MutableRefObject<number> | undefined
 	selectedRowKey?: string | null | undefined
@@ -112,16 +115,13 @@ export function IssueList({
 							{`${row.label} (${row.count})`}
 						</text>
 					) : row.t === "pr" ? (
-						<box key={row.key} height={1} {...(row.key === selectedRowKey ? { backgroundColor: color.selectedBg } : {})} onMouseDown={() => onPickRow?.(row)}>
-							<text height={1} wrapMode="none" truncate fg={gitStatusStyle(row.link.status).fg}>
-								{`    └ PR #${row.link.number} · ${gitSummary(row.link, row.issue.branchName)}`}
-							</text>
-						</box>
+						<PullRequestRow key={row.key} row={row} active={row.key === selectedRowKey} onPick={() => onPickRow?.(row)} />
 					) : (
 						<IssueRow
 							key={row.key}
 							issue={row.issue}
 							expanded={expanded?.has(row.issue.id)}
+							caretColumn={expanded !== undefined}
 							expandable={expanded !== undefined && issuePullRequests(row.issue).length > 0}
 							active={selectedRowKey ? row.key === selectedRowKey : row.index === selected}
 							focused={focused}
@@ -139,6 +139,7 @@ function IssueRow({
 	active,
 	focused,
 	onPick,
+	caretColumn,
 	expandable,
 	expanded,
 }: {
@@ -146,6 +147,8 @@ function IssueRow({
 	active: boolean
 	focused: boolean
 	onPick: () => void
+	/** Reserve the ▸/▾ cell on every row, so rows without PRs line up with rows that have them. */
+	caretColumn?: boolean
 	expandable?: boolean
 	expanded?: boolean | undefined
 }) {
@@ -161,25 +164,52 @@ function IssueRow({
 
 	return (
 		<box flexDirection="row" height={1} {...(active ? { backgroundColor: color.selectedBg } : {})} onMouseDown={onPick}>
-			{expandable ? <text fg={color.faint}>{expanded ? "▾ " : "▸ "}</text> : null}
+			<text flexShrink={0} fg={stateColor(issue.state?.type, issue.state?.color)}>
+				{`${stateGlyph(issue.state?.type)} `}
+			</text>
+			{caretColumn ? (
+				<text flexShrink={0} fg={color.faint}>
+					{expandable ? (expanded ? "▾ " : "▸ ") : "  "}
+				</text>
+			) : null}
 			<text flexShrink={0} fg={prio.fg}>
 				{prio.glyph}
 			</text>
 			<text flexShrink={0} fg={active && focused ? color.accent : color.faint}>
 				{fit(issue.identifier, 13)}
 			</text>
-			<text flexShrink={0} fg={stateColor(issue.state?.type, issue.state?.color)}>
-				{`${stateGlyph(issue.state?.type)} `}
-			</text>
 			<text fg={fg} flexGrow={1} flexShrink={1} flexBasis={0} minWidth={0} wrapMode="none" truncate>
 				{issue.title}
 			</text>
+			{/* Expanded, the PR rows below say this; the blank cell keeps the column. */}
 			<text flexShrink={0} fg={pr ? gitStatusStyle(pr.status).fg : color.faint}>
-				{fit(pr ? ` ${gitCell(pr, links.length > 1)}` : "", PR_COL)}
+				{fit(pr && !expanded ? ` ${gitCell(pr, links.length > 1)}` : "", PR_COL)}
 			</text>
 			<text flexShrink={0} fg={color.faint}>{` ${fit(clip(assignee, 12), 12)}`}</text>
 			<text flexShrink={0} fg={color.faint}>
 				{age.padStart(4)}
+			</text>
+		</box>
+	)
+}
+
+/**
+ * A linked PR under its expanded issue. The tree sits under the title column so
+ * PR status reads as its own column, apart from the issue status at the left
+ * edge. Only the glyph carries the status color; review trouble turns the
+ * detail red.
+ */
+export function PullRequestRow({ row, active, onPick }: { row: Extract<SelectableIssueRow, { t: "pr" }>; active: boolean; onPick?: () => void }) {
+	const { link } = row
+	const style = gitStatusStyle(link.status)
+	const trouble = link.changesRequested > 0 || link.hasConflicts
+	return (
+		<box flexDirection="row" height={1} {...(active ? { backgroundColor: color.selectedBg } : {})} {...(onPick ? { onMouseDown: onPick } : {})}>
+			<text flexShrink={0} fg={color.faint}>{`${" ".repeat(PR_TREE_INDENT)}${row.last ? "└" : "├"} `}</text>
+			<text flexShrink={0} fg={style.fg}>{`${style.glyph} `}</text>
+			<text flexShrink={0} fg={active ? color.fg : color.dim}>{`#${link.number}  `}</text>
+			<text fg={trouble ? color.urgent : color.dim} flexGrow={1} flexShrink={1} flexBasis={0} minWidth={0} wrapMode="none" truncate>
+				{gitSummary(link, row.issue.branchName).replace(`${style.glyph} `, "")}
 			</text>
 		</box>
 	)

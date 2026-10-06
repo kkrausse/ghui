@@ -39,6 +39,9 @@ const addGhUiParsers = () =>
 
 const FOCUS_REPORTING_ENABLE = "\x1b[?1004h"
 const FOCUS_REPORTING_DISABLE = "\x1b[?1004l"
+// tmux 3.4 negotiates modifyOtherKeys rather than forwarding Kitty's full flags.
+const EXTENDED_KEYS_ENABLE = process.env.TMUX ? "\x1b[>4;2m" : ""
+const EXTENDED_KEYS_DISABLE = process.env.TMUX ? "\x1b[>4;0m" : ""
 const FULL_SCREEN_REPAINT = "\x1b[2J\x1b[3J\x1b[H"
 
 type AppBundle = {
@@ -82,18 +85,24 @@ const renderer = await createCliRenderer({
 	exitOnCtrlC: false,
 	screenMode: "alternate-screen",
 	externalOutputMode: "passthrough",
+	// Shift+Space is printable text under Kitty's default disambiguation mode.
+	// Request all key events so native Ghostty and ghostty-web preserve its Shift.
+	useKittyKeyboard: { allKeysAsEscapes: true },
 	onDestroy: () => {
+		process.stdout.write(EXTENDED_KEYS_DISABLE)
 		process.stdout.write(FOCUS_REPORTING_DISABLE)
 		setApplicationTitle("ghui")
 		if (crashMessage) process.stderr.write(crashMessage)
 		process.exit(crashMessage ? 1 : 0)
 	},
 })
+process.stdout.write(EXTENDED_KEYS_ENABLE)
 
 // Let editor-launch (and any future hand-off) suspend the renderer so an
 // interactive subprocess (nvim, etc.) can own the terminal, then reacquire it.
 setTuiSuspender({
 	suspend: () => {
+		process.stdout.write(EXTENDED_KEYS_DISABLE)
 		process.stdout.write(FOCUS_REPORTING_DISABLE)
 		renderer.suspend()
 	},
@@ -101,6 +110,7 @@ setTuiSuspender({
 		renderer.resume()
 		refreshApplicationTitle()
 		process.stdout.write(FOCUS_REPORTING_ENABLE)
+		process.stdout.write(EXTENDED_KEYS_ENABLE)
 		process.stdout.write(FULL_SCREEN_REPAINT)
 		renderer.requestRender()
 	},

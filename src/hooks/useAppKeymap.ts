@@ -19,6 +19,7 @@ import type { CommentEditorValue } from "../ui/commentEditor.js"
 
 export interface UseAppKeymapInput {
 	readonly disabled: boolean
+	readonly linearInputLocked?: () => boolean
 
 	// Active flags
 	readonly closeModalActive: boolean
@@ -185,6 +186,8 @@ export const useAppKeymap = (i: UseAppKeymapInput): void => {
 		disabled: i.disabled,
 		ctxInput: {
 			flags: {
+				linearWorkspaceActive: i.activeWorkspaceSurface === "linear",
+				...(i.linearInputLocked ? { linearInputLocked: i.linearInputLocked } : {}),
 				closeModalActive: i.closeModalActive,
 				pullRequestStateModalActive: i.pullRequestStateModalActive,
 				mergeModalActive: i.mergeModalActive,

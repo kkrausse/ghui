@@ -45,6 +45,11 @@ Central follow-up list: [Linear workspace follow-ups](linear-workspace-follow-up
   issue occurrences and children. Group-label duplicates have distinct keys;
   collapse reconciles a selected child to its own parent. Pagination preserves
   stable keys rather than assuming an open-queue index.
+- In the My Issues list, `Shift+Space` toggles every loaded issue's linked PR
+  rows: expand all unless all are expanded, then collapse all. This changes local display, not refreshes or
+  mutations; Space still toggles one issue. Bulk collapse preserves selection
+  by reconciling a selected PR child to its own parent. Newly loaded issues
+  remain collapsed until expanded, and search/project lists are unaffected.
 - Linear hands supported URLs to the host via `onOpenGitHubLink`. GHUI fetches
   the exact repository/number through its existing read-only GitHub service and
   selects the entity independently of open queue membership. Linear stays mounted.

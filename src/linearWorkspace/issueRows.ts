@@ -6,7 +6,7 @@ import { groupIssues, type GroupBy } from "./views.js"
 export type IssueRow =
 	| { t: "group"; key: string; label: string; count: number }
 	| { t: "issue"; key: string; issue: Issue; index: number }
-	| { t: "pr"; key: string; parentKey: string; issue: Issue; index: number; link: GitLink }
+	| { t: "pr"; key: string; parentKey: string; issue: Issue; index: number; link: GitLink; last: boolean }
 export type SelectableIssueRow = Exclude<IssueRow, { t: "group" }>
 
 export const issuePullRequests = (issue: Issue): GitLink[] => {
@@ -30,10 +30,12 @@ export const buildIssueRows = (issues: Issue[], groupBy: GroupBy, expanded: Read
 			const key = JSON.stringify([groupKey, issue.id])
 			const index = positions.get(issue.id) ?? 0
 			rows.push({ t: "issue", key, issue, index })
-			if (expanded.has(issue.id))
-				for (const link of issuePullRequests(issue)) {
-					rows.push({ t: "pr", key: `${key}:${githubPullRequestRoute(link.url)!.url}`, parentKey: key, issue, index, link })
-				}
+			if (expanded.has(issue.id)) {
+				const links = issuePullRequests(issue)
+				links.forEach((link, i) => {
+					rows.push({ t: "pr", key: `${key}:${githubPullRequestRoute(link.url)!.url}`, parentKey: key, issue, index, link, last: i === links.length - 1 })
+				})
+			}
 		}
 		return rows
 	})

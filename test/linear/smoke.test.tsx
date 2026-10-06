@@ -11,9 +11,10 @@ import { mkdirSync, rmSync } from "node:fs"
 import { join } from "node:path"
 import { afterAll, beforeAll, expect, test } from "bun:test"
 import { App } from "../../src/linearWorkspace/app.tsx"
+import type { LinearActions } from "../../src/linearWorkspace/commandActions.ts"
 import { invalidateCache } from "../../src/linearWorkspace/linear/client.ts"
 import { writeGroupPreferences } from "../../src/linearWorkspace/preferences.ts"
-import { frameWith, installLinearStub, requests, sent, type Setup, settle } from "./stub.tsx"
+import { frameWith, installLinearStub, issue, requests, sent, type Setup, settle } from "./stub.tsx"
 
 let restoreFetch: () => void
 const originalConfig = process.env.XDG_CONFIG_HOME
@@ -30,12 +31,12 @@ afterAll(() => {
 	rmSync(testConfig, { recursive: true, force: true })
 })
 
-async function boot() {
+async function boot(kittyKeyboard = false, onOpenGitHubLink?: (url: string) => boolean, onCommandsChange?: (actions: LinearActions) => void) {
 	writeGroupPreferences({})
 	sent.length = 0
 	requests.length = 0
 	invalidateCache()
-	const setup = await testRender(<App />, { width: 130, height: 32 })
+	const setup = await testRender(<App onOpenGitHubLink={onOpenGitHubLink} onCommandsChange={onCommandsChange} />, { width: 130, height: 32, kittyKeyboard })
 	await frameWith(setup, (f) => f.includes("BACKEND"), 'f.includes("BACKEND")')
 	return setup
 }
@@ -55,6 +56,37 @@ test("boots into My Issues with the sidebar populated", async () => {
 	setup.renderer.destroy()
 })
 
+test("Shift+Space toggles all linked PRs without refreshing and reconciles a selected child", async () => {
+	const setup = await boot(true)
+	try {
+		await frameWith(setup, (f) => f.includes("BACKEND-1361"), "issues loaded")
+		const requestCount = requests.length
+		// Bulk expansion is view-wide, including the initial sidebar focus.
+		setup.mockInput.pressKey(" ", { shift: true })
+		const expanded = await frameWith(setup, (f) => f.includes(" #783  "), "PRs expanded")
+		expect(expanded).toContain(" #575  ")
+		expect(requests.length).toBe(requestCount)
+
+		setup.mockInput.pressArrow("right")
+		await settle(setup)
+		setup.mockInput.pressArrow("down")
+		await settle(setup)
+		setup.mockInput.pressKey(" ", { shift: true })
+		const collapsed = await frameWith(setup, (f) => !f.includes(" #575  "), "PRs collapsed")
+		expect(collapsed).not.toContain(" #783  ")
+
+		// The per-ticket toggle still works after the bulk collapse.
+		setup.mockInput.pressKey(" ")
+		await frameWith(setup, (f) => f.includes(" #783  "), "Space expands parent")
+		setup.mockInput.pressKey(" ", { shift: true })
+		await frameWith(setup, (f) => !f.includes(" #783  "), "collapsed again")
+		setup.mockInput.pressEnter()
+		await frameWith(setup, (f) => f.includes("Branch"), "parent detail opens")
+	} finally {
+		setup.renderer.destroy()
+	}
+})
+
 test("j moves down the sidebar into the sprint view and loads cycle issues", async () => {
 	const setup = await boot()
 	await frameWith(setup, (f) => f.includes("BACKEND-1361"), 'f.includes("BACKEND-1361")')
@@ -69,6 +101,97 @@ test("j moves down the sidebar into the sprint view and loads cycle issues", asy
 	expect(frame).toContain("Sprint 42")
 
 	setup.renderer.destroy()
+})
+
+for (const [name, steps, operation] of [
+	["team All Issues", 2, "TeamIssues"],
+	["sprint", 3, "CycleIssues"],
+	["saved view", 5, "CustomViewIssues"],
+] as const) {
+	test(`${name} supports bulk PR dropdowns, child navigation and safe issue shortcuts`, async () => {
+		const opened: string[] = []
+		const originalFetch = globalThis.fetch
+		if (name === "saved view") {
+			globalThis.fetch = (async (url, init) => {
+				const { query, variables } = JSON.parse(String(init?.body ?? "{}"))
+				if (!query.includes("query CustomViewIssues")) return originalFetch(url, init)
+				requests.push({ query, variables })
+				return Response.json({ data: { customView: { id: "cv-1", name: "My saved view", issues: { nodes: [issue()] } } } })
+			}) as typeof fetch
+		}
+		const setup = await boot(true, (url) => {
+			opened.push(url)
+			return true
+		})
+		try {
+			await frameWith(setup, (f) => f.includes("BACKEND-1361"), "issues loaded")
+			for (let i = 0; i < steps; i++) {
+				setup.mockInput.pressKey("j")
+				await settle(setup)
+			}
+			await frameWith(setup, (f) => !f.includes("Loading…") && requests.some((r) => r.query.includes(`query ${operation}`)), "target loaded")
+			const before = requests.length
+			setup.mockInput.pressKey(" ", { shift: true })
+			const expanded = await frameWith(setup, (f) => f.includes(" #783  "), "all linked PRs expanded")
+			expect(expanded).toContain(" #575  ")
+			if (name === "sprint") expect(expanded).toContain(" #801  ")
+			expect(requests.length).toBe(before)
+			setup.mockInput.pressKey("l")
+			await settle(setup)
+			setup.mockInput.pressKey("g")
+			setup.mockInput.pressKey("g")
+			await settle(setup)
+			setup.mockInput.pressKey("j")
+			await settle(setup)
+			setup.mockInput.pressKey("s")
+			await settle(setup)
+			expect(setup.captureCharFrame()).not.toContain("Status ·")
+			expect(sent).toHaveLength(0)
+			setup.mockInput.pressEnter()
+			await settle(setup)
+			expect(opened).toHaveLength(1)
+			expect(opened[0]).toMatch(/\/pull\/(575|783|801)$/)
+			setup.mockInput.pressKey(" ", { shift: true })
+			await frameWith(setup, (f) => !f.includes(" #575  ") && !f.includes(" #783  "), "collapsed from child")
+			setup.mockInput.pressKey(" ")
+			await frameWith(setup, (f) => f.includes("└ "), "single ticket expanded")
+		} finally {
+			setup.renderer.destroy()
+			globalThis.fetch = originalFetch
+		}
+	})
+}
+
+test("search results support PR dropdowns and open the selected GitHub child", async () => {
+	const opened: string[] = []
+	const setup = await boot(true, (url) => {
+		opened.push(url)
+		return true
+	})
+	try {
+		await frameWith(setup, (f) => f.includes("BACKEND-1361"), "issues loaded")
+		setup.mockInput.pressKey("/")
+		await frameWith(setup, (f) => f.includes("text to search across every issue"), "search input")
+		await setup.mockInput.typeText("aggregation")
+		await setup.flush()
+		setup.mockInput.pressEnter()
+		await frameWith(setup, (f) => f.includes("Found by search"), "search results")
+		const before = requests.length
+		setup.mockInput.pressKey(" ", { shift: true })
+		await frameWith(setup, (f) => f.includes(" #783  "), "search PRs expanded")
+		expect(requests.length).toBe(before)
+		setup.mockInput.pressKey("j")
+		await settle(setup)
+		setup.mockInput.pressEnter()
+		await settle(setup)
+		expect(opened).toHaveLength(1)
+		setup.mockInput.pressKey(" ", { shift: true })
+		await frameWith(setup, (f) => !f.includes(" #783  "), "search PRs collapsed")
+		setup.mockInput.pressKey(" ")
+		await frameWith(setup, (f) => f.includes(" #783  "), "search single toggle")
+	} finally {
+		setup.renderer.destroy()
+	}
 })
 
 /**
@@ -320,9 +443,91 @@ test("My Projects starts collapsed; space expands tickets that arrows can select
 	await frameWith(setup, (f) => f.includes("BACKEND-1361") && f.includes("COMMENT"), "expanded ticket detail")
 	setup.mockInput.pressKey("ESCAPE")
 	await frameWith(setup, (f) => f.includes("In Progress (1)"), "expanded list after detail")
+	// Space on a ticket now toggles its PRs; return to the project to collapse tickets.
+	setup.mockInput.pressKey("g")
+	setup.mockInput.pressKey("g")
+	await settle(setup)
 	setup.mockInput.pressKey(" ")
 	await frameWith(setup, (f) => !f.includes("In Progress (1)"), "collapsed again")
 	setup.renderer.destroy()
+})
+
+test("My Projects grouped ticket previews support PR children and palette expansion", async () => {
+	const opened: string[] = []
+	let actions: LinearActions = {}
+	const setup = await boot(
+		true,
+		(url) => {
+			opened.push(url)
+			return true
+		},
+		(next) => {
+			actions = next
+		},
+	)
+	try {
+		await frameWith(setup, (f) => f.includes("BACKEND-1361"), "issues loaded")
+		setup.mockInput.pressKey("j")
+		await frameWith(setup, (f) => f.includes("62%"), "my projects")
+		setup.mockInput.pressKey("l")
+		await settle(setup)
+		setup.mockInput.pressKey(" ")
+		await frameWith(setup, (f) => f.includes("Todo (1)"), "all preview pages loaded")
+		const before = requests.length
+		expect(actions.expandAllPrs).toBeDefined()
+		actions.expandAllPrs!()
+		await frameWith(setup, (f) => f.includes(" #783  "), "palette expands preview PRs")
+		expect(requests.length).toBe(before)
+		setup.mockInput.pressKey("j") // first ticket
+		await settle(setup)
+		setup.mockInput.pressKey("j") // first PR child
+		await settle(setup)
+		setup.mockInput.pressKey("s")
+		await settle(setup)
+		expect(setup.captureCharFrame()).not.toContain("Status ·")
+		setup.mockInput.pressEnter()
+		await settle(setup)
+		expect(opened).toHaveLength(1)
+		setup.mockInput.pressKey(" ", { shift: true })
+		await frameWith(setup, (f) => !f.includes(" #783  "), "preview collapses from child")
+		setup.mockInput.pressKey(" ")
+		await frameWith(setup, (f) => f.includes(" #783  "), "Space expands selected preview ticket")
+		// Only one ticket expands, although both fixture tickets have the same PRs.
+		expect(setup.captureCharFrame().match(/ #783  /g)).toHaveLength(1)
+		setup.mockInput.pressKey("g")
+		setup.mockInput.pressKey("g")
+		await settle(setup)
+		setup.mockInput.pressKey(" ")
+		await frameWith(setup, (f) => !f.includes("In Progress (1)"), "project still collapses tickets")
+	} finally {
+		setup.renderer.destroy()
+	}
+})
+
+test("project Issues tab supports bulk PR dropdowns but Overview does not", async () => {
+	let actions: LinearActions = {}
+	const setup = await boot(true, undefined, (next) => {
+		actions = next
+	})
+	try {
+		await frameWith(setup, (f) => f.includes("BACKEND-1361"), "issues loaded")
+		setup.mockInput.pressKey("l")
+		await settle(setup)
+		setup.mockInput.pressKey("P")
+		await frameWith(setup, (f) => f.includes("MILESTONES"), "project overview")
+		expect(actions.toggleAllPrs).toBeUndefined()
+		setup.mockInput.pressKey("[")
+		await frameWith(setup, (f) => f.includes("Unified permissions events stream"), "project issues")
+		expect(actions.toggleAllPrs).toBeDefined()
+		const before = requests.length
+		setup.mockInput.pressKey(" ", { shift: true })
+		await frameWith(setup, (f) => f.includes(" #783  "), "project PRs expanded")
+		expect(requests.length).toBe(before)
+		actions.collapseAllPrs!()
+		await frameWith(setup, (f) => !f.includes(" #783  "), "palette collapses project PRs")
+	} finally {
+		setup.renderer.destroy()
+	}
 })
 
 test("grouping is saved per view and restored on a new app mount", async () => {

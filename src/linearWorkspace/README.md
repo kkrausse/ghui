@@ -64,11 +64,13 @@ binary; that was the trade for writing views in React.
 | `ctrl+d` / `ctrl+u`  | half-page jump                                                                        |
 | `gg` / `G`           | jump to the first / last row                                                          |
 | `gi` / `gn`          | go to My Issues / Inbox                                                               |
+| `Space`              | Toggle selected ticket's PRs; on a My Projects project, toggle its tickets            |
+| `Shift+Space`        | Any ticket list, search or project preview: toggle all loaded tickets' PR dropdowns   |
+| `Ctrl+P` / `Cmd+K`   | GHUI: shared command palette (outside text inputs and pickers)                        |
 | `l` / `→`            | into the list, then open the selected row                                             |
 | `h` / `←`            | back out: close the pane, then back to the sidebar                                    |
 | `tab`                | in the list: switch pane · in detail: cycle comments                                  |
 | `enter`              | load view · open issue · drill into project                                           |
-| `space`              | in My Projects: expand/collapse the selected project's tickets                        |
 | `1` `2` `3`, `[` `]` | inside a project: switch tab                                                          |
 | `u`                  | inside a project: post a project update                                               |
 | `esc`                | leave detail, search, or a drilled-in project                                         |

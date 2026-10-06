@@ -244,17 +244,17 @@ describe("PR list scrolling", () => {
 	})
 
 	test("workspace tabs switch between pull requests and issues", async () => {
-		const { mockInput, renderOnce, captureCharFrame, renderer } = await setupApp(100, 20)
+		const { mockInput, renderOnce, captureCharFrame, renderer } = await setupApp(140, 20)
 
 		// Home now lists "issues authored by me" instead of returning empty when no repo is selected.
-		expect(captureCharFrame()).toContain("REPOS 4 │ MY PRS 80 │ REVIEW REQUESTED │ ASSIGNED PRS │ MENTIONED PRS │ ISSUES")
-		await press(mockInput, renderOnce, { kind: "key", name: "6" }, 2)
+		expect(captureCharFrame()).toContain("1 LINEAR │ 2 MY PRS 80 │ 3 REVIEW REQUESTED │ 4 REPOS 4 │ 5 ASSIGNED PRS │ 6 MENTIONED PRS │ 7 ISSUES")
+		await press(mockInput, renderOnce, { kind: "key", name: "7" }, 2)
 		expect(captureCharFrame()).toContain("ISSUES")
 		expect(captureCharFrame()).not.toContain("1/2 surface")
 		expect(captureCharFrame()).not.toContain("tab surface")
 
 		await press(mockInput, renderOnce, { kind: "key", name: "2" }, 2)
-		expect(captureCharFrame()).toContain("REPOS 4 │ MY PRS 80")
+		expect(captureCharFrame()).toContain("1 LINEAR │ 2 MY PRS 80 │ 3 REVIEW REQUESTED │ 4 REPOS 4")
 		renderer.destroy()
 	})
 
@@ -263,15 +263,17 @@ describe("PR list scrolling", () => {
 		await press(mockInput, renderOnce, { kind: "arrow", dir: "down" })
 		const authoredSelection = detailPaneNumber(captureCharFrame())
 		await press(mockInput, renderOnce, { kind: "key", name: "3" })
-		expect(await settle(renderOnce, () => captureCharFrame().includes("MY PRS │ REVIEW REQUESTED 80"))).toBe(true)
+		expect(await settle(renderOnce, () => captureCharFrame().includes("2 MY PRS │ 3 REVIEW REQUESTED 80"))).toBe(true)
 		act(() => mockInput.pressTab())
-		const assignedLoaded = await settle(renderOnce, () => captureCharFrame().includes("REVIEW REQUESTED │ ASSIGNED PRS 80"))
+		expect(await settle(renderOnce, () => captureCharFrame().includes("4 REPOS 4"))).toBe(true)
+		act(() => mockInput.pressTab())
+		const assignedLoaded = await settle(renderOnce, () => captureCharFrame().includes("5 ASSIGNED PRS 80"))
 		expect(assignedLoaded, captureCharFrame()).toBe(true)
-		await press(mockInput, renderOnce, { kind: "key", name: "5" })
-		const mentionedLoaded = await settle(renderOnce, () => captureCharFrame().includes("ASSIGNED PRS │ MENTIONED PRS 80"))
+		await press(mockInput, renderOnce, { kind: "key", name: "6" })
+		const mentionedLoaded = await settle(renderOnce, () => captureCharFrame().includes("5 ASSIGNED PRS │ 6 MENTIONED PRS 80"))
 		expect(mentionedLoaded, captureCharFrame()).toBe(true)
 		await press(mockInput, renderOnce, { kind: "key", name: "2" })
-		expect(await settle(renderOnce, () => captureCharFrame().includes("MY PRS 80 │ REVIEW REQUESTED"))).toBe(true)
+		expect(await settle(renderOnce, () => captureCharFrame().includes("2 MY PRS 80 │ 3 REVIEW REQUESTED"))).toBe(true)
 		expect(detailPaneNumber(captureCharFrame())).toBe(authoredSelection)
 		renderer.destroy()
 	})
@@ -285,17 +287,17 @@ describe("PR list scrolling", () => {
 	test("compact home tabs remain clickable at minimum width and repo tabs stay scoped", async () => {
 		const { mockInput, mockMouse, renderOnce, captureCharFrame, renderer, resize } = await setupApp(60, 20)
 		const lines = captureCharFrame().split("\n")
-		const row = lines.findIndex((line) => line.includes("REVIEWS"))
+		const row = lines.findIndex((line) => line.includes("3 REV"))
 		expect(row).toBeGreaterThanOrEqual(0)
-		expect(lines[row]).toContain("REPOS │ MY PRS │ REVIEWS │ ASSIGNED │ MENTIONS │ ISSUES")
+		expect(lines[row]).toContain("1 LIN │ 2 PRS │ 3 REV │ 4 REP │ 5 ASGN │ 6 MENT │ 7 ISS")
 		await act(async () => {
-			await mockMouse.click(lines[row]!.indexOf("REVIEWS") + 2, row)
+			await mockMouse.click(lines[row]!.indexOf("3 REV") + 2, row)
 		})
 		await stepFrame(renderOnce)
 		// Returning to a wide layout exposes the selected queue's count.
 		act(() => resize(120, 20))
-		expect(await settle(renderOnce, () => captureCharFrame().includes("MY PRS │ REVIEW REQUESTED 80"))).toBe(true)
-		await press(mockInput, renderOnce, { kind: "key", name: "1" })
+		expect(await settle(renderOnce, () => captureCharFrame().includes("2 MY PRS │ 3 REVIEW REQUESTED 80"))).toBe(true)
+		await press(mockInput, renderOnce, { kind: "key", name: "4" })
 		await press(mockInput, renderOnce, { kind: "enter" })
 		expect(await settle(renderOnce, () => captureCharFrame().includes("PULL REQUESTS"))).toBe(true)
 		expect(captureCharFrame()).not.toContain("REVIEW REQUESTED")
@@ -303,15 +305,15 @@ describe("PR list scrolling", () => {
 	})
 
 	test("right arrow opens a repository and left arrow returns home", async () => {
-		const { mockInput, renderOnce, captureCharFrame, renderer } = await setupApp(100, 20)
+		const { mockInput, renderOnce, captureCharFrame, renderer } = await setupApp(140, 20)
 		try {
-			await press(mockInput, renderOnce, { kind: "key", name: "1" })
+			await press(mockInput, renderOnce, { kind: "key", name: "4" })
 			await press(mockInput, renderOnce, { kind: "arrow", dir: "right" })
 			expect(await settle(renderOnce, () => captureCharFrame().includes("PULL REQUESTS"))).toBe(true)
 			expect(captureCharFrame()).toContain("HOME / mock-org/repo-0")
 
 			await press(mockInput, renderOnce, { kind: "arrow", dir: "left" })
-			expect(await settle(renderOnce, () => captureCharFrame().includes("REPOS 4 │ MY PRS"))).toBe(true)
+			expect(await settle(renderOnce, () => captureCharFrame().includes("3 REVIEW REQUESTED │ 4 REPOS 4"))).toBe(true)
 			expect(captureCharFrame()).not.toContain("HOME / mock-org/repo-0")
 		} finally {
 			renderer.destroy()

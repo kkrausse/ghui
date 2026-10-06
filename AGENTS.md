@@ -1,6 +1,30 @@
 # Repository Notes
 
-## Release Process
+## Active Local Fork — Read First
+
+- This is the user's actively maintained `kkrausse/ghui` fork, checked out at
+  `/Users/kevinkrausse/Documents/kkrausse/ghui`. Further local improvements are
+  planned; this is not a disposable upstream experiment.
+- `fork-workflow-improvements` is the canonical local development branch and
+  baseline for new work. Git's `origin/HEAD` currently points to `origin/main`;
+  that is not the intended local development baseline. Check status/branch before
+  editing, and do not automatically switch, reset, or rebase onto `main`.
+- `origin` is `https://github.com/kkrausse/ghui.git`; `upstream` is
+  `https://github.com/kitlangton/ghui.git`. Read `FORK.md` and relevant `plans/`
+  for implemented differences and ongoing work.
+- `~/.bun/bin/ghui` is Bun-linked to this checkout through
+  `~/.bun/install/global/node_modules/@kitlangton/ghui`. The launcher currently
+  falls back to `bun src/standalone.ts` because no platform binary is installed
+  in this checkout. A separate Homebrew `ghui` exists but is not the local fork.
+- Preserve the local CLI link. Do not run `ghui upgrade`, reinstall the upstream
+  package, sync upstream, push, publish, or change the GitHub default branch
+  without an explicit request. See `FORK.md` for development commands.
+
+## Upstream Release Process (Reference Only)
+
+These are inherited upstream instructions, not authorization to release this
+fork. Local development stays on `fork-workflow-improvements`; upstream release
+targets below apply only when explicitly working on an upstream release.
 
 - Release workflow: `.github/workflows/publish.yml`.
 - npm Trusted Publisher should be configured for owner `kitlangton`, repository `ghui`, workflow `publish.yml`, environment `npm`.
