@@ -83,7 +83,7 @@ export function HelpOverlay() {
 				["enter", "load view · open issue · drill into project"],
 				["space", "ticket: linked PRs · My Projects project: tickets"],
 				["shift+space", "any ticket list: toggle all linked PR dropdowns"],
-				["ctrl+p / cmd+k", "open GHUI's shared command palette"],
+				["ctrl+p / cmd+k", "command palette: every action available on this screen"],
 				["1–7", "GHUI host tabs (except while editing or picking)"],
 				["esc", "leave detail, search, or drilled-in project"],
 				["/", "search every issue — its own scope, no sidebar; esc leaves it"],
@@ -105,7 +105,7 @@ export function HelpOverlay() {
 			"PROJECT (enter on a project row)",
 			[
 				["click tabs", "Overview · Updates · Issues (digits belong to GHUI)"],
-				["[ / ]", "previous / next tab"],
+				["← / →, [ / ]", "previous / next tab (← on Overview backs out)"],
 				["u", "post a project update (health, then body)"],
 				["c", "comment on the project, or on the selected update"],
 				["enter", "on Updates: open the update and its thread"],

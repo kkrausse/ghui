@@ -77,6 +77,10 @@ Plain Space expanded only one issue (18→19); partial bulk expansion and typed
 palette collapse also worked. No web-terminal code changes or issue edits were
 needed. Native Ghostty clients must reattach to pick up the mode-2 override.
 
-Remaining action/keymap migration is deliberately staged rather than a wholesale
-replacement of the retained Linear workspace. Next: selected-issue actions and
-project/comment workflows, then pane navigation/prefix keys as typed contexts.
+Phase 2 (2026-10-12): every Linear key action is now also a palette command —
+issue edits (status/assignee/priority/cycle), open/copy link, branch copy, linked
+PR, go to project, comment/reply, activity feed, project tabs and updates, and
+inbox archive/read. The Linear app publishes only the actions valid for the
+current screen, so the palette lists exactly those. Left/Right step project tabs
+(Left on Overview backs out). Keys still run through the Linear key handler; the
+remaining step is moving pane navigation/prefix keys into typed keymap contexts.

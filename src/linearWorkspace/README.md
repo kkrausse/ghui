@@ -255,9 +255,9 @@ badge and nothing else; the inbox itself still counts what it loaded.
 ### Projects
 
 `enter` on a project row opens a three-tab workspace, the way Linear's own
-project page does. `1`/`2`/`3` jump to a tab, `[`/`]` step through them, and the
-tabs are clickable. `esc` or `h` unwinds to the projects list, not to the tab you
-were on.
+project page does. `←`/`→` or `[`/`]` step through the tabs, and the tabs are
+clickable; `←` on Overview backs out. `esc` or `h` unwinds to the projects list,
+not to the tab you were on.
 
 In **My Projects**, projects start collapsed. Select one and press **Space** to
 expand all its tickets beneath it, grouped by status by default; Space again

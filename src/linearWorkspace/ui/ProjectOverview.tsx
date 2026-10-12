@@ -113,7 +113,7 @@ export function ProjectOverview({
 			borderColor={focused ? color.borderFocus : color.border}
 			title={title}
 			titleColor={color.accent}
-			bottomTitle=" 1/2/3 or [ ] switch tab · u new update · esc back "
+			bottomTitle=" ←/→ switch tab · u new update · esc back "
 		>
 			<ProjectTabs active={activeTab} focused={focused} onPick={onTab} />
 

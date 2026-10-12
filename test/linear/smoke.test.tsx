@@ -626,6 +626,59 @@ test("] and [ step through the project tabs", async () => {
 	setup.renderer.destroy()
 })
 
+test("arrow keys step through the project tabs and left on Overview backs out", async () => {
+	const setup = await boot()
+	await frameWith(setup, (f) => f.includes("BACKEND-1361"), "first issue")
+	await openProject(setup)
+
+	setup.mockInput.pressArrow("right") // overview -> updates
+	await frameWith(setup, (f) => f.includes("Kicked off"), "updates tab")
+	setup.mockInput.pressArrow("right") // updates -> issues
+	await frameWith(setup, (f) => f.includes("Unified permissions events stream"), "issues tab")
+	setup.mockInput.pressArrow("right") // stays on issues
+	await settle(setup)
+	expect(setup.captureCharFrame()).toContain("Unified permissions events stream")
+	setup.mockInput.pressArrow("left")
+	await frameWith(setup, (f) => f.includes("Kicked off"), "updates tab again")
+	setup.mockInput.pressArrow("left")
+	await frameWith(setup, (f) => f.includes("MILESTONES"), "overview again")
+	setup.mockInput.pressArrow("left")
+	const frame = await frameWith(setup, (f) => f.includes("BACKEND · Projects"), "projects list")
+	expect(frame).not.toContain("MILESTONES")
+
+	setup.renderer.destroy()
+})
+
+test("palette actions follow the current Linear screen", async () => {
+	let actions: LinearActions = {}
+	const setup = await boot(false, undefined, (next) => {
+		actions = next
+	})
+	try {
+		await frameWith(setup, (f) => f.includes("BACKEND-1361"), "first issue")
+		expect(actions.setStatus).toBeDefined()
+		expect(actions.copyLink).toBeDefined()
+		expect(actions.nextProjectTab).toBeUndefined()
+		actions.setStatus!()
+		await frameWith(setup, (f) => f.includes("Status ·"), "status picker")
+		setup.mockInput.pressKey("ESCAPE")
+		await settle(setup)
+
+		await openProject(setup)
+		expect(actions.setStatus).toBeUndefined()
+		expect(actions.projectOverview).toBeUndefined()
+		expect(actions.postProjectUpdate).toBeDefined()
+		actions.projectUpdates!()
+		await frameWith(setup, (f) => f.includes("Kicked off"), "updates tab")
+		expect(actions.comment).toBeDefined()
+		actions.nextProjectTab!()
+		await frameWith(setup, (f) => f.includes("Unified permissions events stream"), "issues tab")
+		expect(actions.setStatus).toBeDefined()
+	} finally {
+		setup.renderer.destroy()
+	}
+})
+
 test("enter on an update opens it with its comment thread", async () => {
 	const setup = await boot()
 	await frameWith(setup, (f) => f.includes("BACKEND-1361"), "first issue")

@@ -13,7 +13,7 @@ type Props = {
  * panes as their first child rather than wrapped around them -- a wrapper would
  * mean a second border, and every pane already draws its own.
  *
- * Click a label or use brackets; digits belong to GHUI's host tabs.
+ * Click a label or use arrows/brackets; digits belong to GHUI's host tabs.
  */
 export function ProjectTabs({ active, focused, onPick }: Props) {
 	return (

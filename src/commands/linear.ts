@@ -12,7 +12,7 @@ export const linearCommands = linearActionDefinitions.map((definition) =>
 	defineCommand({
 		id: `linear.${definition.action}`,
 		title: definition.title,
-		scope: "Navigation",
+		scope: definition.scope,
 		...("shortcut" in definition ? { shortcut: definition.shortcut } : {}),
 		keywords: ["linear", definition.action, "issue", "ticket"],
 		when: linearSurfaceAtom,

@@ -44,6 +44,7 @@ import {
 	itemCount,
 	loadTarget,
 	nextProjectTab,
+	PROJECT_TABS,
 	projectRef,
 	replyTarget,
 	searchIssues,
@@ -1249,6 +1250,20 @@ export function App({
 	)
 
 	/** Bindings shared by the list and the detail pane. Returns true if consumed. */
+	const startIssueComment = useCallback(
+		(issue: Editable) => {
+			returnModeRef.current = modeRef.current === "detail" ? "detail" : "list"
+			setCompose({
+				kind: "comment",
+				label: issue.identifier,
+				anchor: { issueId: issue.id },
+				parentId: null,
+			})
+			setMode("comment")
+		},
+		[setMode],
+	)
+
 	const handleEditKey = useCallback(
 		(key: { name: string; sequence: string }, issue: Editable | null | undefined): boolean => {
 			if (!issue) return false
@@ -1271,19 +1286,12 @@ export function App({
 				return true
 			}
 			if (is(key, "c")) {
-				returnModeRef.current = modeRef.current === "detail" ? "detail" : "list"
-				setCompose({
-					kind: "comment",
-					label: issue.identifier,
-					anchor: { issueId: issue.id },
-					parentId: null,
-				})
-				setMode("comment")
+				startIssueComment(issue)
 				return true
 			}
 			return false
 		},
-		[openPicker, setMode],
+		[openPicker, startIssueComment],
 	)
 
 	const setAllPrsExpanded = (expand?: boolean) => {
@@ -1335,7 +1343,50 @@ export function App({
 					actions.expandAllPrs = () => setAllPrsExpanded(true)
 					actions.collapseAllPrs = () => setAllPrsExpanded(false)
 				}
+				if (inProject) {
+					if (inProject !== "overview") actions.projectOverview = () => setProjectTab("overview")
+					if (inProject !== "updates") actions.projectUpdates = () => setProjectTab("updates")
+					if (inProject !== "issues") actions.projectIssues = () => setProjectTab("issues")
+					actions.nextProjectTab = () => setProjectTab(nextProjectTab(inProject, 1))
+					actions.previousProjectTab = () => setProjectTab(nextProjectTab(inProject, -1))
+					actions.postProjectUpdate = startProjectUpdate
+				}
+				if (showingInbox && currentNotification) {
+					actions.archiveNotification = () => void inboxAction(currentNotification, "archive")
+					actions.toggleNotificationRead = () => void inboxAction(currentNotification, "toggle-read")
+				}
 			}
+
+			// The same subjects the o/Y/c/s/... keys act on. A linked PR row is a
+			// navigation row, never an issue edit target.
+			const prRow = mode === "list" && selectedIssueRow?.t === "pr" ? selectedIssueRow : null
+			const update = mode === "update" ? openUpdate : showingUpdates && mode === "list" ? updates[listSelected] : null
+			const issue = mode === "detail" ? detail : mode === "list" && !prRow ? (projectIssue ?? (showingIssues ? (selectedIssueRow?.issue ?? currentIssue) : null)) : null
+			const url = mode === "detail" ? detail?.url : (prRow?.link.url ?? update?.url ?? (showingInbox ? currentNotification?.url : showingOverview ? overview?.url : issue?.url))
+			if (url) {
+				actions.openInBrowser = () => (prRow ? openLink(url) : void openInBrowser(url))
+				actions.copyLink = () => copyLink(url)
+			}
+			if (issue) {
+				actions.setStatus = () => void openPicker("status", issue)
+				actions.setAssignee = () => void openPicker("assignee", issue)
+				actions.setPriority = () => void openPicker("priority", issue)
+				actions.setCycle = () => void openPicker("cycle", issue)
+				actions.openPr = () => openPr(issue)
+				if (issue.project) actions.goToIssueProject = () => openIssueProject(issue)
+				if (issue.branchName) {
+					const branch = issue.branchName
+					actions.copyBranch = () => {
+						void copyToClipboard(branch)
+						notify(`copied ${branch}`)
+					}
+				}
+			}
+			if (mode === "detail" || mode === "update" || (mode === "list" && showingOverview)) actions.comment = () => startReply(null)
+			else if (update) actions.comment = () => startUpdateComment(update, null)
+			else if (issue) actions.comment = () => startIssueComment(issue)
+			if ((mode === "detail" || mode === "update") && selectedCommentId) actions.reply = () => startReply(selectedCommentId)
+			if (mode === "detail") actions.toggleActivity = () => setShowActivity((on) => !on)
 		}
 		for (const action of Object.keys(actions) as import("./commandActions.js").LinearAction[]) {
 			const run = actions[action]!
@@ -1503,7 +1554,18 @@ export function App({
 			if (currentIssue) openDetail(currentIssue)
 		}
 
-		// GHUI owns digits. Linear project tabs use brackets or mouse clicks.
+		// ←/→ step the project tabs; ← on Overview falls through to back out.
+		// h/l keep their back/open meaning.
+		if (inProject && focusRef.current === "list" && (key.name === "left" || key.name === "right")) {
+			const tab = PROJECT_TABS[PROJECT_TABS.indexOf(inProject) + (key.name === "right" ? 1 : -1)]
+			if (tab) {
+				setProjectTab(tab)
+				return
+			}
+			if (key.name === "right") return
+		}
+
+		// GHUI owns digits. Linear project tabs use arrows, brackets, or mouse clicks.
 		if (projectTab) {
 			if (is(key, "]")) {
 				setProjectTab(nextProjectTab(projectTab, 1))
