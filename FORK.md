@@ -11,9 +11,9 @@ later; preserving the local fork is the default.
 - Local development branch: `fork-workflow-improvements`. Continue new work from
   this branch rather than treating `main` as the development baseline.
 - Remotes: `origin` = `kkrausse/ghui`, `upstream` = `kitlangton/ghui`.
-- Git's `origin/HEAD` currently names `origin/main`. The local development policy
-  above does not change GitHub's default branch, publish local commits, or imply
-  that this branch is pushed/tracking a remote branch.
+- When asked to push, fast-forward `main` to `fork-workflow-improvements` and
+  push `main` to `origin` (`kkrausse/ghui`). Never push to `upstream`. Commits use
+  the repo-local `kkrausse97@gmail.com` identity.
 - `~/.bun/bin/ghui` resolves through Bun's global package link to this checkout.
   Currently `bin/ghui.js` finds no installed platform binary and runs
   `bun src/standalone.ts`, so source changes are used on the next launch.
@@ -23,8 +23,7 @@ later; preserving the local fork is the default.
 ## Status
 
 The full Linear TUI has been copied into `src/linearWorkspace` and is being
-integrated as a native Linear tab. This migration is recorded in local checkpoint
-commits only: no push or publication. The original app is retained pending parity/security
+integrated as a native Linear tab. The original app is retained pending parity/security
 audits. See `plans/linear-workspace-migration.md` for scope and follow-up work.
 
 The URL-only pull request copy command and context-aware process title are

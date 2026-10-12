@@ -18,7 +18,8 @@
   in this checkout. A separate Homebrew `ghui` exists but is not the local fork.
 - Preserve the local CLI link. Do not run `ghui upgrade`, reinstall the upstream
   package, sync upstream, push, publish, or change the GitHub default branch
-  without an explicit request. See `FORK.md` for development commands.
+  without an explicit request. Pushes go to `origin` only, never `upstream`; see
+  `FORK.md` for the push flow and development commands.
 
 ## Upstream Release Process (Reference Only)
 
