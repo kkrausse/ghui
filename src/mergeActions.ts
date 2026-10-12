@@ -28,13 +28,7 @@ const isCleanlyMergeable = (info: PullRequestMergeInfo) => {
 	if (info.state !== "open" || info.isDraft || info.mergeable === "conflicting") return false
 	if (info.mergeState === "clean" || info.mergeState === "unstable" || info.mergeState === "has_hooks") return true
 	if (info.mergeState === "behind" || info.mergeState === "blocked" || info.mergeState === "dirty") return false
-	return (
-		info.mergeable === "mergeable" &&
-		info.reviewStatus !== "changes" &&
-		info.reviewStatus !== "review" &&
-		info.checkStatus !== "pending" &&
-		info.checkStatus !== "failing"
-	)
+	return info.mergeable === "mergeable" && info.reviewStatus !== "changes" && info.reviewStatus !== "review" && info.checkStatus !== "pending" && info.checkStatus !== "failing"
 }
 
 interface MethodCopy {
