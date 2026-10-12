@@ -396,7 +396,7 @@ export class GitHubService extends Context.Service<
 					"--repo",
 					repository,
 					"--json",
-					"number,title,state,isDraft,mergeable,reviewDecision,autoMergeRequest,statusCheckRollup",
+					"number,title,state,isDraft,mergeable,mergeStateStatus,reviewDecision,autoMergeRequest,statusCheckRollup",
 				])
 				const repo = repositoryParts(repository)
 				const adminInfo = repo

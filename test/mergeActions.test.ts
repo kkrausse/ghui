@@ -9,6 +9,7 @@ const cleanInfo: PullRequestMergeInfo = {
 	state: "open",
 	isDraft: false,
 	mergeable: "mergeable",
+	mergeState: "unknown",
 	reviewStatus: "approved",
 	checkStatus: "passing",
 	checkSummary: "checks 5/5",
@@ -34,6 +35,18 @@ describe("mergeKinds ordering", () => {
 })
 
 describe("availableMergeKinds", () => {
+	test("GitHub clean/unstable state offers now even when a non-required check fails", () => {
+		for (const mergeState of ["clean", "unstable", "has_hooks"] as const) {
+			expect(availableMergeKinds({ ...cleanInfo, mergeState, checkStatus: "failing" }).map((k) => k.kind)).toEqual(["now", "auto"])
+		}
+	})
+
+	test("GitHub blocked/behind state hides now even when local signals look clean", () => {
+		for (const mergeState of ["blocked", "behind"] as const) {
+			expect(availableMergeKinds({ ...cleanInfo, mergeState }).map((k) => k.kind)).toEqual(["auto"])
+		}
+	})
+
 	test("returns empty when info is null", () => {
 		expect(availableMergeKinds(null)).toEqual([])
 	})

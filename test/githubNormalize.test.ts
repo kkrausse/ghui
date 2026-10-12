@@ -430,6 +430,8 @@ describe("parsePullRequestMergeInfo", () => {
 		expect(merge.repository).toBe("owner/repo")
 		expect(merge.state).toBe("open")
 		expect(merge.mergeable).toBe("mergeable")
+		expect(merge.mergeState).toBe("unknown")
+		expect(parsePullRequestMergeInfo("owner/repo", { ...info, mergeStateStatus: "BLOCKED" }, false, false).mergeState).toBe("blocked")
 		expect(merge.reviewStatus).toBe("approved")
 		expect(merge.viewerCanMergeAsAdmin).toBe(true)
 		expect(merge.autoMergeEnabled).toBe(false)

@@ -197,12 +197,14 @@ export const mergeUnavailableReason = (info: PullRequestMergeInfo | null): strin
 	if (info.state !== "open") return "This pull request is not open."
 	// Check the real blockers first; draft alone is recoverable via mark-ready, so
 	// it's only the message of last resort.
-	if (info.mergeable === "conflicting") return "This branch has merge conflicts."
+	if (info.mergeable === "conflicting" || info.mergeState === "dirty") return "This branch has merge conflicts."
+	if (info.mergeState === "behind") return "Branch is out of date with the base branch."
 	if (info.checkStatus === "failing") return "Required checks are failing."
 	if (info.checkStatus === "pending") return "Required checks are still running."
 	if (info.reviewStatus === "changes") return "Reviewer has requested changes."
 	if (info.reviewStatus === "review") return "Awaiting required review."
 	if (info.isDraft) return "Draft pull requests cannot be merged."
+	if (info.mergeState === "blocked") return "Blocked by branch protection rules."
 	return "No merge actions are currently available."
 }
 
@@ -224,6 +226,7 @@ export const buildStatusBadges = (info: PullRequestMergeInfo | null, repo: strin
 	if (info) {
 		const tokens: Token[] = [{ text: shortRepoName(info.repository), fg: colors.muted }]
 		if (info.mergeable === "conflicting") tokens.push({ text: "conflicting", fg: colors.error })
+		if (info.mergeState === "behind") tokens.push({ text: "behind base", fg: colors.status.pending })
 		if (info.isDraft) tokens.push({ text: "draft", fg: colors.status.draft })
 		if (info.reviewStatus === "changes") tokens.push({ text: "changes requested", fg: colors.status.changes })
 		if (info.reviewStatus === "review") tokens.push({ text: "review pending", fg: colors.status.review })

@@ -160,6 +160,7 @@ export const MergeInfoResponseSchema = Schema.Struct({
 	state: Schema.String,
 	isDraft: Schema.Boolean,
 	mergeable: Schema.String,
+	mergeStateStatus: Schema.optionalKey(Schema.String),
 	reviewDecision: NullableString,
 	autoMergeRequest: Schema.NullOr(Schema.Unknown),
 	statusCheckRollup: Schema.Array(RawCheckContextSchema),

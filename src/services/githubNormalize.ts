@@ -4,6 +4,7 @@ import {
 	type CreatePullRequestCommentInput,
 	type IssueItem,
 	type Mergeable,
+	type MergeState,
 	type PullRequestComment,
 	type PullRequestItem,
 	type PullRequestMergeInfo,
@@ -116,6 +117,18 @@ const MERGEABLE_BY_RAW: Record<string, Mergeable> = {
 }
 
 export const normalizeMergeable = (value: string): Mergeable => MERGEABLE_BY_RAW[value] ?? "unknown"
+
+const MERGE_STATE_BY_RAW: Record<string, MergeState> = {
+	CLEAN: "clean",
+	UNSTABLE: "unstable",
+	HAS_HOOKS: "has_hooks",
+	BEHIND: "behind",
+	BLOCKED: "blocked",
+	DIRTY: "dirty",
+	DRAFT: "draft",
+}
+
+export const normalizeMergeState = (value: string | undefined): MergeState => (value ? (MERGE_STATE_BY_RAW[value] ?? "unknown") : "unknown")
 
 // ---------------------------------------------------------------------------
 // Check rollup
@@ -347,6 +360,7 @@ export const parsePullRequestMergeInfo = (repository: string, info: RawMergeInfo
 		state: info.state.toLowerCase() === "open" ? "open" : "closed",
 		isDraft: info.isDraft,
 		mergeable: normalizeMergeable(info.mergeable),
+		mergeState: normalizeMergeState(info.mergeStateStatus),
 		reviewStatus: getReviewStatus(info),
 		checkStatus: checkInfo.checkStatus,
 		checkSummary: checkInfo.checkSummary,

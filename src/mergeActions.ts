@@ -21,14 +21,21 @@ export interface MergeKindDefinition {
 	readonly isAvailable: (info: PullRequestMergeInfo) => boolean
 }
 
-const isCleanlyMergeable = (info: PullRequestMergeInfo) =>
-	info.state === "open" &&
-	!info.isDraft &&
-	info.mergeable === "mergeable" &&
-	info.reviewStatus !== "changes" &&
-	info.reviewStatus !== "review" &&
-	info.checkStatus !== "pending" &&
-	info.checkStatus !== "failing"
+// Trust GitHub's mergeStateStatus when it has one: our checkStatus counts every
+// check, not just required ones. Fall back to the local heuristic while GitHub
+// is still computing (unknown) or the PR is a draft.
+const isCleanlyMergeable = (info: PullRequestMergeInfo) => {
+	if (info.state !== "open" || info.isDraft || info.mergeable === "conflicting") return false
+	if (info.mergeState === "clean" || info.mergeState === "unstable" || info.mergeState === "has_hooks") return true
+	if (info.mergeState === "behind" || info.mergeState === "blocked" || info.mergeState === "dirty") return false
+	return (
+		info.mergeable === "mergeable" &&
+		info.reviewStatus !== "changes" &&
+		info.reviewStatus !== "review" &&
+		info.checkStatus !== "pending" &&
+		info.checkStatus !== "failing"
+	)
+}
 
 interface MethodCopy {
 	readonly verb: string
@@ -156,6 +163,7 @@ export const mergeInfoFromPullRequest = (pullRequest: PullRequestItem): PullRequ
 	state: pullRequest.state,
 	isDraft: pullRequest.reviewStatus === "draft",
 	mergeable: "unknown",
+	mergeState: "unknown",
 	reviewStatus: pullRequest.reviewStatus,
 	checkStatus: pullRequest.checkStatus,
 	checkSummary: pullRequest.checkSummary,

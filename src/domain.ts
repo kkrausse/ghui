@@ -52,6 +52,10 @@ export interface PullRequestReviewer {
 
 export type Mergeable = "mergeable" | "conflicting" | "unknown"
 
+// GitHub's own merge-box verdict (mergeStateStatus). It applies branch
+// protection, so only required checks and required reviews count.
+export type MergeState = "clean" | "unstable" | "has_hooks" | "behind" | "blocked" | "dirty" | "draft" | "unknown"
+
 // DiffCommentSide is the only literal type still consumed at runtime — GitHubService
 // uses it as a Schema inside PullRequestCommentSchema.
 export const DiffCommentSide = Schema.Literals(["LEFT", "RIGHT"])
@@ -259,6 +263,7 @@ export interface PullRequestMergeInfo {
 	readonly state: PullRequestState
 	readonly isDraft: boolean
 	readonly mergeable: Mergeable
+	readonly mergeState: MergeState
 	readonly reviewStatus: ReviewStatus
 	readonly checkStatus: CheckRollupStatus
 	readonly checkSummary: string | null
