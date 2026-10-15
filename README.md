@@ -89,6 +89,32 @@ Scrollable panes hide their scrollbar rails by default. Set `showScrollbars`
 to `true` to display them while retaining the same keyboard and mouse scrolling
 behavior.
 
+### Diff viewer (dv)
+
+When `libdv` is installed, the diff view (`d`) is drawn by
+dv, a Rust diff viewer, loaded in-process
+through `bun:ffi`. It brings a file tree, folding, hidden-context expansion,
+`/` search, and drag-to-copy. Review comments render inline under their lines.
+
+- `enter` on a line comments on it; `v` starts a range, and `enter` comments on
+  the range. Clicking a line number also starts a comment.
+- `enter` on a thread replies to it; `n` / `p` move between threads.
+- `esc` goes back (after clearing any dv selection, search, or range); `R`
+  reviews the PR, `Y` copies its link, and `ctrl-p` opens commands.
+
+Comments are posted through ghui's own comment dialog. Hidden context comes from
+the PR's local clone (see `repoPaths` below) when its objects are fetched.
+
+Build and install the library from a dv checkout:
+
+```bash
+cargo build --release
+install -m 755 target/release/libdv.dylib ~/.local/lib/   # libdv.so on Linux
+```
+
+`GHUI_DV_LIB` overrides the path. Without the library, ghui uses its built-in
+diff pane.
+
 ### Open in editor
 
 Press `e` on a pull request (in the list, detail, or diff view) to hand it off

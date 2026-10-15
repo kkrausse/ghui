@@ -1,5 +1,5 @@
 import type { BoxRenderable, DiffRenderable, ScrollBoxRenderable } from "@opentui/core"
-import type { ComponentProps, MutableRefObject } from "react"
+import { useMemo, type ComponentProps, type MutableRefObject } from "react"
 import type { DiffCommentSide, IssueItem, PullRequestComment, PullRequestItem, PullRequestReviewComment } from "../domain.js"
 import {
 	stackedDiffFileIndexAtLine,
@@ -17,6 +17,8 @@ import { CommentsPane, ConversationSection, type OrderedComment } from "../ui/Co
 import type { CommentLoadState } from "../ui/comments/loadState.js"
 import { DETAIL_BODY_SCROLL_LIMIT, DetailBody, DetailHeader, DetailPlaceholder, DetailsPane, type DetailCommentsStatus, type DetailPlaceholderContent } from "../ui/DetailsPane.js"
 import { DiffFilePanel, diffFilePanelDividerRows } from "../ui/diff/DiffFilePanel.js"
+import { DvDiffPane } from "../ui/diff/DvDiffPane.js"
+import { dvAvailable } from "../ui/diff/dvNative.js"
 import { SplitPane } from "../ui/paneLayout.js"
 import { Divider, Filler, PlainLine, SeparatorColumn } from "../ui/primitives.js"
 import { PullRequestDiffPane } from "../ui/PullRequestDiffPane.js"
@@ -153,6 +155,8 @@ export const PullRequestSurface = (props: PullRequestSurfaceProps) => {
 		onLinkOpen,
 	} = props
 	const conversationSelection = useConversationSelection(detailFullView && !commentsViewActive && !diffFullView, detailScrollRef)
+	// Joined from the rendered files so dv honors the whitespace mode.
+	const dvPatch = useMemo(() => (diffFullView && dvAvailable() ? stackedDiffFiles.map((entry) => entry.file.patch).join("\n") : ""), [diffFullView, stackedDiffFiles])
 	const descriptionCursor = (
 		<box height={1} ref={(node: BoxRenderable | null) => conversationSelection.registerBlock("", node)} onMouseDown={() => conversationSelection.select("", false)}>
 			<PlainLine text="Description" fg={colors.muted} />
@@ -211,6 +215,10 @@ export const PullRequestSurface = (props: PullRequestSurfaceProps) => {
 				showScrollbar={showScrollbars}
 			/>
 		)
+	}
+
+	if (diffFullView && selectedPullRequest && displayedDiffState?._tag === "Ready" && dvPatch) {
+		return <DvDiffPane pullRequest={selectedPullRequest} patch={dvPatch} width={contentWidth} height={wideBodyHeight} />
 	}
 
 	if (diffFullView) {

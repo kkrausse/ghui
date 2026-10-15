@@ -50,6 +50,8 @@ import { useDiffViewState } from "./useDiffViewState.js"
 import { useViewModeState } from "./useViewModeState.js"
 import { useFilterModal } from "../ui/filter/useFilterModal.js"
 import { DIFF_FILE_PANEL_AUTO_THRESHOLD, diffFilePanelOverrideAtom, selectedDiffKeyAtom, selectedDiffStateAtom } from "../ui/diff/atoms.js"
+import { dvAvailable } from "../ui/diff/dvNative.js"
+import { diffCommentAnchorLabel, diffCommentLineLabel, diffCommentSideLabel } from "../ui/diff.js"
 import { runsFullViewAtom } from "../ui/runs/atoms.js"
 import { diffCommentRangeSelection, diffCommentThreadMapKey } from "../ui/diff/comments.js"
 import { useDiffLineColors } from "../ui/diff/useDiffLineColors.js"
@@ -217,7 +219,8 @@ export const useAppShell = ({ systemThemeGeneration, linearNavigationLocked = fa
 	// auto-show whenever the terminal has room. Either way it only matters in
 	// diffFullView — the panel doesn't exist outside of the diff surface.
 	const diffFilePanelAutoVisible = terminalWidth >= DIFF_FILE_PANEL_AUTO_THRESHOLD
-	const diffFilePanelVisible = diffFullView && (diffFilePanelOverride ?? diffFilePanelAutoVisible)
+	// dv draws its own file tree.
+	const diffFilePanelVisible = diffFullView && !dvAvailable() && (diffFilePanelOverride ?? diffFilePanelAutoVisible)
 	const layout = computeLayout({
 		terminalWidth,
 		terminalHeight,
@@ -1258,6 +1261,10 @@ export const useAppShell = ({ systemThemeGeneration, linearNavigationLocked = fa
 			if (commentModal.target.kind === "issue") return selectedCommentSubject ? `New comment on #${selectedCommentSubject.number}` : "New comment"
 			if (commentModal.target.kind === "reply") return `Reply on ${commentModal.target.anchorLabel}`
 			if (commentModal.target.kind === "edit") return commentModal.target.anchorLabel
+			if (commentModal.target.target) {
+				const { anchor, range } = commentModal.target.target
+				return `${anchor.path} ${range ? `${diffCommentSideLabel(anchor)} ${diffCommentLineLabel(range.start)}-${diffCommentLineLabel(range.end)}` : diffCommentAnchorLabel(anchor)}`
+			}
 		}
 		return selectedDiffCommentAnchor && selectedDiffCommentLabel ? `${selectedDiffCommentAnchor.path} ${selectedDiffCommentLabel}` : "No diff line selected"
 	})()

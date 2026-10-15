@@ -1,6 +1,7 @@
 import { Data } from "effect"
 import { colors } from "./colors.js"
 import { HintRow, TextLine, type HintItem } from "./primitives.js"
+import { dvAvailable } from "./diff/dvNative.js"
 
 export type RetryProgress = Data.TaggedEnum<{
 	Idle: {}
@@ -80,6 +81,14 @@ const diffViewHints = (ctx: HintsContext): readonly HintItem[] => [
 	{ key: "r", label: "reload" },
 ]
 
+// dv draws its own key hints; these are the keys GHUI keeps while it has focus.
+const dvDiffHints: readonly HintItem[] = [
+	{ key: "esc", label: "back" },
+	{ key: "R", label: "review" },
+	{ key: "Y", label: "copy PR link" },
+	{ key: "ctrl-p", label: "commands" },
+]
+
 const detailFullViewHints = (ctx: HintsContext): readonly HintItem[] => [
 	{ key: "esc", label: "back" },
 	{ key: "↑↓", label: ctx.canOpenDiff ? "select" : "scroll" },
@@ -147,7 +156,7 @@ const defaultHints = (ctx: HintsContext): readonly HintItem[] => {
 const footerHints = (ctx: HintsContext): readonly HintItem[] => {
 	if (ctx.commentsViewActive) return commentsViewHints(ctx)
 	if (ctx.runsFullView) return runsViewHints(ctx)
-	if (ctx.diffFullView) return diffViewHints(ctx)
+	if (ctx.diffFullView) return dvAvailable() ? dvDiffHints : diffViewHints(ctx)
 	if (ctx.detailFullView) return detailFullViewHints(ctx)
 	return defaultHints(ctx)
 }
