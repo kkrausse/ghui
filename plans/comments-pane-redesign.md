@@ -38,63 +38,63 @@ session.ts:???  kit · 7h:  hello
 
 ```text
  session.ts                                                       
-   kitlangton    7h                                         :127  
+   kkrausse      7h                                         :127  
      test comment                                                 
                                                                   
-   kitlangton    7h                                         :129  
+   kkrausse      7h                                         :129  
      another                                                      
        alice    7h                                                
          replied                                                  
-       kitlangton    5h                                           
+       kkrausse      5h                                           
          lol                                                      
        bob    5h                                                  
          nice                                                     
-       kitlangton    5h                                           
+       kkrausse      5h                                           
          hi                                                       
          top                          ← collapsed (consecutive)   
        alice    5h                                                
          testing                                                  
                                                                   
-   kitlangton    7h                                         :???  
+   kkrausse      7h                                         :???  
      hello                                                        
 ```
 
 **Focused on a top-level thread (`another`):**
 
 ```text
-   kitlangton    7h                                         :127  
+   kkrausse      7h                                         :127  
      test comment                                                 
                                                                   
- ▌ kitlangton    7h                                         :129  
+ ▌ kkrausse      7h                                         :129  
  ▌   another                                                      
  ▌     alice    7h                                                
  ▌       replied                                                  
- ▌     kitlangton    5h                                           
+ ▌     kkrausse      5h                                           
  ▌       lol                                                      
  ▌     bob    5h                                                  
  ▌       nice                                                     
- ▌     kitlangton    5h                                           
+ ▌     kkrausse      5h                                           
  ▌       hi                                                       
  ▌       top                                                      
  ▌     alice    5h                                                
  ▌       testing                                                  
                                                                   
-   kitlangton    7h                                         :???  
+   kkrausse      7h                                         :???  
      hello                                                        
 ```
 
 **Focused on a single reply (`bob nice`):**
 
 ```text
-   kitlangton    7h                                         :129  
+   kkrausse      7h                                         :129  
      another                                                      
        alice    7h                                                
          replied                                                  
-       kitlangton    5h                                           
+       kkrausse      5h                                           
          lol                                                      
  ▌     bob    5h                                                  
  ▌       nice                                                     
-       kitlangton    5h                                           
+       kkrausse      5h                                           
          hi                                                       
 ```
 
@@ -116,11 +116,11 @@ session.ts:???  kit · 7h:  hello
 ```text
  session.ts                                                       
                                                                   
-   kitlangton                                                :127  
+   kkrausse                                                  :127  
    7h                                                              
    test comment                                                    
                                                                   
-   kitlangton                                                :129  
+   kkrausse                                                  :129  
    7h                                                              
    another                                                         
                                                                   
@@ -128,7 +128,7 @@ session.ts:???  kit · 7h:  hello
      7h                                                            
      replied                                                       
                                                                   
-     kitlangton                                                    
+     kkrausse                                                      
      5h                                                            
      lol                                                           
                                                                   
@@ -136,7 +136,7 @@ session.ts:???  kit · 7h:  hello
      5h                                                            
      nice                                                          
                                                                   
-     kitlangton                                                    
+     kkrausse                                                      
      5h                                                            
      hi                                                            
      top                              ← collapsed (consecutive)    
@@ -145,7 +145,7 @@ session.ts:???  kit · 7h:  hello
      5h                                                            
      testing                                                       
                                                                   
-   kitlangton                                                :???  
+   kkrausse                                                  :???  
    7h                                                              
    hello                                                           
 ```
@@ -153,11 +153,11 @@ session.ts:???  kit · 7h:  hello
 **Focused (`another`):**
 
 ```text
-   kitlangton                                                :127  
+   kkrausse                                                  :127  
    7h                                                              
    test comment                                                    
                                                                   
- ▌ kitlangton                                                :129  
+ ▌ kkrausse                                                  :129  
  ▌ 7h                                                              
  ▌ another                                                         
  ▌                                                                 
@@ -165,7 +165,7 @@ session.ts:???  kit · 7h:  hello
  ▌   7h                                                            
  ▌   replied                                                       
  ▌                                                                 
- ▌   kitlangton                                                    
+ ▌   kkrausse                                                      
  ▌   5h                                                            
  ▌   lol                                                           
  ▌   ...                                                           
@@ -189,11 +189,11 @@ session.ts:???  kit · 7h:  hello
 ```text
  session.ts                                                       
                                                                   
-   kitlangton                                                :127  
+   kkrausse                                                  :127  
    7h                                                              
    test comment                                                    
                                                                   
-   kitlangton                                                :129  
+   kkrausse                                                  :129  
    7h                                                              
    another                                                         
                                                                   
@@ -201,7 +201,7 @@ session.ts:???  kit · 7h:  hello
      7h                                                            
      replied                                                       
                                                                   
-     kitlangton                                                    
+     kkrausse                                                      
      5h                                                            
      lol                                                           
                                                                   
@@ -209,7 +209,7 @@ session.ts:???  kit · 7h:  hello
      5h                                                            
      nice                                                          
                                                                   
-     kitlangton                                                    
+     kkrausse                                                      
      5h                                                            
      hi                                                            
      top                              ← collapsed (consecutive)    
@@ -218,7 +218,7 @@ session.ts:???  kit · 7h:  hello
      5h                                                            
      testing                                                       
                                                                   
-   kitlangton                                                :???  
+   kkrausse                                                  :???  
    7h                                                              
    hello                                                           
 ```
@@ -228,7 +228,7 @@ session.ts:???  kit · 7h:  hello
 **Focused on `bob nice`:**
 
 ```text
-     kitlangton                                                    
+     kkrausse                                                      
      5h                                                            
      lol                                                           
                                                                   
@@ -236,7 +236,7 @@ session.ts:???  kit · 7h:  hello
    ▌ 5h                                                            
    ▌ nice                                                          
                                                                   
-     kitlangton                                                    
+     kkrausse                                                      
      5h                                                            
      hi                                                            
 ```
@@ -259,31 +259,31 @@ session.ts:???  kit · 7h:  hello
 ```text
  session.ts                                                       
  │                                                                
- ├─ kitlangton                                                :127  
+ ├─ kkrausse                                                  :127  
  │  7h                                                              
  │  test comment                                                    
  │                                                                
- ╰─ kitlangton                                                :129  
+ ╰─ kkrausse                                                  :129  
     7h                                                              
     another                                                         
     │                                                                
     ├─ alice                                                  7h    
     │  replied                                                      
     │                                                                
-    ├─ kitlangton                                             5h    
+    ├─ kkrausse                                               5h    
     │  lol                                                          
     │                                                                
     ├─ bob                                                    5h    
     │  nice                                                         
     │                                                                
-    ├─ kitlangton                                             5h    
+    ├─ kkrausse                                               5h    
     │  hi                                                           
     │  top                              ← collapsed                 
     │                                                                
     ╰─ alice                                                  5h    
        testing                                                      
                                                                   
- ╰─ kitlangton                                                :???  
+ ╰─ kkrausse                                                  :???  
     7h                                                              
     hello                                                           
 ```
@@ -291,13 +291,13 @@ session.ts:???  kit · 7h:  hello
 **Focused on `bob nice`** — the author label inverts/bolds:
 
 ```text
-    ├─ kitlangton                                             5h    
+    ├─ kkrausse                                               5h    
     │  lol                                                          
     │                                                                
     ├─ ▌bob▌                                                  5h    ← selected
     │  nice                                                         
     │                                                                
-    ├─ kitlangton                                             5h    
+    ├─ kkrausse                                               5h    
     │  hi                                                           
 ```
 

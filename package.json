@@ -1,17 +1,17 @@
 {
-	"name": "@kitlangton/ghui",
+	"name": "ghui",
 	"version": "0.9.1",
 	"description": "Terminal UI for GitHub pull requests",
 	"type": "module",
 	"license": "MIT",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/kitlangton/ghui.git"
+		"url": "git+https://github.com/kkrausse/ghui.git"
 	},
 	"bugs": {
-		"url": "https://github.com/kitlangton/ghui/issues"
+		"url": "https://github.com/kkrausse/ghui/issues"
 	},
-	"homepage": "https://github.com/kitlangton/ghui#readme",
+	"homepage": "https://github.com/kkrausse/ghui#readme",
 	"keywords": [
 		"github",
 		"pull-requests",

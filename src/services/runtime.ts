@@ -19,7 +19,7 @@ const parseOptionalPositiveInt = (value: string | undefined, fallback: number | 
 export const mockPrCount = parseOptionalPositiveInt(process.env.GHUI_MOCK_PR_COUNT, null)
 export const mockRepository = process.env.GHUI_MOCK_REPOSITORY?.trim() || null
 export const detectedRepository = mockPrCount === null ? detectCurrentGitHubRepository() : mockRepository
-export const mockUsername = process.env.GHUI_MOCK_USERNAME?.trim() || (mockPrCount !== null ? "kitlangton" : undefined)
+export const mockUsername = process.env.GHUI_MOCK_USERNAME?.trim() || (mockPrCount !== null ? "kkrausse" : undefined)
 
 export const mockWorkspacePreferencesPath = (() => {
 	if (mockPrCount === null) return null
@@ -33,8 +33,8 @@ export const mockRepositoryCatalog =
 		? []
 		: [
 				{ repository: mockRepository ?? "anomalyco/opencode", pullRequestCount: 0, issueCount: 0, description: "OpenCode project workspace" },
-				{ repository: "kitlangton/ghui", pullRequestCount: 7, issueCount: 4, description: "Terminal UI for GitHub pull requests" },
-				{ repository: "kitlangton/homebrew-tap", pullRequestCount: 0, issueCount: 0, description: "Homebrew formula automation" },
+				{ repository: "kkrausse/ghui", pullRequestCount: 7, issueCount: 4, description: "Terminal UI for GitHub pull requests" },
+				{ repository: "kkrausse/dv", pullRequestCount: 0, issueCount: 0, description: "Homebrew formula automation" },
 				{ repository: "Effect-TS/effect", pullRequestCount: 31, issueCount: 9, description: "Effect TypeScript runtime and libraries" },
 			]
 

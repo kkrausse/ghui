@@ -63,7 +63,7 @@ The hub is not a modal for every action; it is an escape hatch when the current 
 │                                                                              │
 │  repositories                                                                │
 │  › anomalyco/opencode                                  current              │
-│    kitlangton/ghui                                    12 PRs   4 issues     │
+│    kkrausse/ghui                                      12 PRs   4 issues     │
 │    Effect-TS/effect                                   31 PRs   9 issues     │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │ ↑↓ move  enter open  / search  esc close                                    │

@@ -225,8 +225,8 @@ describe("CacheService", () => {
 	test("persists workspace preferences by branded viewer", async () => {
 		const filename = await tempCachePath()
 		const preferences = makeWorkspacePreferences({
-			viewer: viewerId("kitlangton"),
-			favoriteRepositories: [repositoryId("kitlangton/ghui"), repositoryId("anomalyco/opencode")],
+			viewer: viewerId("kkrausse"),
+			favoriteRepositories: [repositoryId("kkrausse/ghui"), repositoryId("anomalyco/opencode")],
 			recentRepositories: [repositoryId("anomalyco/opencode"), repositoryId("Effect-TS/effect")],
 		})
 
@@ -242,11 +242,11 @@ describe("CacheService", () => {
 			filename,
 			Effect.gen(function* () {
 				const cache = yield* CacheService
-				return yield* cache.readWorkspacePreferences(viewerId("kitlangton"))
+				return yield* cache.readWorkspacePreferences(viewerId("kkrausse"))
 			}),
 		)
 
-		expect(cached?.favoriteRepositories).toEqual(["kitlangton/ghui", "anomalyco/opencode"])
+		expect(cached?.favoriteRepositories).toEqual(["kkrausse/ghui", "anomalyco/opencode"])
 		expect(cached?.recentRepositories).toEqual(["anomalyco/opencode", "Effect-TS/effect"])
 	})
 

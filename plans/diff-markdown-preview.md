@@ -40,6 +40,6 @@ None for v1.
 
 ## Status
 
-Implemented in the local fork. The preview is a nearly full-height dialog over
+Implemented. The preview is a nearly full-height dialog over
 the unchanged diff. Drag-selected rendered text can be copied with `y`, which
 falls back to the complete Markdown source when there is no selection.

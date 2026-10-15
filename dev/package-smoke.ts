@@ -30,8 +30,8 @@ function assert(condition: unknown, message: string): asserts condition {
 }
 
 const assertInstalledPackage = async (projectDir: string) => {
-	const packageDir = join(projectDir, "node_modules", "@kitlangton", "ghui")
-	const binaryPackageDir = binaryPackageName ? join(projectDir, "node_modules", "@kitlangton", `ghui-${targetId}`) : null
+	const packageDir = join(projectDir, "node_modules", rootPackageJson.name)
+	const binaryPackageDir = binaryPackageName ? join(projectDir, "node_modules", binaryPackageName) : null
 	const packageJson = JSON.parse(await readFile(join(packageDir, "package.json"), "utf8")) as {
 		dependencies?: Record<string, string>
 		optionalDependencies?: Record<string, string>

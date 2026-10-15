@@ -1,5 +1,5 @@
 ---
-"@kitlangton/ghui": patch
+"ghui": patch
 ---
 
 Add Shift+Space to toggle all linked PR dropdowns in Linear My Issues.

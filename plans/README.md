@@ -22,7 +22,7 @@ When a plan ships, leave the file in place and update the **Status** line so we 
 - [`linear-command-integration.md`](./linear-command-integration.md) — shared palette/registry integration implemented; staged migration of remaining Linear actions and keymap contexts.
 - [`linear-ticket-list-prs.md`](./linear-ticket-list-prs.md) — linked PR dropdowns across all Linear ticket lists and project previews.
 
-- [`linear-tui-handoff.md`](./linear-tui-handoff.md) — exploratory nested PR rows in Linear and a direct-PR handoff to the local GHUI fork; inline embedding alternative.
+- [`linear-tui-handoff.md`](./linear-tui-handoff.md) — exploratory nested PR rows in Linear and a direct-PR handoff to GHUI; inline embedding alternative.
 
 - [`conversation-selection.md`](./conversation-selection.md) — proposed block cursor and copy-permalink actions in the expanded description/conversation.
 

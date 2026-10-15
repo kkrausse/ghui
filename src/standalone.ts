@@ -46,11 +46,6 @@ if (command === "-v" || command === "--version" || command === "version") {
 	process.exit(0)
 }
 
-if (command === "upgrade") {
-	console.error("Use your package manager to upgrade ghui, for example `brew upgrade ghui`.")
-	process.exit(1)
-}
-
 if (typeof command === "string") {
 	const unknownCommand = command
 	const suggestion = commands.find((name) => editDistance(unknownCommand, name) <= 2)

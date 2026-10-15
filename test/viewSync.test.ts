@@ -38,9 +38,9 @@ describe("issueViewForPullRequestView", () => {
 	})
 
 	test("Queue view with non-authored mode AND a repo → Repository issue view (same repo)", () => {
-		expect(issueViewForPullRequestView({ _tag: "Queue", mode: "review", repository: "kitlangton/ghui" })).toEqual({
+		expect(issueViewForPullRequestView({ _tag: "Queue", mode: "review", repository: "kkrausse/ghui" })).toEqual({
 			_tag: "Repository",
-			repository: "kitlangton/ghui",
+			repository: "kkrausse/ghui",
 		})
 	})
 })

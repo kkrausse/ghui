@@ -30,7 +30,6 @@ Terminal UI for GitHub pull requests.
 
 Usage:
   ghui              Start the TUI
-  ghui upgrade      Upgrade ghui to the latest npm release
   ghui -v, --version
                     Print the installed version
   ghui -h, --help   Show this help message
@@ -59,15 +58,6 @@ if (process.argv[2] === "-v" || process.argv[2] === "--version" || process.argv[
 	process.exit(0)
 }
 
-if (process.argv[2] === "upgrade") {
-	const result = childProcess.spawnSync("npm", ["install", "-g", `${packageJson.name}@latest`], { stdio: "inherit" })
-	if (result.error) {
-		console.error(result.error.message)
-		process.exit(1)
-	}
-	process.exit(typeof result.status === "number" ? result.status : 0)
-}
-
 const scriptPath = fs.realpathSync(__filename)
 const scriptDir = path.dirname(scriptPath)
 
@@ -94,7 +84,7 @@ if (!platform || !arch) {
 
 if (platform === "linux" && isMusl()) {
 	console.error(`${packageJson.name} does not publish musl Linux binaries yet.`)
-	console.error("Use a glibc-based Linux distribution, Homebrew on Linux, or the source checkout with Bun.")
+	console.error("Use a glibc-based Linux distribution or the source checkout with Bun.")
 	process.exit(1)
 }
 

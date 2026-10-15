@@ -1,5 +1,5 @@
 ---
-"@kitlangton/ghui": patch
+"ghui": patch
 ---
 
 Render PR descriptions and full comment threads with OpenTUI Markdown, including

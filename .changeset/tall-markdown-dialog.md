@@ -1,5 +1,5 @@
 ---
-"@kitlangton/ghui": patch
+"ghui": patch
 ---
 
 Preview a selected changed Markdown file as a rendered, nearly full-height

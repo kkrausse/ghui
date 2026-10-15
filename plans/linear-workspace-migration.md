@@ -2,7 +2,7 @@
 
 ## Why
 
-Host the full existing Linear TUI in this local GHUI fork, under a Linear tab.
+Host the full existing Linear TUI in GHUI, under a Linear tab.
 One application and one renderer should own navigation; no CLI subprocess or
 embedded terminal. Keep this migration local: local checkpoint commits are
 authorized, but do not publish or push.

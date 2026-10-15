@@ -1,5 +1,5 @@
 ---
-"@kitlangton/ghui": minor
+"ghui": minor
 ---
 
 Add an experimental native Linear workspace tab to the local fork, migrating

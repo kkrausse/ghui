@@ -3,7 +3,7 @@
 ## Why
 
 My Issues should show each ticket's associated PRs as selectable child rows,
-including status, and reuse this local GHUI fork for GitHub navigation rather
+including status, and reuse GHUI for GitHub navigation rather
 than building a second PR viewer. This is an exploratory design, not approval
 to implement either application.
 
@@ -23,7 +23,7 @@ BACKEND-1235  Add validation
 - Up/down moves through issues and PR children, skipping group headers.
 - Selecting a PR keeps the list visible. Right/Enter opens that exact PR in
   GHUI in the same terminal, initially at its description/conversation.
-- GHUI retains its existing arrows, diff, comments, Actions, and fork customizations.
+- GHUI retains its existing arrows, diff, comments, and Actions views.
 - Left/Escape at the integration's root returns to Linear; nested views first
   use GHUI's normal back navigation. `q` exits GHUI, not the parent Linear app.
 - Linear restores its selected child, scroll, grouping, and expansion state.
@@ -70,12 +70,12 @@ and keyboard protocols, terminal size, and repaint. Handle spawn failure,
 nonzero exit, and signals without leaving the parent terminal broken. GHUI
 already uses this suspend/subprocess/resume pattern for its editor handoff.
 
-Prefer an optional runtime dependency on the locally linked fork executable,
+Prefer an optional runtime dependency on the locally linked GHUI executable,
 with a configurable executable path. Do not shell-interpolate PR URLs. This
 reuses the existing Bun link without hardcoding a global node_modules path.
-A development symlink to the fork, or a pinned Git submodule under vendor/,
+A development symlink to GHUI, or a pinned Git submodule under vendor/,
 can later provide reproducible source/build inputs without changing the launch
-contract. Avoid copying the working fork: it contains uncommitted custom work.
+contract. Avoid copying the working checkout: it contains uncommitted custom work.
 
 ### Alternative: actual inline GHUI embedding
 
@@ -96,7 +96,7 @@ startup side effects before embedding. Vendoring alone solves none of these.
 - Is refresh-on-return of Linear metadata sufficient initially, or should a
   later version hydrate visible row status directly from GitHub?
 - Does v1 require linked PR titles/CI summaries beyond today's attachment fields?
-- Use the existing PATH link for local experiments, or pin the fork for distribution?
+- Use the existing PATH link for local experiments, or pin GHUI for distribution?
 
 ## Out of scope (for v1)
 

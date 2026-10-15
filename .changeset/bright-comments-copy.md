@@ -1,5 +1,5 @@
 ---
-"@kitlangton/ghui": patch
+"ghui": patch
 ---
 
 Navigate the expanded PR conversation with arrows or j/k, copy the selected

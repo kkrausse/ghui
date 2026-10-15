@@ -24,6 +24,6 @@ None for the initial integration.
 
 ## Status
 
-Implemented in the local fork. Formatting, typecheck, lint, the full test suite,
+Implemented. Formatting, typecheck, lint, the full test suite,
 and package smoke pass. Renderer tests cover tables, wrapped link clicks, issue
 references, and comment selection scrolling.

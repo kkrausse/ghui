@@ -15,20 +15,20 @@ const anchor = (line: number, side: "LEFT" | "RIGHT" = "RIGHT"): StackedDiffComm
 	localRenderLine: line,
 })
 
-const base = "https://github.com/kitlangton/ghui/pull/1/files#diff-26ad4b834941d9b19ebf9db8082bd202aaf72ea0ddea85f5a8a0cb3c729cc6f2"
+const base = "https://github.com/kkrausse/ghui/pull/1/files#diff-26ad4b834941d9b19ebf9db8082bd202aaf72ea0ddea85f5a8a0cb3c729cc6f2"
 
 describe("diff line links", () => {
 	test("matches GitHub's Files changed anchor for a new-side line", () => {
-		expect(diffLineUrl("https://github.com/kitlangton/ghui/pull/1", anchor(438))).toBe(`${base}R438`)
+		expect(diffLineUrl("https://github.com/kkrausse/ghui/pull/1", anchor(438))).toBe(`${base}R438`)
 	})
 
 	test("links to old-side lines and normalized ranges in either navigation direction", () => {
 		const range = diffCommentRangeSelection(anchor(442, "LEFT"), anchor(438, "LEFT"))
-		expect(diffLineUrl("https://github.com/kitlangton/ghui/pull/1", anchor(438, "LEFT"), range)).toBe(`${base}L438-L442`)
-		expect(diffLineUrl("https://github.com/kitlangton/ghui/pull/1", anchor(438, "LEFT"))).toBe(`${base}L438`)
+		expect(diffLineUrl("https://github.com/kkrausse/ghui/pull/1", anchor(438, "LEFT"), range)).toBe(`${base}L438-L442`)
+		expect(diffLineUrl("https://github.com/kkrausse/ghui/pull/1", anchor(438, "LEFT"))).toBe(`${base}L438`)
 	})
 
 	test("a one-line range produces a single-line link", () => {
-		expect(diffLineUrl("https://github.com/kitlangton/ghui/pull/1", anchor(438), diffCommentRangeSelection(anchor(438), anchor(438)))).toBe(`${base}R438`)
+		expect(diffLineUrl("https://github.com/kkrausse/ghui/pull/1", anchor(438), diffCommentRangeSelection(anchor(438), anchor(438)))).toBe(`${base}R438`)
 	})
 })

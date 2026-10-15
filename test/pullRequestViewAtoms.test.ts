@@ -128,8 +128,8 @@ describe("item view atoms", () => {
 			const item = (number, author) => ({ repository: "anomalyco/opencode", author, number, url: String(number), createdAt: new Date(2026, 0, number), updatedAt: new Date(2026, 0, number) })
 			const load = (view, data) => ({ view, data, fetchedAt: new Date(), endCursor: null, hasNextPage: false })
 			registry.set(queueLoadCacheAtom, {
-				[viewCacheKey(repositoryView)]: load(repositoryView, [item(1, "kitlangton"), item(2, "another-author")]),
-				[viewCacheKey(authoredView)]: load(authoredView, [item(1, "kitlangton")]),
+				[viewCacheKey(repositoryView)]: load(repositoryView, [item(1, "kkrausse"), item(2, "another-author")]),
+				[viewCacheKey(authoredView)]: load(authoredView, [item(1, "kkrausse")]),
 			})
 			registry.set(activeViewAtom, repositoryView)
 			const unsubscribe = registry.subscribe(visiblePullRequestsAtom, () => {})
@@ -140,7 +140,7 @@ describe("item view atoms", () => {
 			unsubscribe()
 		`
 		const stdout = await runIsolatedProbe(probe)
-		expect(stdout).toBe("kitlangton|1")
+		expect(stdout).toBe("kkrausse|1")
 	})
 
 	test("issue display atoms follow the active cached view after a repo filter switch", async () => {
@@ -154,8 +154,8 @@ describe("item view atoms", () => {
 			const item = (number, author) => ({ repository: "anomalyco/opencode", author, number, state: "open", title: String(number), body: "", labels: [], commentCount: 0, createdAt: new Date(2026, 0, number), updatedAt: new Date(2026, 0, number), url: String(number) })
 			const load = (view, data) => ({ view, data, fetchedAt: new Date(), endCursor: null, hasNextPage: false })
 			registry.set(issueQueueLoadCacheAtom, {
-				[issueViewCacheKey(repositoryView)]: load(repositoryView, [item(1, "kitlangton"), item(2, "another-author")]),
-				[issueViewCacheKey(authoredView)]: load(authoredView, [item(1, "kitlangton")]),
+				[issueViewCacheKey(repositoryView)]: load(repositoryView, [item(1, "kkrausse"), item(2, "another-author")]),
+				[issueViewCacheKey(authoredView)]: load(authoredView, [item(1, "kkrausse")]),
 			})
 			registry.set(activeIssueViewAtom, repositoryView)
 			const unsubscribe = registry.subscribe(issueListAtom, () => {})
@@ -166,7 +166,7 @@ describe("item view atoms", () => {
 			unsubscribe()
 		`
 		const stdout = await runIsolatedProbe(probe)
-		expect(stdout).toBe("kitlangton|1")
+		expect(stdout).toBe("kkrausse|1")
 	})
 
 	test("commands and comments target the same filtered issue the surface displays", async () => {
@@ -180,7 +180,7 @@ describe("item view atoms", () => {
 			import { issueViewCacheKey } from "./src/issueViews.ts"
 			const registry = AtomRegistry.make()
 			const view = { _tag: "Queue", mode: "authored", repository: null }
-			const item = (number, title) => ({ repository: "anomalyco/opencode", author: "kitlangton", number, state: "open", title, body: "", labels: [], commentCount: 0, createdAt: new Date(2026, 0, number), updatedAt: new Date(2026, 0, number), url: String(number) })
+			const item = (number, title) => ({ repository: "anomalyco/opencode", author: "kkrausse", number, state: "open", title, body: "", labels: [], commentCount: 0, createdAt: new Date(2026, 0, number), updatedAt: new Date(2026, 0, number), url: String(number) })
 			registry.set(issueQueueLoadCacheAtom, { [issueViewCacheKey(view)]: { view, data: [item(1, "First"), item(2, "Needle")], fetchedAt: new Date(), endCursor: null, hasNextPage: false } })
 			registry.set(activeIssueViewAtom, view)
 			registry.set(workspaceSurfaceAtom, "issues")

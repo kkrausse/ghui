@@ -72,7 +72,7 @@ None for this iteration. Reactions can be considered separately if requested.
 
 ## Status
 
-Implemented in the local fork. Formatting, typecheck, lint, all 598 tests, and
+Implemented. Formatting, typecheck, lint, all 598 tests, and
 the CLI build pass. Tests cover permalink targeting, stable selection after
 insertion, unavailable API URLs, keybinding conflicts, and reuse of the reply
 editor at narrow and wide terminal widths.

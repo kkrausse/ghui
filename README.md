@@ -12,39 +12,19 @@ quotes, tables, and fenced code follow the active ghui theme.
 
 ## Install
 
-Homebrew is the recommended install path on macOS and Linux. It installs a standalone `ghui` binary, so you do not need Bun or npm at runtime.
+Requirements: [Bun](https://bun.sh) and the GitHub CLI, authenticated with `gh auth login`.
 
 ```bash
-brew install kitlangton/tap/ghui
-```
-
-Upgrade with:
-
-```bash
-brew upgrade ghui
-```
-
-Or install with npm:
-
-```bash
-npm install -g @kitlangton/ghui
-```
-
-The npm package also installs a platform-specific binary package and does not require Bun.
-
-Requirements:
-
-- GitHub CLI installed and authenticated with `gh auth login`
-
-Run it from anywhere:
-
-```bash
+git clone https://github.com/kkrausse/ghui.git
+cd ghui
+bun install
+bun link
 ghui
 ```
 
 ## Local Development
 
-### Local fork: experimental Linear workspace
+### Linear workspace
 
 This checkout now includes a native **LINEAR** tab containing the migrated
 Linear TUI (inbox, My Issues, projects, search, details, editing, and comments).
@@ -64,14 +44,7 @@ It shares GHUI's renderer; it does not launch another CLI. The original app in
 
 See `plans/linear-workspace-migration.md` for the migration scope.
 
-Clone, install, and link:
-
-```bash
-git clone https://github.com/kitlangton/ghui.git
-cd ghui
-bun install
-bun link
-```
+Run from source without the linked command: `bun run dev`. For offline UI work with generated data: `bun run dev:mock`.
 
 With Nix flakes:
 
@@ -128,8 +101,8 @@ Configure this in `config.json`:
 {
 	"editorCommand": "tmux new-window -c {{repoPath}} 'gh pr checkout {{number}} && nvim -c \":DiffviewOpen {{baseRef}}...{{headRef}}\"'",
 	"repoPaths": {
-		"kitlangton/ghui": "~/code/ghui",
-		"kitlangton/*": "~/code/repos/kitlangton/*",
+		"kkrausse/ghui": "~/Documents/kkrausse/ghui",
+		"kkrausse/*": "~/Documents/kkrausse/*",
 		":owner/:repo": "~/src/github.com/:owner/:repo"
 	}
 }

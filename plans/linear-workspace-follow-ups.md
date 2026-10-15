@@ -1,6 +1,6 @@
 # Linear workspace follow-ups
 
-Local fork only; no publishing clearance. Keep the original standalone app intact.
+No publishing. Keep the original standalone app intact.
 
 - **Navigation:** refactor toward a generic page/view stack with predictable
   Left/back return across GHUI and Linear. The current linked-PR drill-in has
@@ -24,4 +24,4 @@ Local fork only; no publishing clearance. Keep the original standalone app intac
 - **Privacy/licensing:** audit copied company fixtures/examples/logs/builds,
   ownership/licenses and credentials before any public sharing or publication.
 - **Release:** separate this migration and its follow-up changes from older
-  uncommitted fork work before preparing an authorized local commit. No push.
+  uncommitted work before preparing an authorized local commit. No push.

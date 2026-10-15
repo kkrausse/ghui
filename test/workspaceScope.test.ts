@@ -5,7 +5,7 @@ import { runIsolatedProbe } from "./isolatedProbe.ts"
 describe("Workspace Scope", () => {
 	test("represents User and Repository scope explicitly", () => {
 		expect(workspaceScopeRepository(workspaceScopeForRepository(null))).toBeNull()
-		expect(workspaceScopeRepository(workspaceScopeForRepository("kitlangton/ghui"))).toBe("kitlangton/ghui")
+		expect(workspaceScopeRepository(workspaceScopeForRepository("kkrausse/ghui"))).toBe("kkrausse/ghui")
 	})
 
 	test("owns repository selection and reachable Surface tabs", async () => {
@@ -20,14 +20,14 @@ describe("Workspace Scope", () => {
 			const registry = AtomRegistry.make()
 			registry.set(activeViewAtom, { _tag: "Repository", repository: "ignored/pull-request-view" })
 			const user = [registry.get(selectedRepositoryAtom), registry.get(workspaceTabSurfacesAtom)]
-			registry.set(workspaceScopeAtom, workspaceScopeForRepository("kitlangton/ghui"))
+			registry.set(workspaceScopeAtom, workspaceScopeForRepository("kkrausse/ghui"))
 			const repository = [registry.get(selectedRepositoryAtom), registry.get(workspaceTabSurfacesAtom)]
 			console.log(JSON.stringify({ user, repository }))
 		`
 		const stdout = await runIsolatedProbe(probe)
 		expect(JSON.parse(stdout)).toEqual({
 			user: [null, ["repos", "pullRequests", "issues", "linear"]],
-			repository: ["kitlangton/ghui", ["pullRequests", "issues", "linear"]],
+			repository: ["kkrausse/ghui", ["pullRequests", "issues", "linear"]],
 		})
 	})
 })

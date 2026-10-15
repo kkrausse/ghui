@@ -1,5 +1,5 @@
 ---
-"@kitlangton/ghui": patch
+"ghui": patch
 ---
 
 Left/Right arrows step through a Linear project's Overview, Updates, and Issues tabs.

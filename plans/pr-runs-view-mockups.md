@@ -28,7 +28,7 @@ exact gesture as `d` for diff.
 
 ```
  ◆ Today                                          ⌥ #1004  ✗
- ✗ #1004  feat(diff): viewport windowing            kitlangton  2m
+ ✗ #1004  feat(diff): viewport windowing            kkrausse    2m
           feat/diff-windowing  →  main
           ↑↓ select   enter details   d diff   a runs   c comments
 ```
@@ -46,7 +46,7 @@ plus any re-runs. Compact, status-first, newest first.
 ```
  PR #1004 ┌─────────────────────────────────────────────────────────────────────────────┐
 ──────────│ feat(diff): viewport windowing                       feat/diff-windowing → main│
-          │ runs for d4f9c1a · kitlangton                                                 │
+          │ runs for d4f9c1a · kkrausse                                                   │
           ├─────────────────────────────────────────────────────────────────────────────┤
           │ ▸ ✗ CI                  failed       2m14s    6m ago        re-run 1/1         │
           │   ✓ Lint               success      48s      6m ago                           │
@@ -71,7 +71,7 @@ The run, its jobs, and each job's steps. Failed steps auto-expand a log tail inl
 ```
  PR #1004 ┌─────────────────────────────────────────────────────────────────────────────┐
 ──────────│ ✗ CI · run #4821                                             push → feat/diff…│
-          │ d4f9c1a · kitlangton · 2m14s · started 6m ago · re-run 1/1                    │
+          │ d4f9c1a · kkrausse   · 2m14s · started 6m ago · re-run 1/1                    │
           ├─────────────────────────────────────────────────────────────────────────────┤
           │ ✓ lint              12s                                                       │
           │ ✓ typecheck         28s                                                       │

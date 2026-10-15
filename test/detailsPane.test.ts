@@ -5,7 +5,7 @@ import { diffStatText } from "../src/ui/diff.ts"
 
 const pullRequest = (body: string): PullRequestItem => ({
 	repository: "owner/repo",
-	author: "kitlangton",
+	author: "kkrausse",
 	headRefOid: "abc123",
 	headRefName: "feature/title",
 	baseRefName: "main",
@@ -91,7 +91,7 @@ const comments: readonly PullRequestComment[] = [
 	{
 		_tag: "comment",
 		id: "comment-1",
-		author: "kitlangton",
+		author: "kkrausse",
 		body: "hello",
 		createdAt: new Date("2026-01-01T01:00:00Z"),
 		url: null,

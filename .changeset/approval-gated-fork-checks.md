@@ -1,5 +1,5 @@
 ---
-"@kitlangton/ghui": patch
+"ghui": patch
 ---
 
 Show fork pull-request workflows awaiting maintainer approval as pending checks,

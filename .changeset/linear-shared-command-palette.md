@@ -1,5 +1,5 @@
 ---
-"@kitlangton/ghui": patch
+"ghui": patch
 ---
 
 Enable GHUI's shared command palette in Linear with registered navigation, refresh,
