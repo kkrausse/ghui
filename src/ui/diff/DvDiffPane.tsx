@@ -1,5 +1,5 @@
 import { useAtomSet, useAtomValue } from "@effect/atom-react"
-import { type BoxRenderable, type KeyEvent, type MouseEvent, type OptimizedBuffer, RGBA } from "@opentui/core"
+import { type BoxRenderable, type KeyEvent, type MouseEvent, type OptimizedBuffer, parseColor, RGBA } from "@opentui/core"
 import { useRenderer } from "@opentui/react"
 import { Effect } from "effect"
 import { useEffect, useMemo, useRef, useState } from "react"
@@ -34,7 +34,8 @@ const reviewCommentsJson = (threads: Record<string, readonly PullRequestReviewCo
 
 const rgbaCache = new Map<number, RGBA>()
 const rgba = (value: number, fallback: string) => {
-	if (value === 0) return RGBA.fromHex(fallback)
+	// parseColor, not fromHex: the system theme uses "transparent" for the terminal background.
+	if (value === 0) return parseColor(fallback)
 	let color = rgbaCache.get(value)
 	if (!color) {
 		color = RGBA.fromInts(value >>> 24, (value >>> 16) & 0xff, (value >>> 8) & 0xff, value & 0xff)
@@ -196,7 +197,7 @@ export const DvDiffPane = ({ pullRequest, patch, width, height }: DvDiffPaneProp
 			frame = { runs: view.render(w, h), width: w, height: h }
 			runsRef.current = frame
 		}
-		buffer.fillRect(this.x, this.y, w, h, RGBA.fromHex(colors.background))
+		buffer.fillRect(this.x, this.y, w, h, parseColor(colors.background))
 		for (const run of frame.runs) buffer.drawText(run.text, this.x + run.x, this.y + run.y, rgba(run.fg, colors.text), rgba(run.bg, colors.background), run.attrs)
 	}
 
