@@ -29,6 +29,8 @@ describe("hostOwnsKey", () => {
 		expect(hostOwnsKey(key("p", "\x10", { ctrl: true }), dv(false, false))).toBe(true)
 		expect(hostOwnsKey(key("r", "R", { shift: true }), dv(false, false))).toBe(true)
 		expect(hostOwnsKey(key("j"), dv(false, false))).toBe(false)
+		expect(hostOwnsKey(key("left", "\x1b[D"), dv(false, false))).toBe(true)
+		expect(hostOwnsKey(key("right", "\x1b[C"), dv(false, false))).toBe(false)
 	})
 
 	test("Esc goes to dv while it has something to clear", () => {

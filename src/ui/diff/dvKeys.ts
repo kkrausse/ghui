@@ -34,11 +34,13 @@ export const dvKeyCode = (key: KeyLike): number | null => {
 	return key.name.length === 1 ? key.name.codePointAt(0)! : null
 }
 
-/** Keys GHUI keeps while dv has focus: the palette, quitting, tabs, review, and Esc once dv has nothing to clear. */
+/** Keys GHUI keeps while dv has focus: the palette, quitting, tabs, review, left arrow (back), and Esc once dv has nothing to clear. */
 export const hostOwnsKey = (key: KeyLike, dv: { wantsEscape(): boolean; textInput(): boolean }) => {
 	if (dv.textInput()) return false
 	if (key.ctrl && ["p", "c", "left", "right", "tab"].includes(key.name)) return true
 	if (key.meta && key.name === "k") return true
 	if (key.name === "escape") return !dv.wantsEscape()
+	// Left goes back to the PR, as everywhere in GHUI; dv still pans with h/l.
+	if (key.name === "left" && !key.ctrl && !key.meta && !key.shift) return true
 	return !key.ctrl && !key.meta && ["q", "?", "R", "Y"].includes(key.sequence)
 }

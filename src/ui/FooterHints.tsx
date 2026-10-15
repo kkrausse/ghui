@@ -83,7 +83,7 @@ const diffViewHints = (ctx: HintsContext): readonly HintItem[] => [
 
 // dv draws its own key hints; these are the keys GHUI keeps while it has focus.
 const dvDiffHints: readonly HintItem[] = [
-	{ key: "esc", label: "back" },
+	{ key: "esc/←", label: "back" },
 	{ key: "R", label: "review" },
 	{ key: "Y", label: "copy PR link" },
 	{ key: "ctrl-p", label: "commands" },
