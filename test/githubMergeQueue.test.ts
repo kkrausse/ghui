@@ -48,6 +48,21 @@ describe("GitHubService merge queue", () => {
 		)
 		expect(calls.filter((call) => call[1] === "pr")).toEqual([["gh", "pr", "merge", "42", "--repo", "example/queue-demo", "--disable-auto"]])
 	})
+
+	for (const [kind, extra] of [
+		["update-merge", []],
+		["update-rebase", ["--rebase"]],
+	] as const) {
+		test(`${kind} runs gh pr update-branch`, async () => {
+			const calls: string[][] = []
+			await Effect.runPromise(
+				GitHubService.use((github) => github.mergePullRequest("example/queue-demo", 42, { kind })).pipe(
+					Effect.provide(GitHubService.layerNoDeps.pipe(Layer.provide(mergeQueueCommandLayer({ queueEnabled: false }, calls)))),
+				),
+			)
+			expect(calls.filter((call) => call[1] === "pr")).toEqual([["gh", "pr", "update-branch", "42", "--repo", "example/queue-demo", ...extra]])
+		})
+	}
 })
 
 describe("production merge flow", () => {

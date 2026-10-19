@@ -20,12 +20,14 @@ const cleanInfo: PullRequestMergeInfo = {
 }
 
 describe("mergeKinds ordering", () => {
-	test("source-of-truth order is now, auto, disable-auto, admin", () => {
-		expect(mergeKinds.map((kind) => kind.kind)).toEqual(["now", "auto", "disable-auto", "admin"])
+	test("source-of-truth order is update-merge, update-rebase, now, auto, disable-auto, admin", () => {
+		expect(mergeKinds.map((kind) => kind.kind)).toEqual(["update-merge", "update-rebase", "now", "auto", "disable-auto", "admin"])
 	})
 
 	test("source-of-truth optimistic UI effects match kind behavior", () => {
 		expect(Object.fromEntries(mergeKinds.map((kind) => [kind.kind, kind.optimisticState ?? kind.optimisticAutoMergeEnabled ?? null]))).toEqual({
+			"update-merge": null,
+			"update-rebase": null,
 			now: "merged",
 			auto: true,
 			"disable-auto": false,
@@ -41,10 +43,19 @@ describe("availableMergeKinds", () => {
 		}
 	})
 
-	test("GitHub blocked/behind state hides now even when local signals look clean", () => {
-		for (const mergeState of ["blocked", "behind"] as const) {
-			expect(availableMergeKinds({ ...cleanInfo, mergeState }).map((k) => k.kind)).toEqual(["auto"])
-		}
+	test("GitHub blocked state hides now even when local signals look clean", () => {
+		expect(availableMergeKinds({ ...cleanInfo, mergeState: "blocked" }).map((k) => k.kind)).toEqual(["auto"])
+	})
+
+	test("behind branch offers update-branch options ahead of auto, hides now", () => {
+		expect(availableMergeKinds({ ...cleanInfo, mergeState: "behind" }).map((k) => k.kind)).toEqual(["update-merge", "update-rebase", "auto"])
+	})
+
+	test("behind branch keeps update options when the repo method is disallowed", () => {
+		expect(visibleMergeKinds({ ...cleanInfo, mergeState: "behind" }, { squash: false, merge: true, rebase: false }, "squash").map((k) => k.kind)).toEqual([
+			"update-merge",
+			"update-rebase",
+		])
 	})
 
 	test("returns empty when info is null", () => {

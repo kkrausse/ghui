@@ -143,7 +143,8 @@ export const useMergeFlow = ({
 		if (targetPullRequest && !queueRequest && kindDef.optimisticState === "merged") markPullRequestCompleted(targetPullRequest, "merged")
 
 		const kind = kindDef.kind
-		const action: PullRequestMergeAction = kind === "disable-auto" ? { kind } : { kind, method, mergeQueueEnabled: info.mergeQueueEnabled }
+		const action: PullRequestMergeAction =
+			kind === "disable-auto" || kind === "update-merge" || kind === "update-rebase" ? { kind } : { kind, method, mergeQueueEnabled: info.mergeQueueEnabled }
 		const pastTense = kindDef.pastTense(method)
 
 		closeActiveModal()

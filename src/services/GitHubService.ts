@@ -16,7 +16,7 @@ import {
 	type WorkflowRunDetails,
 } from "../domain.js"
 import { type ItemListInput, type ItemPage, searchQualifier } from "../item.js"
-import { mergeActionCliArgs } from "../mergeActions.js"
+import { mergeActionGhArgs } from "../mergeActions.js"
 import { CommandError, CommandRunner, commandTelemetryAttributes, type JsonParseError } from "./CommandRunner.js"
 import {
 	fallbackCreatedComment,
@@ -433,8 +433,7 @@ export class GitHubService extends Context.Service<
 				return parseRepositoryMergeMethods(response)
 			})
 
-			const mergePullRequest = (repository: string, number: number, action: PullRequestMergeAction) =>
-				ghVoid("mergePullRequest", ["pr", "merge", String(number), "--repo", repository, ...mergeActionCliArgs(action)])
+			const mergePullRequest = (repository: string, number: number, action: PullRequestMergeAction) => ghVoid("mergePullRequest", mergeActionGhArgs(repository, number, action))
 
 			const closePullRequest = (repository: string, number: number) => ghVoid("closePullRequest", ["pr", "close", String(number), "--repo", repository])
 

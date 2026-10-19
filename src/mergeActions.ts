@@ -63,7 +63,29 @@ const methodCopy = {
 	},
 } as const satisfies Record<PullRequestMergeMethod, MethodCopy>
 
+// GitHub's "Update branch" button: bring a behind branch up to date with base.
+// Conflicting branches report "dirty", not "behind", so they are excluded.
+const isBehind = (info: PullRequestMergeInfo) => info.state === "open" && info.mergeState === "behind"
+
 const mergeKindDefinitions = {
+	"update-merge": {
+		kind: "update-merge",
+		title: () => "Update branch",
+		description: () => "Merge the base branch into this branch.",
+		pastTense: () => "Updated branch for",
+		refreshOnSuccess: true,
+		methodAgnostic: true,
+		isAvailable: isBehind,
+	},
+	"update-rebase": {
+		kind: "update-rebase",
+		title: () => "Update branch with rebase",
+		description: () => "Rebase this branch onto the base branch (force-pushes).",
+		pastTense: () => "Rebased branch for",
+		refreshOnSuccess: true,
+		methodAgnostic: true,
+		isAvailable: isBehind,
+	},
 	now: {
 		kind: "now",
 		title: (method) => `${methodCopy[method].verb} now`,
@@ -128,8 +150,8 @@ export const mergeKindRowTitle = (kind: MergeKindDefinition, method: PullRequest
 }
 
 export const getMergeKindDefinition = (kind: PullRequestMergeKind, mergeQueueEnabled: boolean): MergeKindDefinition => {
-	const definition = mergeKindDefinitions[kind]
-	if (!mergeQueueEnabled || kind === "disable-auto") return definition
+	const definition: MergeKindDefinition = mergeKindDefinitions[kind]
+	if (!mergeQueueEnabled || definition.methodAgnostic) return definition
 	if (kind === "admin") return { ...definition, description: () => "Bypass the merge queue and merge directly with --admin." }
 	return {
 		...definition,
@@ -140,8 +162,16 @@ export const getMergeKindDefinition = (kind: PullRequestMergeKind, mergeQueueEna
 	}
 }
 
+// Full gh argv; update kinds run `gh pr update-branch` instead of `gh pr merge`.
+export const mergeActionGhArgs = (repository: string, number: number, action: PullRequestMergeAction): readonly string[] => {
+	if (action.kind === "update-merge") return ["pr", "update-branch", String(number), "--repo", repository]
+	if (action.kind === "update-rebase") return ["pr", "update-branch", String(number), "--repo", repository, "--rebase"]
+	return ["pr", "merge", String(number), "--repo", repository, ...mergeActionCliArgs(action)]
+}
+
 export const mergeActionCliArgs = (action: PullRequestMergeAction): readonly string[] => {
 	if (action.kind === "disable-auto") return ["--disable-auto"]
+	if (!("method" in action)) throw new Error(`${action.kind} is not a gh pr merge action`)
 	const methodFlag = methodCopy[action.method].cliFlag
 	// gh rejects branch deletion for queue targets, even with --admin.
 	const deleteBranch = action.mergeQueueEnabled ? [] : ["--delete-branch"]

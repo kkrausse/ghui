@@ -45,7 +45,7 @@ export const mergeQueueCommandLayer = (options: MergeQueueFixtureOptions, calls:
 			run: (command, args) => {
 				calls.push([command, ...args])
 				if (command !== "gh") return Effect.die(`Unexpected fixture command: ${command}`)
-				if (args[0] === "pr" && args[1] === "ready") return Effect.succeed({ stdout: "", stderr: "", exitCode: 0 })
+				if (args[0] === "pr" && (args[1] === "ready" || args[1] === "update-branch")) return Effect.succeed({ stdout: "", stderr: "", exitCode: 0 })
 				if (args[0] !== "pr" || args[1] !== "merge") return Effect.die(`Unexpected fixture mutation: ${args.join(" ")}`)
 				if (options.queueEnabled && args.includes("--delete-branch")) {
 					return Effect.fail(

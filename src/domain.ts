@@ -64,9 +64,11 @@ export type DiffCommentSide = Schema.Schema.Type<typeof DiffCommentSide>
 export const pullRequestMergeMethods = ["squash", "merge", "rebase"] as const
 export type PullRequestMergeMethod = (typeof pullRequestMergeMethods)[number]
 
-export const pullRequestMergeKinds = ["now", "auto", "admin", "disable-auto"] as const
+export const pullRequestMergeKinds = ["update-merge", "update-rebase", "now", "auto", "admin", "disable-auto"] as const
 export type PullRequestMergeKind = (typeof pullRequestMergeKinds)[number]
-export type PullRequestMergeMethodKind = Exclude<PullRequestMergeKind, "disable-auto">
+// Kinds that ignore the selected merge method.
+export type PullRequestMethodAgnosticKind = "disable-auto" | "update-merge" | "update-rebase"
+export type PullRequestMergeMethodKind = Exclude<PullRequestMergeKind, PullRequestMethodAgnosticKind>
 
 export type PullRequestMergeAction =
 	| {
@@ -75,7 +77,7 @@ export type PullRequestMergeAction =
 			readonly mergeQueueEnabled: boolean
 	  }
 	| {
-			readonly kind: "disable-auto"
+			readonly kind: PullRequestMethodAgnosticKind
 	  }
 
 export interface RepositoryMergeMethods {
