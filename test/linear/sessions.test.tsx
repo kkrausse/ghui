@@ -8,6 +8,7 @@ import { testRender } from "@opentui/react/test-utils"
 import { expect, test } from "bun:test"
 import { indexSessions, sessionTargets, type FaplexSession, type FaplexSnapshot } from "../../src/linearWorkspace/faplex.ts"
 import { buildIssueRows } from "../../src/linearWorkspace/issueRows.ts"
+import { CommentBox } from "../../src/linearWorkspace/ui/CommentBox.tsx"
 import { IssueList } from "../../src/linearWorkspace/ui/IssueList.tsx"
 
 const issue = (identifier: string, prs: number[] = []) =>
@@ -143,5 +144,21 @@ test("session rows render faplex's mark, host·harness, title and status line", 
 	// faplex's spinner while working, then host·harness, title and status line.
 	expect(frame).toMatch(/[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] lap·clau {2}fix the parser {2}running tests/)
 	expect(frame).toContain("▾ ")
+	setup.renderer.destroy()
+})
+
+// shift+Enter itself needs the kitty keyboard protocol to be told from Enter; the mock sends
+// legacy keys, and Ghostty here maps shift+Enter to ESC+CR anyway.
+test("the session prompt sends on Enter and cmd+Enter; ESC+CR adds a line", async () => {
+	const sent: string[] = []
+	const setup = await testRender(<CommentBox title="t" placeholder="" busy={false} enterSends onSubmit={(body) => sent.push(body)} />, { width: 60, height: 8 })
+	await setup.renderOnce()
+	await setup.mockInput.typeText("a")
+	setup.mockInput.pressEnter({ meta: true })
+	await setup.mockInput.typeText("b")
+	setup.mockInput.pressEnter({ super: true })
+	setup.mockInput.pressEnter()
+	await setup.renderOnce()
+	expect(sent).toEqual(["a\nb", "a\nb"])
 	setup.renderer.destroy()
 })
