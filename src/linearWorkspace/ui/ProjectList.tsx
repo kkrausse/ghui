@@ -2,8 +2,9 @@ import { useRef } from "react"
 import type { Issue, Project } from "../linear/schema.ts"
 import { color, formatDate, healthStyle, projectStatusGlyph, stateColor, stateGlyph } from "../theme.ts"
 import { type GroupBy } from "../views.ts"
-import { buildIssueRows, issuePullRequests, type SelectableIssueRow } from "../issueRows.js"
-import { PullRequestRow } from "./IssueList.tsx"
+import { buildIssueRows, hasChildren, type SelectableIssueRow } from "../issueRows.js"
+import { noSessions, type SessionsFor } from "../faplex.js"
+import { PullRequestRow, SessionRow } from "./IssueList.tsx"
 import { clip, fit, meter, windowFor } from "./layout.ts"
 import { wheel } from "./wheel.ts"
 
@@ -14,6 +15,8 @@ type Props = {
 	selectedIssueId?: string | null
 	selectedRowKey?: string | null | undefined
 	expandedIssues?: ReadonlySet<string> | undefined
+	/** Agent sessions per ticket, listed under its PRs when expanded. */
+	sessionsFor?: SessionsFor | undefined
 	expandedProjectId?: string | null
 	expandable?: boolean
 	focused: boolean
@@ -33,7 +36,7 @@ type Props = {
 export type ProjectRow =
 	| { kind: "project"; project: Project; index: number }
 	| { kind: "group" | "message"; text: string }
-	| { kind: "issue" | "pr"; issue: Issue; projectIndex: number; row: SelectableIssueRow }
+	| { kind: "issue" | "pr" | "session"; issue: Issue; projectIndex: number; row: SelectableIssueRow }
 
 /** Shared by drawing and keyboard navigation: headers are deliberately not selectable. */
 export function projectRows(
@@ -42,6 +45,7 @@ export function projectRows(
 	preview: Props["preview"],
 	groupBy: GroupBy,
 	expandedIssues?: ReadonlySet<string>,
+	sessionsFor: SessionsFor = noSessions,
 ): ProjectRow[] {
 	const rows: ProjectRow[] = []
 	for (const [index, project] of projects.entries()) {
@@ -53,7 +57,7 @@ export function projectRows(
 		}
 		if (preview.error) rows.push({ kind: "message", text: `  ${preview.error}` })
 		else {
-			for (const row of buildIssueRows(preview.issues, groupBy, expandedIssues)) {
+			for (const row of buildIssueRows(preview.issues, groupBy, expandedIssues, sessionsFor)) {
 				if (row.t === "group") rows.push({ kind: "group", text: `  ${row.label} (${row.count})` })
 				else rows.push({ kind: row.t, issue: row.issue, projectIndex: index, row })
 			}
@@ -71,6 +75,7 @@ export function ProjectList({
 	selectedIssueId,
 	selectedRowKey,
 	expandedIssues,
+	sessionsFor = noSessions,
 	expandedProjectId = null,
 	expandable = false,
 	focused,
@@ -86,15 +91,16 @@ export function ProjectList({
 }: Props) {
 	const offsetRef = useRef(0)
 	const viewport = Math.max(1, height - 2)
-	const rows = projectRows(projects, expandedProjectId, preview, groupBy, expandedIssues)
+	const rows = projectRows(projects, expandedProjectId, preview, groupBy, expandedIssues, sessionsFor)
 	const isActive = (row: ProjectRow) =>
 		selectedIssueId
-			? (row.kind === "issue" || row.kind === "pr") && (selectedRowKey ? row.row.key === selectedRowKey : row.kind === "issue" && row.issue.id === selectedIssueId)
+			? (row.kind === "issue" || row.kind === "pr" || row.kind === "session") &&
+				(selectedRowKey ? row.row.key === selectedRowKey : row.kind === "issue" && row.issue.id === selectedIssueId)
 			: row.kind === "project" && row.index === selected
 	const selectedRow = rows.findIndex(isActive)
 	offsetRef.current = windowFor(rows.length, Math.max(0, selectedRow), viewport, offsetRef.current)
 	const visible = rows.slice(offsetRef.current, offsetRef.current + viewport)
-	const selectable = rows.filter((row) => row.kind === "project" || row.kind === "issue" || row.kind === "pr")
+	const selectable = rows.filter((row) => row.kind === "project" || row.kind === "issue" || row.kind === "pr" || row.kind === "session")
 	const position = selectable.findIndex(isActive)
 
 	return (
@@ -123,7 +129,7 @@ export function ProjectList({
 								{row.text}
 							</text>
 						)
-					if (row.kind === "issue" || row.kind === "pr") {
+					if (row.kind === "issue" || row.kind === "pr" || row.kind === "session") {
 						const active = isActive(row)
 						return (
 							<box
@@ -135,13 +141,15 @@ export function ProjectList({
 							>
 								{row.row.t === "pr" ? (
 									<PullRequestRow row={row.row} active={active} />
+								) : row.row.t === "session" ? (
+									<SessionRow row={row.row} active={active} />
 								) : (
 									<>
 										<text fg={stateColor(row.issue.state?.type, row.issue.state?.color)} flexShrink={0}>
 											{`  ${stateGlyph(row.issue.state?.type)} `}
 										</text>
 										<text fg={active && focused ? color.accent : color.faint} flexShrink={0}>
-											{expandedIssues && issuePullRequests(row.issue).length ? (expandedIssues.has(row.issue.id) ? "▾ " : "▸ ") : "  "}
+											{expandedIssues && hasChildren(row.issue, sessionsFor) ? (expandedIssues.has(row.issue.id) ? "▾ " : "▸ ") : "  "}
 											{fit(row.issue.identifier, 13)}
 										</text>
 										<text fg={active ? color.fg : color.dim} flexGrow={1} wrapMode="none" truncate>

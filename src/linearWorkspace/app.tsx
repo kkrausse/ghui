@@ -69,7 +69,8 @@ import { Sidebar } from "./ui/Sidebar.tsx"
 import { HelpOverlay, StatusBar } from "./ui/StatusBar.tsx"
 import { UpdateDetail } from "./ui/UpdateDetail.tsx"
 import { UpdateList } from "./ui/UpdateList.tsx"
-import { buildIssueRows, issuePullRequests, selectableIssueRows, reconcileIssueRow, type SelectableIssueRow } from "./issueRows.js"
+import { buildIssueRows, hasChildren, selectableIssueRows, reconcileIssueRow, type SelectableIssueRow } from "./issueRows.js"
+import { indexSessions, openSession, sessionTargets, startSession, useFaplex, type FaplexSession } from "./faplex.js"
 import { LinearLinkContext } from "./ui/Markdown.js"
 import { devLog } from "../devLog.js"
 
@@ -84,7 +85,7 @@ type Focus = "sidebar" | "list"
  * request to open. Only the issue edit kinds go through `openPicker`.
  */
 type EditPickerKind = "status" | "assignee" | "priority" | "cycle"
-type PickerKind = EditPickerKind | "group" | "health" | "pr"
+type PickerKind = EditPickerKind | "group" | "health" | "pr" | "session"
 
 type PickerState = {
 	kind: PickerKind
@@ -103,7 +104,14 @@ type Editable = Pick<Issue, "id" | "identifier" | "team">
  * of optional ids, so the submit handler cannot send an issue comment to a
  * project update by forgetting to clear a field.
  */
-type Compose = { kind: "comment"; label: string; anchor: CommentAnchor; parentId: string | null } | { kind: "project-update"; label: string; projectId: string; health: Health }
+type Compose =
+	| { kind: "comment"; label: string; anchor: CommentAnchor; parentId: string | null }
+	| { kind: "project-update"; label: string; projectId: string; health: Health }
+	/** The optional first instructions for an agent session started on a ticket. */
+	| { kind: "session"; label: string; issue: SessionIssue; target: { machine: string; harness: string; dir: string } }
+
+/** What a new agent session is told about its ticket. */
+type SessionIssue = Pick<Issue, "id" | "identifier" | "title" | "url">
 
 /** Key identity differs by terminal and kitty-protocol support; match either field. */
 function is(key: { name: string; sequence: string }, ...candidates: string[]): boolean {
@@ -219,6 +227,8 @@ export function App({
 
 	const [picker, setPicker] = useState<PickerState | null>(null)
 	const [compose, setCompose] = useState<Compose | null>(null)
+	/** The ticket a session picker is open for, until the composer takes over. */
+	const sessionIssueRef = useRef<SessionIssue | null>(null)
 	const [selectedCommentId, setSelectedCommentId] = useState<string | null>(null)
 	const [editBusy, setEditBusy] = useState(false)
 	useEffect(() => {
@@ -378,10 +388,13 @@ export function App({
 		}
 	}, [selectedProject?.id, target])
 
+	const faplex = useFaplex()
+	const sessionsFor = useMemo(() => indexSessions(faplex.snapshot), [faplex.snapshot])
+
 	const issues: Issue[] = search?.issues ?? (payload?.type === "issues" ? payload.issues : [])
 	const projects: Project[] = showingProjects ? payload.projects : []
-	const projectListRows = target?.kind === "my-projects" ? projectRows(projects, expandedProjectId, projectPreview, groupBy, expandedIssues) : []
-	const projectSelectableRows = projectListRows.filter((row) => row.kind === "project" || row.kind === "issue" || row.kind === "pr")
+	const projectListRows = target?.kind === "my-projects" ? projectRows(projects, expandedProjectId, projectPreview, groupBy, expandedIssues, sessionsFor) : []
+	const projectSelectableRows = projectListRows.filter((row) => row.kind === "project" || row.kind === "issue" || row.kind === "pr" || row.kind === "session")
 	const selectedProjectIssue = projectSelectableRows.find((row) => row.kind === "issue" && row.issue.id === projectIssueSelectedId)
 	const projectIssue = selectedProjectIssue?.kind === "issue" ? selectedProjectIssue.issue : null
 	const notifications: Notification[] = showingInbox ? payload.notifications : []
@@ -425,12 +438,15 @@ export function App({
 	const dropdownIssues = previewIssues ? (projectPreview?.id === expandedProjectId ? projectPreview.issues : []) : issues
 	const dropdownGroupBy = previewIssues ? groupBy : effectiveGroupBy
 	const dropdownIndex = previewIssues ? dropdownIssues.findIndex((issue) => issue.id === projectIssueSelectedId) : listSelected
-	const nestedRows = useMemo(() => selectableIssueRows(buildIssueRows(dropdownIssues, dropdownGroupBy, expandedIssues)), [dropdownIssues, dropdownGroupBy, expandedIssues])
+	const nestedRows = useMemo(
+		() => selectableIssueRows(buildIssueRows(dropdownIssues, dropdownGroupBy, expandedIssues, sessionsFor)),
+		[dropdownIssues, dropdownGroupBy, expandedIssues, sessionsFor],
+	)
 	// A row key follows refresh/grouping within a view, not unrelated lists that
 	// happen to contain the same ticket. New views retain their issue-index cursor.
 	const issueRowInScope = issueRowTargetRef.current === target && issueRowSearchRef.current === searchTerm
 	const selectedIssueRow = prDropdowns && (!previewIssues || projectIssueSelectedId) ? reconcileIssueRow(nestedRows, issueRowInScope ? issueRowKey : null, dropdownIndex) : null
-	const liveNestedRows = () => selectableIssueRows(buildIssueRows(dropdownIssues, dropdownGroupBy, expandedIssuesRef.current))
+	const liveNestedRows = () => selectableIssueRows(buildIssueRows(dropdownIssues, dropdownGroupBy, expandedIssuesRef.current, sessionsFor))
 	const liveIssueRow = () =>
 		prDropdowns && (!previewIssues || projectIssueSelectedId) ? reconcileIssueRow(liveNestedRows(), issueRowInScope ? issueRowKeyRef.current : null, dropdownIndex) : null
 	useEffect(() => {
@@ -463,10 +479,12 @@ export function App({
 			if (showingOverview) return
 			if (target?.kind === "my-projects") {
 				const at = projectSelectableRows.findIndex((row) =>
-					projectIssueSelectedId ? (row.kind === "issue" || row.kind === "pr") && row.row.key === selectedIssueRow?.key : row.kind === "project" && row.index === listSelected,
+					projectIssueSelectedId
+						? (row.kind === "issue" || row.kind === "pr" || row.kind === "session") && row.row.key === selectedIssueRow?.key
+						: row.kind === "project" && row.index === listSelected,
 				)
 				const next = projectSelectableRows[Math.max(0, Math.min(projectSelectableRows.length - 1, at + delta))]
-				if (next?.kind === "issue" || next?.kind === "pr") {
+				if (next?.kind === "issue" || next?.kind === "pr" || next?.kind === "session") {
 					setListSelected(next.projectIndex)
 					selectIssueRow(next.row)
 				} else if (next?.kind === "project") {
@@ -509,7 +527,7 @@ export function App({
 			if (showingOverview) return
 			if (target?.kind === "my-projects") {
 				const row = edge === "top" ? projectSelectableRows[0] : projectSelectableRows.at(-1)
-				if (row?.kind === "issue" || row?.kind === "pr") {
+				if (row?.kind === "issue" || row?.kind === "pr" || row?.kind === "session") {
 					setListSelected(row.projectIndex)
 					selectIssueRow(row.row)
 				} else if (row?.kind === "project") {
@@ -861,14 +879,60 @@ export function App({
 		},
 		[onOpenGitHubLink],
 	)
+	/** Hands the terminal to the session; ← at its empty prompt or ctrl+] comes back. */
+	const openAgentSession = useCallback(
+		(session: FaplexSession) => {
+			if (!session.open) {
+				notify("interactive session · open it in its own terminal")
+				return
+			}
+			openSession(session.key).catch((e: unknown) => notify(e instanceof Error ? e.message : String(e)))
+		},
+		[notify],
+	)
+
+	/**
+	 * `n` on a ticket: pick where the session runs, then write optional first
+	 * instructions. The ticket's id, title and link are always added.
+	 */
+	const startAgentSession = useCallback(
+		(issue: SessionIssue | null | undefined) => {
+			if (!issue) return
+			const snapshot = faplex.snapshot
+			if (!snapshot) {
+				notify(faplex.error ?? "waiting for faplex…")
+				return
+			}
+			const targets = sessionTargets(snapshot, sessionsFor(issue))
+			if (!targets.length) {
+				notify("faplex has no harness running on any machine")
+				return
+			}
+			returnModeRef.current = modeRef.current === "detail" ? "detail" : "list"
+			sessionIssueRef.current = issue
+			setPicker({
+				kind: "session",
+				title: `New agent session · ${issue.identifier}`,
+				options: targets.map((t) => ({
+					name: `${t.harness} · ${snapshot.machines.find((m) => m.id === t.machine)?.short ?? t.machine}`,
+					description: t.dir,
+					value: t,
+				})),
+			})
+			setMode("picker")
+		},
+		[faplex, sessionsFor, notify, setMode],
+	)
+
 	const pickNestedRow = useCallback(
 		(row: SelectableIssueRow) => {
 			setFocus("list")
 			if (row.key !== selectedIssueRow?.key) selectIssueRow(row)
 			else if (row.t === "pr") openLink(row.link.url)
+			else if (row.t === "session") openAgentSession(row.session)
 			else openDetail(row.issue)
 		},
-		[selectedIssueRow, selectIssueRow, setFocus, openLink, openDetail],
+		[selectedIssueRow, selectIssueRow, setFocus, openLink, openDetail, openAgentSession],
 	)
 
 	/**
@@ -957,6 +1021,18 @@ export function App({
 				setPicker(null)
 				setMode(returnModeRef.current)
 				openLink(option.value as string)
+				return
+			}
+
+			if (picker.kind === "session") {
+				setPicker(null)
+				const issue = sessionIssueRef.current
+				if (!issue) {
+					setMode(returnModeRef.current)
+					return
+				}
+				setCompose({ kind: "session", label: issue.identifier, issue, target: option.value as { machine: string; harness: string; dir: string } })
+				setMode("comment")
 				return
 			}
 
@@ -1050,6 +1126,18 @@ export function App({
 	const submitCompose = useCallback(
 		async (body: string) => {
 			if (!compose) return
+			if (compose.kind === "session") {
+				const { issue, target } = compose
+				setCompose(null)
+				setMode(returnModeRef.current)
+				// Expanded, the new session shows up under the ticket once faplex lists it.
+				const next = new Set(expandedIssuesRef.current).add(issue.id)
+				expandedIssuesRef.current = next
+				setExpandedIssues(next)
+				const prompt = [body.trim(), `Linear ticket ${issue.identifier}: ${issue.title}\n${issue.url}`].filter(Boolean).join("\n\n")
+				startSession({ ...target, prompt, tags: [issue.identifier] }).catch((e: unknown) => notify(e instanceof Error ? e.message : String(e)))
+				return
+			}
 			setEditBusy(true)
 			try {
 				if (compose.kind === "project-update") {
@@ -1295,7 +1383,7 @@ export function App({
 	)
 
 	const setAllPrsExpanded = (expand?: boolean) => {
-		const linkedIssues = dropdownIssues.filter((issue) => issuePullRequests(issue).length > 0)
+		const linkedIssues = dropdownIssues.filter((issue) => hasChildren(issue, sessionsFor))
 		const shouldExpand = expand ?? !linkedIssues.every((issue) => expandedIssuesRef.current.has(issue.id))
 		const next = new Set(expandedIssuesRef.current)
 		for (const issue of linkedIssues) {
@@ -1306,7 +1394,7 @@ export function App({
 		setExpandedIssues(next)
 		const row = liveIssueRow()
 		if (row) selectIssueRow(row)
-		notify(shouldExpand ? "expanded all linked PRs" : "collapsed all linked PRs")
+		notify(shouldExpand ? "expanded all linked PRs and sessions" : "collapsed all linked PRs and sessions")
 	}
 	const refreshCurrentView = () => {
 		prefixRef.current = null
@@ -1360,8 +1448,12 @@ export function App({
 			// The same subjects the o/Y/c/s/... keys act on. A linked PR row is a
 			// navigation row, never an issue edit target.
 			const prRow = mode === "list" && selectedIssueRow?.t === "pr" ? selectedIssueRow : null
+			const sessionRow = mode === "list" && selectedIssueRow?.t === "session" ? selectedIssueRow : null
 			const update = mode === "update" ? openUpdate : showingUpdates && mode === "list" ? updates[listSelected] : null
-			const issue = mode === "detail" ? detail : mode === "list" && !prRow ? (projectIssue ?? (showingIssues ? (selectedIssueRow?.issue ?? currentIssue) : null)) : null
+			const issue =
+				mode === "detail" ? detail : mode === "list" && !prRow && !sessionRow ? (projectIssue ?? (showingIssues ? (selectedIssueRow?.issue ?? currentIssue) : null)) : null
+			const sessionIssue = issue ?? sessionRow?.issue
+			if (sessionIssue) actions.startAgentSession = () => startAgentSession(sessionIssue)
 			const url = mode === "detail" ? detail?.url : (prRow?.link.url ?? update?.url ?? (showingInbox ? currentNotification?.url : showingOverview ? overview?.url : issue?.url))
 			if (url) {
 				actions.openInBrowser = () => (prRow ? openLink(url) : void openInBrowser(url))
@@ -1466,6 +1558,10 @@ export function App({
 				openIssueProject(detail)
 				return
 			}
+			if (is(key, "n")) {
+				startAgentSession(detail)
+				return
+			}
 			if (handleEditKey(key, detail)) return
 			// Shifted letters arrive as the lowercase `name` with the uppercase
 			// `sequence`, and `is()` matches either -- so every shifted binding has to
@@ -1526,6 +1622,10 @@ export function App({
 			const row = liveIssueRow()
 			if (row?.t === "pr") {
 				openLink(row.link.url)
+				return
+			}
+			if (row?.t === "session") {
+				openAgentSession(row.session)
 				return
 			}
 			if (row?.t === "issue") {
@@ -1714,6 +1814,10 @@ export function App({
 		}
 
 		// A child is a navigation row, never an implicit Linear edit target.
+		if (liveSelectedIssueRow?.t === "session" && focusRef.current === "list") {
+			if (is(key, "n")) startAgentSession(liveSelectedIssueRow.issue)
+			return
+		}
 		if (liveSelectedIssueRow?.t === "pr" && focusRef.current === "list") {
 			if (is(key, "O", "o")) openLink(liveSelectedIssueRow.link.url)
 			if (is(key, "Y", "y")) copyLink(liveSelectedIssueRow.link.url)
@@ -1741,6 +1845,10 @@ export function App({
 		// the priority picker and would match shift+p first.
 		if (is(key, "P") && (projectIssue ?? (showingIssues ? activeListIssue : null))) {
 			openIssueProject((projectIssue ?? activeListIssue)!)
+			return
+		}
+		if (is(key, "n") && (showingIssues || projectIssue) && focusRef.current === "list") {
+			startAgentSession(projectIssue ?? activeListIssue)
 			return
 		}
 		if ((showingIssues || projectIssue) && focusRef.current === "list" && handleEditKey(key, projectIssue ?? activeListIssue)) return
@@ -1822,8 +1930,20 @@ export function App({
 					<Picker title={picker.title} options={picker.options} onSelect={applyPick} busy={editBusy} />
 				) : mode === "comment" && compose ? (
 					<CommentBox
-						title={compose.kind === "project-update" ? `update on ${compose.label} · ${healthLabel(compose.health)}` : `comment on ${compose.label}`}
-						placeholder={compose.kind === "project-update" ? "What happened this week? Markdown is fine." : "Markdown is fine. Enter makes a new line."}
+						title={
+							compose.kind === "project-update"
+								? `update on ${compose.label} · ${healthLabel(compose.health)}`
+								: compose.kind === "session"
+									? `${compose.target.harness} session on ${compose.label} · ${compose.target.dir}`
+									: `comment on ${compose.label}`
+						}
+						placeholder={
+							compose.kind === "project-update"
+								? "What happened this week? Markdown is fine."
+								: compose.kind === "session"
+									? "Instructions for the agent, optional. The ticket's id, title and link are added."
+									: "Markdown is fine. Enter makes a new line."
+						}
 						onSubmit={submitCompose}
 						busy={editBusy}
 					/>
@@ -1884,6 +2004,7 @@ export function App({
 						<IssueList
 							title={title}
 							expanded={expandedIssues}
+							sessionsFor={sessionsFor}
 							scrollOffsetRef={issueListOffsetRef}
 							selectedRowKey={selectedIssueRow?.key}
 							onPickRow={pickNestedRow}
@@ -1941,6 +2062,7 @@ export function App({
 								selectedIssueId={target?.kind === "my-projects" ? projectIssueSelectedId : null}
 								selectedRowKey={selectedIssueRow?.key}
 								expandedIssues={previewIssues ? expandedIssues : undefined}
+								sessionsFor={sessionsFor}
 								onPickIssueRow={
 									previewIssues
 										? (index, row) => {
@@ -1996,6 +2118,7 @@ export function App({
 							<IssueList
 								title={title}
 								expanded={nestedIssues ? expandedIssues : undefined}
+								sessionsFor={sessionsFor}
 								scrollOffsetRef={nestedIssues ? issueListOffsetRef : undefined}
 								selectedRowKey={nestedIssues ? selectedIssueRow?.key : undefined}
 								onPickRow={nestedIssues ? pickNestedRow : undefined}

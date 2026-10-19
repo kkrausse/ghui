@@ -1,4 +1,5 @@
 import { githubPullRequestRoute } from "../githubPullRequestRoute.js"
+import { noSessions, type FaplexSession, type SessionsFor } from "./faplex.js"
 import { gitLinks, type GitLink } from "./git.js"
 import type { Issue } from "./linear/schema.js"
 import { groupIssues, type GroupBy } from "./views.js"
@@ -7,6 +8,7 @@ export type IssueRow =
 	| { t: "group"; key: string; label: string; count: number }
 	| { t: "issue"; key: string; issue: Issue; index: number }
 	| { t: "pr"; key: string; parentKey: string; issue: Issue; index: number; link: GitLink; last: boolean }
+	| { t: "session"; key: string; parentKey: string; issue: Issue; index: number; session: FaplexSession; last: boolean }
 export type SelectableIssueRow = Exclude<IssueRow, { t: "group" }>
 
 export const issuePullRequests = (issue: Issue): GitLink[] => {
@@ -19,8 +21,11 @@ export const issuePullRequests = (issue: Issue): GitLink[] => {
 	})
 }
 
-/** Selection belongs to an occurrence (label grouping can repeat an issue). */
-export const buildIssueRows = (issues: Issue[], groupBy: GroupBy, expanded: ReadonlySet<string> = new Set()): IssueRow[] => {
+/** Whether the issue has anything to expand: linked PRs or agent sessions. */
+export const hasChildren = (issue: Issue, sessionsFor: SessionsFor) => issuePullRequests(issue).length > 0 || sessionsFor(issue).length > 0
+
+/** Selection belongs to an occurrence (label grouping can repeat an issue). PRs come before sessions. */
+export const buildIssueRows = (issues: Issue[], groupBy: GroupBy, expanded: ReadonlySet<string> = new Set(), sessionsFor: SessionsFor = noSessions): IssueRow[] => {
 	const positions = new Map(issues.map((issue, index) => [issue.id, index]))
 	const groups = groupBy === "none" ? [{ label: "", issues }] : groupIssues(issues, groupBy)
 	return groups.flatMap((group) => {
@@ -32,8 +37,12 @@ export const buildIssueRows = (issues: Issue[], groupBy: GroupBy, expanded: Read
 			rows.push({ t: "issue", key, issue, index })
 			if (expanded.has(issue.id)) {
 				const links = issuePullRequests(issue)
+				const sessions = sessionsFor(issue)
 				links.forEach((link, i) => {
-					rows.push({ t: "pr", key: `${key}:${githubPullRequestRoute(link.url)!.url}`, parentKey: key, issue, index, link, last: i === links.length - 1 })
+					rows.push({ t: "pr", key: `${key}:${githubPullRequestRoute(link.url)!.url}`, parentKey: key, issue, index, link, last: !sessions.length && i === links.length - 1 })
+				})
+				sessions.forEach((session, i) => {
+					rows.push({ t: "session", key: `${key}:${session.key}`, parentKey: key, issue, index, session, last: i === sessions.length - 1 })
 				})
 			}
 		}

@@ -3,7 +3,8 @@ import { gitCell, gitLinks, primaryGitLink } from "../git.ts"
 import type { Issue } from "../linear/schema.ts"
 import { color, gitStatusStyle, priorityStyle, relativeAge, stateColor, stateGlyph } from "../theme.ts"
 import { type GroupBy } from "../views.ts"
-import { buildIssueRows, issuePullRequests, type SelectableIssueRow } from "../issueRows.js"
+import { buildIssueRows, hasChildren, type SelectableIssueRow } from "../issueRows.js"
+import { noSessions, type FaplexStatus, type SessionsFor } from "../faplex.js"
 import { gitSummary } from "../git.js"
 import { clip, fit, windowFor } from "./layout.ts"
 import { wheel } from "./wheel.ts"
@@ -22,6 +23,8 @@ type Props = {
 	scrollOffsetRef?: MutableRefObject<number> | undefined
 	selectedRowKey?: string | null | undefined
 	expanded?: ReadonlySet<string> | undefined
+	/** Agent sessions per ticket, listed under its PRs when expanded. */
+	sessionsFor?: SessionsFor | undefined
 	onPickRow?: ((row: SelectableIssueRow) => void) | undefined
 	title: string
 	issues: Issue[]
@@ -69,12 +72,13 @@ export function IssueList({
 	onScroll,
 	selectedRowKey,
 	expanded,
+	sessionsFor = noSessions,
 	onPickRow,
 	scrollOffsetRef,
 }: Props) {
 	const localOffsetRef = useRef(0)
 	const offsetRef = scrollOffsetRef ?? localOffsetRef
-	const rows = buildIssueRows(issues, groupBy, expanded)
+	const rows = buildIssueRows(issues, groupBy, expanded, sessionsFor)
 
 	// 2 border rows, plus the header row and its margin when one is present.
 	const viewport = Math.max(1, height - (header ? 4 : 2))
@@ -116,13 +120,16 @@ export function IssueList({
 						</text>
 					) : row.t === "pr" ? (
 						<PullRequestRow key={row.key} row={row} active={row.key === selectedRowKey} onPick={() => onPickRow?.(row)} />
+					) : row.t === "session" ? (
+						<SessionRow key={row.key} row={row} active={row.key === selectedRowKey} onPick={() => onPickRow?.(row)} />
 					) : (
 						<IssueRow
 							key={row.key}
 							issue={row.issue}
 							expanded={expanded?.has(row.issue.id)}
 							caretColumn={expanded !== undefined}
-							expandable={expanded !== undefined && issuePullRequests(row.issue).length > 0}
+							expandable={expanded !== undefined && hasChildren(row.issue, sessionsFor)}
+							session={sessionsFor(row.issue)[0]?.status}
 							active={selectedRowKey ? row.key === selectedRowKey : row.index === selected}
 							focused={focused}
 							onPick={() => (onPickRow ? onPickRow(row) : onPick(row.index))}
@@ -142,6 +149,7 @@ function IssueRow({
 	caretColumn,
 	expandable,
 	expanded,
+	session,
 }: {
 	issue: Issue
 	active: boolean
@@ -151,6 +159,8 @@ function IssueRow({
 	caretColumn?: boolean
 	expandable?: boolean
 	expanded?: boolean | undefined
+	/** Status of the ticket's most relevant agent session, if it has one. */
+	session?: FaplexStatus | undefined
 }) {
 	const prio = priorityStyle(issue.priority)
 	const age = relativeAge(issue.updatedAt ?? issue.createdAt)
@@ -185,6 +195,9 @@ function IssueRow({
 			<text flexShrink={0} fg={pr ? gitStatusStyle(pr.status).fg : color.faint}>
 				{fit(pr && !expanded ? ` ${gitCell(pr, links.length > 1)}` : "", PR_COL)}
 			</text>
+			<text flexShrink={0} fg={session ? sessionStatusStyle(session).fg : color.faint}>
+				{session && !expanded ? ` ${sessionStatusStyle(session).glyph}` : "  "}
+			</text>
 			<text flexShrink={0} fg={color.faint}>{` ${fit(clip(assignee, 12), 12)}`}</text>
 			<text flexShrink={0} fg={color.faint}>
 				{age.padStart(4)}
@@ -210,6 +223,40 @@ export function PullRequestRow({ row, active, onPick }: { row: Extract<Selectabl
 			<text flexShrink={0} fg={active ? color.fg : color.dim}>{`#${link.number}  `}</text>
 			<text fg={trouble ? color.urgent : color.dim} flexGrow={1} flexShrink={1} flexBasis={0} minWidth={0} wrapMode="none" truncate>
 				{gitSummary(link, row.issue.branchName).replace(`${style.glyph} `, "")}
+			</text>
+		</box>
+	)
+}
+
+const SESSION_STATUS: Record<FaplexStatus, { glyph: string; fg: string; label: string }> = {
+	needs: { glyph: "◉", fg: color.high, label: "needs input" },
+	working: { glyph: "◐", fg: color.accent, label: "working" },
+	failed: { glyph: "✗", fg: color.urgent, label: "failed" },
+	interrupted: { glyph: "⊘", fg: color.dim, label: "interrupted" },
+	done: { glyph: "✓", fg: color.ok, label: "done" },
+	idle: { glyph: "○", fg: color.dim, label: "idle" },
+}
+export const sessionStatusStyle = (status: FaplexStatus) => SESSION_STATUS[status] ?? SESSION_STATUS.idle
+
+/**
+ * An agent session under its expanded issue, laid out like a PR row: status
+ * glyph, `harness·machine`, then the session's title and status line. Archived
+ * sessions are dimmed.
+ */
+export function SessionRow({ row, active, onPick }: { row: Extract<SelectableIssueRow, { t: "session" }>; active: boolean; onPick?: () => void }) {
+	const { session } = row
+	const style = sessionStatusStyle(session.status)
+	const text = active ? color.fg : session.archived ? color.faint : color.dim
+	return (
+		<box flexDirection="row" height={1} {...(active ? { backgroundColor: color.selectedBg } : {})} {...(onPick ? { onMouseDown: onPick } : {})}>
+			<text flexShrink={0} fg={color.faint}>{`${" ".repeat(PR_TREE_INDENT)}${row.last ? "└" : "├"} `}</text>
+			<text flexShrink={0} fg={session.archived ? color.faint : style.fg}>{`${style.glyph} `}</text>
+			<text flexShrink={0} fg={color.faint}>{`${session.harness}·${session.host ?? session.machine}  `}</text>
+			<text fg={text} flexGrow={1} flexShrink={1} flexBasis={0} minWidth={0} wrapMode="none" truncate>
+				{[session.title, session.detail || style.label].filter(Boolean).join(" · ")}
+			</text>
+			<text flexShrink={0} fg={color.faint}>
+				{relativeAge(new Date(session.updatedAt).toISOString()).padStart(5)}
 			</text>
 		</box>
 	)

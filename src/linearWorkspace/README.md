@@ -58,34 +58,35 @@ binary; that was the trade for writing views in React.
 
 ## Keys
 
-| key                  | action                                                                                |
-| -------------------- | ------------------------------------------------------------------------------------- |
-| `j` / `k`, `↓` / `↑` | move selection                                                                        |
-| `ctrl+d` / `ctrl+u`  | half-page jump                                                                        |
-| `gg` / `G`           | jump to the first / last row                                                          |
-| `gi` / `gn`          | go to My Issues / Inbox                                                               |
-| `Space`              | Toggle selected ticket's PRs; on a My Projects project, toggle its tickets            |
-| `Shift+Space`        | Any ticket list, search or project preview: toggle all loaded tickets' PR dropdowns   |
-| `Ctrl+P` / `Cmd+K`   | GHUI: shared command palette (outside text inputs and pickers)                        |
-| `l` / `→`            | into the list, then open the selected row                                             |
-| `h` / `←`            | back out: close the pane, then back to the sidebar                                    |
-| `tab`                | in the list: switch pane · in detail: cycle comments                                  |
-| `enter`              | load view · open issue · drill into project                                           |
-| `1` `2` `3`, `[` `]` | inside a project: switch tab                                                          |
-| `u`                  | inside a project: post a project update                                               |
-| `esc`                | leave detail, search, or a drilled-in project                                         |
-| `/`                  | search all issues by text                                                             |
-| `b`                  | group the list by an attribute                                                        |
-| `r`                  | in the list: reload · in detail: reply to selected comment                            |
-| `R` (shift+r)        | refresh the current page with fresh data, including issue details and project updates |
-| `t`                  | in detail: the activity feed — every change with its timestamp                        |
-| `y`                  | copy the issue's git branch name                                                      |
-| `Y`                  | copy the issue's link                                                                 |
-| `o`                  | open the issue in the browser (or the desktop app)                                    |
-| `O`                  | open its linked PR — picks one when the issue has several                             |
-| `P`                  | jump to the issue's project — also the `Project` row in the detail pane               |
-| `?`                  | help                                                                                  |
-| `q`, `ctrl+c`        | quit                                                                                  |
+| key                  | action                                                                                 |
+| -------------------- | -------------------------------------------------------------------------------------- |
+| `j` / `k`, `↓` / `↑` | move selection                                                                         |
+| `ctrl+d` / `ctrl+u`  | half-page jump                                                                         |
+| `gg` / `G`           | jump to the first / last row                                                           |
+| `gi` / `gn`          | go to My Issues / Inbox                                                                |
+| `Space`              | Toggle selected ticket's PRs and agent sessions; on a My Projects project, its tickets |
+| `Shift+Space`        | Any ticket list, search or project preview: toggle all loaded tickets' PR dropdowns    |
+| `Ctrl+P` / `Cmd+K`   | GHUI: shared command palette (outside text inputs and pickers)                         |
+| `l` / `→`            | into the list, then open the selected row                                              |
+| `h` / `←`            | back out: close the pane, then back to the sidebar                                     |
+| `tab`                | in the list: switch pane · in detail: cycle comments                                   |
+| `enter`              | load view · open issue · drill into project                                            |
+| `1` `2` `3`, `[` `]` | inside a project: switch tab                                                           |
+| `u`                  | inside a project: post a project update                                                |
+| `esc`                | leave detail, search, or a drilled-in project                                          |
+| `/`                  | search all issues by text                                                              |
+| `b`                  | group the list by an attribute                                                         |
+| `r`                  | in the list: reload · in detail: reply to selected comment                             |
+| `R` (shift+r)        | refresh the current page with fresh data, including issue details and project updates  |
+| `t`                  | in detail: the activity feed — every change with its timestamp                         |
+| `y`                  | copy the issue's git branch name                                                       |
+| `Y`                  | copy the issue's link                                                                  |
+| `o`                  | open the issue in the browser (or the desktop app)                                     |
+| `O`                  | open its linked PR — picks one when the issue has several                              |
+| `P`                  | jump to the issue's project — also the `Project` row in the detail pane                |
+| `n`                  | start an agent session on the ticket (see [Agent sessions](#agent-sessions))           |
+| `?`                  | help                                                                                   |
+| `q`, `ctrl+c`        | quit                                                                                   |
 
 `g` is a prefix, matching both Linear (`gi`, `gn`) and vim (`gg`). Grouping used
 to live on `g` and moved to `b` to free it.
@@ -107,6 +108,22 @@ Selecting it highlights every copy — they are the same issue.
 
 Groups cover what is loaded. On a paginated view that is the pages you have
 scrolled through, not the whole backlog.
+
+### Agent sessions
+
+Agent sessions from [faplex](https://github.com/kkrausse/faplex) (Claude Code,
+Codex, OpenCode, on any machine faplex lists) nest under their ticket below its
+PRs, in every ticket list and project preview. A session belongs to a ticket
+when it was started from here, or when its title, status line or directory
+names the ticket id. Each row shows the session's status (`◉` needs input,
+`◐` working, `✓` done, `✗` failed), `harness·machine`, title and age; archived
+ones are dimmed. A collapsed ticket shows its most relevant session's glyph.
+
+`→`/`enter` on a session row hands the terminal to `faplex open`; `←` at the
+session's empty prompt (or `ctrl+]` anywhere) comes back. `n` on a ticket, or
+on one of its session rows, picks a machine and harness, then takes optional
+instructions; the session starts with them plus the ticket's id, title and
+link, opens, and is tagged with the ticket. Needs `faplex` on `PATH`.
 
 ### Linked PRs
 
