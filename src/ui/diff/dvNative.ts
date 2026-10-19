@@ -21,6 +21,7 @@ const symbols = {
 	dv_poll: { args: [FFIType.ptr], returns: FFIType.u32 },
 	dv_state: { args: [FFIType.ptr], returns: FFIType.u32 },
 	dv_set_comments: { args: [FFIType.ptr, FFIType.ptr, FFIType.u32], returns: FFIType.u32 },
+	dv_set_source: { args: [FFIType.ptr, FFIType.u32, FFIType.ptr, FFIType.u32], returns: FFIType.u32 },
 	dv_render: { args: [FFIType.ptr, FFIType.u32, FFIType.u32], returns: FFIType.u32 },
 	dv_frame_ptr: { args: [FFIType.ptr], returns: FFIType.ptr },
 	dv_take_action: { args: [FFIType.ptr], returns: FFIType.u32 },
@@ -115,6 +116,7 @@ export type DvAction =
 			readonly startSide?: "LEFT" | "RIGHT"
 	  }
 	| { readonly type: "reply"; readonly inReplyTo: string; readonly path: string; readonly line: number }
+	| { readonly type: "source"; readonly file: number; readonly path: string }
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
@@ -165,6 +167,13 @@ export class DvView {
 		if (!this.handle) return false
 		const bytes = encoder.encode(json)
 		return this.lib.dv_set_comments(this.handle, bytes, bytes.length) === 1
+	}
+
+	/** A file's text at the PR head, for expanding hidden context. False when it does not fit the diff. */
+	setSource(file: number, text: string): boolean {
+		if (!this.handle) return false
+		const bytes = encoder.encode(text)
+		return this.lib.dv_set_source(this.handle, file, bytes, bytes.length) === 1
 	}
 
 	render(width: number, height: number): readonly DvRun[] {

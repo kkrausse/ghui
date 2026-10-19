@@ -15,7 +15,7 @@ import { activeModalAtom } from "../modals/atoms.js"
 import { useFlashNotice } from "../notice/useFlashNotice.js"
 import { initialCommentModalState, Modal } from "../modals/types.js"
 import { shortRepoName } from "../pullRequests.js"
-import { diffCommentThreadsAtom, diffMarkdownPreviewAtom } from "./atoms.js"
+import { diffCommentThreadsAtom, diffMarkdownPreviewAtom, pullRequestFileContentRequest } from "./atoms.js"
 import { dvKeyCode, hostOwnsKey } from "./dvKeys.js"
 import { diffLineUrl } from "./links.js"
 import { DV_ACTION, DV_PENDING, DV_REDRAW, type DvAction, type DvMouseKind, type DvRun, DvView } from "./dvNative.js"
@@ -78,7 +78,8 @@ export interface DvDiffPaneProps {
  * The diff pane drawn by dv (Rust, via FFI). dv gets every key except the few in
  * `hostOwnsKey` while no modal is open, and its comment/reply requests open
  * GHUI's comment modal, so posting and optimistic updates stay in GHUI. Link
- * requests (`y`) copy the GitHub Files changed URL for the line or range.
+ * requests (`y`) copy the GitHub Files changed URL for the line or range, and
+ * source requests fetch a file at the PR head so dv can expand hidden context.
  */
 export const DvDiffPane = ({ pullRequest, patch, width, height }: DvDiffPaneProps) => {
 	const renderer = useRenderer()
@@ -87,6 +88,7 @@ export const DvDiffPane = ({ pullRequest, patch, width, height }: DvDiffPaneProp
 	const [view, setView] = useState<DvView | null>(null)
 	const setModal = useAtomSet(activeModalAtom)
 	const copyText = useRequest(copyTextRequest)
+	const fetchFile = useRequest(pullRequestFileContentRequest)
 	const flashNotice = useFlashNotice()
 	const modalOpen = useAtomValue(activeModalAtom)._tag !== "None"
 	const previewOpen = useAtomValue(diffMarkdownPreviewAtom)
@@ -123,6 +125,15 @@ export const DvDiffPane = ({ pullRequest, patch, width, height }: DvDiffPaneProp
 
 	const openRequest = (action: DvAction) => {
 		const { repository, number } = pullRequest
+		if (action.type === "source") {
+			// The diff is head vs merge base, so the head commit's file fits its hunks.
+			const target = view
+			void fetchFile({ repository, path: action.path, ref: pullRequest.headRefOid }).then(
+				(text) => target?.setSource(action.file, text) && redraw(),
+				() => {},
+			)
+			return
+		}
 		if (action.type === "reply") {
 			setModal(
 				Modal.Comment({
@@ -211,6 +222,8 @@ export const DvDiffPane = ({ pullRequest, patch, width, height }: DvDiffPaneProp
 		if (!frame || frame.width !== w || frame.height !== h) {
 			frame = { runs: view.render(w, h), width: w, height: h }
 			runsRef.current = frame
+			// Rendering asks for the sources of files that came on screen.
+			for (const action of view.takeActions()) openRequest(action)
 		}
 		buffer.fillRect(this.x, this.y, w, h, parseColor(colors.background))
 		for (const run of frame.runs) buffer.drawText(run.text, this.x + run.x, this.y + run.y, rgba(run.fg, colors.text), rgba(run.bg, colors.background), run.attrs)
