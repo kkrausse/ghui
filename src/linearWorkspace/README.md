@@ -120,8 +120,10 @@ list: a spinner while working, `!` needs input, `×` failed, `-` interrupted
 (`⑂`/`$` when subagents or a shell still run), then `host·harness`, title,
 status line and age. A collapsed ticket shows its most relevant session's mark.
 
-`→`/`enter` on a session row hands the terminal to `faplex open`; `←` at the
-session's empty prompt (or `ctrl+]` anywhere) comes back. `n` on a ticket, or
+`→`/`enter` on a session row opens it; `←` at the session's empty prompt (or
+`ctrl+]` anywhere) comes back. GHUI's `faplex watch` keeps each opened
+session's client attached, and attaches the one under the cursor ahead of time,
+so opening is a repaint (~0.2s); without it, `faplex open` takes the terminal. `n` on a ticket, or
 on one of its session rows, picks a machine and harness, then a directory, then
 takes optional instructions (Enter sends). The session starts in the background
 with them plus the ticket's id, title and link, tagged with the ticket, and you

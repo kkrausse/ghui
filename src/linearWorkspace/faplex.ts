@@ -1,3 +1,4 @@
+import { createConnection } from "node:net"
 import { useSyncExternalStore } from "react"
 import { withTuiSuspended } from "../tuiSuspension.js"
 import type { Issue } from "./linear/schema.js"
@@ -5,8 +6,10 @@ import type { Issue } from "./linear/schema.js"
 /**
  * Agent sessions from faplex (github.com/kkrausse/faplex), nested under the
  * tickets they belong to. One `faplex watch --json` child streams the whole
- * session list; opening or starting a session hands the terminal to
- * `faplex open` / `faplex new`, which return on ctrl+] or ← at an empty prompt.
+ * session list and keeps the clients of sessions opened here, so reopening is a
+ * repaint: opening relays the terminal to it over its socket until the session
+ * is left (ctrl+] or ← at an empty prompt). Without the socket, `faplex open`
+ * takes the terminal instead.
  */
 
 export type FaplexStatus = "needs" | "working" | "done" | "failed" | "interrupted" | "idle"
@@ -38,6 +41,8 @@ export type FaplexSnapshot = {
 	lastPick: { machine: string; harness: string } | null
 	sources: { machine: string; harness: string; loaded: boolean; problem: { kind: string; message: string } | null }[]
 	sessions: FaplexSession[]
+	/** Where the watch takes open requests for the clients it keeps. */
+	socket?: string
 }
 
 type State = { snapshot: FaplexSnapshot | null; error: string | null }
@@ -45,6 +50,8 @@ type State = { snapshot: FaplexSnapshot | null; error: string | null }
 let state: State = { snapshot: null, error: null }
 const listeners = new Set<() => void>()
 let running = false
+/** Writes a control line to the running watch, if there is one. */
+let control: (msg: object) => void = () => {}
 
 const set = (next: Partial<State>) => {
 	state = { ...state, ...next }
@@ -66,6 +73,10 @@ const start = () => {
 		return
 	}
 	running = true
+	control = (msg) => void proc.stdin.write(JSON.stringify(msg) + "\n")
+	const sendSize = () => control({ size: { cols: process.stdout.columns || 80, rows: process.stdout.rows || 24 } })
+	sendSize()
+	process.stdout.on("resize", sendSize)
 	void (async () => {
 		const decoder = new TextDecoder()
 		let buffered = ""
@@ -86,6 +97,8 @@ const start = () => {
 	})()
 	void proc.exited.then(async (code) => {
 		running = false
+		control = () => {}
+		process.stdout.off("resize", sendSize)
 		const stderr = (await new Response(proc.stderr).text()).trim()
 		set({ error: `faplex watch exited ${code}${stderr ? `: ${stderr.split("\n")[0]}` : ""}` })
 		setTimeout(start, RETRY_MS)
@@ -159,15 +172,53 @@ export const sessionTargets = (snapshot: FaplexSnapshot, ticketSessions: readonl
 }
 
 /** Runs faplex with the terminal; a failure comes back as its stderr. */
-const handOver = (args: string[]) =>
-	withTuiSuspended(async () => {
-		const proc = Bun.spawn(["faplex", ...args], { stdin: "inherit", stdout: "inherit", stderr: "pipe" })
-		const [code, stderr] = await Promise.all([proc.exited, new Response(proc.stderr).text()])
-		if (code !== 0) throw new Error(stderr.trim().replace(/^faplex: /, "") || `faplex ${args[0]} exited ${code}`)
+const runFaplex = async (args: string[]) => {
+	const proc = Bun.spawn(["faplex", ...args], { stdin: "inherit", stdout: "inherit", stderr: "pipe" })
+	const [code, stderr] = await Promise.all([proc.exited, new Response(proc.stderr).text()])
+	if (code !== 0) throw new Error(stderr.trim().replace(/^faplex: /, "") || `faplex ${args[0]} exited ${code}`)
+}
+const handOver = (args: string[]) => withTuiSuspended(() => runFaplex(args))
+
+/**
+ * Relays the terminal to the watch's client for `key` until the watch ends the
+ * connection (the session was left). False when the socket can't be reached.
+ */
+const relay = (socket: string, key: string) =>
+	new Promise<boolean>((resolve) => {
+		const conn = createConnection(socket)
+		const keys = (data: Uint8Array) => conn.write(data)
+		let connected = false
+		conn.on("connect", () => {
+			connected = true
+			conn.write(JSON.stringify({ key, cols: process.stdout.columns || 80, rows: process.stdout.rows || 24 }) + "\n")
+			process.stdin.setRawMode?.(true)
+			process.stdin.on("data", keys)
+			process.stdin.resume()
+		})
+		conn.on("data", (data: Uint8Array) => process.stdout.write(data))
+		conn.on("error", () => {})
+		conn.on("close", () => {
+			process.stdin.off("data", keys)
+			resolve(connected)
+		})
 	})
 
-/** Passing `open` from the watch lets faplex attach at once instead of listing every session first. */
-export const openSession = (session: Pick<FaplexSession, "key" | "open">) => handOver(["open", session.key, ...(session.open ? ["--open", JSON.stringify(session.open)] : [])])
+/** Hands the terminal to the session; its client stays with the watch for a quick reopen. */
+export const openSession = (session: Pick<FaplexSession, "key" | "open">) =>
+	withTuiSuspended(async () => {
+		const socket = state.snapshot?.socket
+		if (socket && (await relay(socket, session.key))) return
+		// Passing `open` lets faplex attach at once instead of listing every session first.
+		await runFaplex(["open", session.key, ...(session.open ? ["--open", JSON.stringify(session.open)] : [])])
+	})
+
+/** Have the watch attach this session's client now, so opening it is a repaint. */
+let warmed: string | null = null
+export const warmSession = (key: string) => {
+	if (key === warmed) return
+	warmed = key
+	control({ warm: key })
+}
 
 /** `faplex new --background` exits with this when the folder's trust prompt has to be answered on screen. */
 const NEEDS_TRUST = 3

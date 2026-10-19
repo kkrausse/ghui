@@ -70,7 +70,7 @@ import { HelpOverlay, StatusBar } from "./ui/StatusBar.tsx"
 import { UpdateDetail } from "./ui/UpdateDetail.tsx"
 import { UpdateList } from "./ui/UpdateList.tsx"
 import { buildIssueRows, hasChildren, selectableIssueRows, reconcileIssueRow, type SelectableIssueRow } from "./issueRows.js"
-import { indexSessions, openSession, sessionTargets, startSession, useFaplex, type FaplexSession, type SessionTarget } from "./faplex.js"
+import { indexSessions, openSession, sessionTargets, startSession, useFaplex, warmSession, type FaplexSession, type SessionTarget } from "./faplex.js"
 import { LinearLinkContext } from "./ui/Markdown.js"
 import { devLog } from "../devLog.js"
 
@@ -455,6 +455,13 @@ export function App({
 		setIssueRowKey(selectedIssueRow?.key ?? null)
 		if (selectedIssueRow && !previewIssues) setListSelected(selectedIssueRow.index)
 	}, [prDropdowns, previewIssues, projectIssueSelectedId, selectedIssueRow?.key, selectedIssueRow?.index, setIssueRowKey])
+	// A session row the cursor rests on gets its client attached in the background, so → is a repaint.
+	const warmKey = selectedIssueRow?.t === "session" && selectedIssueRow.session.open ? selectedIssueRow.session.key : null
+	useEffect(() => {
+		if (!warmKey) return
+		const timer = setTimeout(() => warmSession(warmKey), 250)
+		return () => clearTimeout(timer)
+	}, [warmKey])
 	const selectIssueRow = useCallback(
 		(row: SelectableIssueRow) => {
 			setIssueRowKey(row.key)

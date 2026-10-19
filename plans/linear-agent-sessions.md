@@ -25,10 +25,15 @@ started without leaving GHUI.
 Opening and starting reuse `withTuiSuspended`. faplex owns harnesses,
 machines, panes and tags; GHUI owns the picker.
 
+Opening relays the terminal over the watch's socket to a client the watch
+keeps (faplex `held.ts`); the session under the cursor is warmed after 250ms.
+Opening went from ~7s (faplex open, waiting for the first listing) to ~1.3s
+(`--open`) to ~0.2s (warmed or reopened).
+
 ## Open questions
 
-- Keep a session's client alive between opens (embed faplex's pane code instead
-  of a subprocess) if re-attaching each time is too slow.
+- faplex's dashboard and `held.ts` carry two copies of the pane logic (ready
+  probe, leave check, mode restore); unify if either changes.
 - Editing the start directory in the picker; today it offers the ticket's
   session dirs, the machine default and recent session dirs.
 
