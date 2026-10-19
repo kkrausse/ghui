@@ -186,6 +186,8 @@ export function App({
 	const returnModeRef = useRef<Mode>("list")
 
 	const [target, setTarget] = useState<Target | null>(null)
+	/** Both project lists nest a project's tickets under it on Space. */
+	const projectTree = target?.kind === "my-projects" || target?.kind === "projects"
 	/** Set when drilled into a project, so esc restores the projects list behind it. */
 	const [parentTarget, setParentTarget] = useState<Target | null>(null)
 	const [payload, setPayload] = useState<Payload | null>(null)
@@ -357,10 +359,10 @@ export function App({
 	/** True for every pane whose rows are not issues. */
 	const showingIssues = !showingProjects && !showingInbox && !showingUpdates && !showingOverview
 	const groupKey = groupingKey(target, search !== null)
-	const groupBy: GroupBy = groupPreferences[groupKey] ?? (target?.kind === "my-projects" ? "status" : "none")
+	const groupBy: GroupBy = groupPreferences[groupKey] ?? (projectTree ? "status" : "none")
 
 	/** Fetch the expanded project's tickets, never every project on startup. */
-	const selectedProject = target?.kind === "my-projects" && showingProjects ? (payload.projects.find((project) => project.id === expandedProjectId) ?? null) : null
+	const selectedProject = projectTree && showingProjects ? (payload.projects.find((project) => project.id === expandedProjectId) ?? null) : null
 	const [projectPreview, setProjectPreview] = useState<{ id: string; issues: Issue[]; loading: boolean; error: string | null } | null>(null)
 	useEffect(() => {
 		if (!selectedProject) {
@@ -411,7 +413,9 @@ export function App({
 		if (showFinishedProjects) setListSelected((i) => Math.min(i, Math.max(0, live - 1)))
 		setShowFinishedProjects((on) => !on)
 	}
-	const projectListRows = target?.kind === "my-projects" ? projectRows(projects, expandedProjectId, projectPreview, groupBy, expandedIssues, sessionsFor) : []
+	const projectListRows = projectTree
+		? projectRows(projects, expandedProjectId, projectPreview, groupBy, expandedIssues, sessionsFor, teamProjects ? { hiddenFinished } : undefined)
+		: []
 	const projectSelectableRows = projectListRows.filter((row) => row.kind === "project" || row.kind === "issue" || row.kind === "pr" || row.kind === "session")
 	const selectedProjectIssue = projectSelectableRows.find((row) => row.kind === "issue" && row.issue.id === projectIssueSelectedId)
 	const projectIssue = selectedProjectIssue?.kind === "issue" ? selectedProjectIssue.issue : null
@@ -451,7 +455,7 @@ export function App({
 	/** Screen order of the issue rows; selection stays an index into `issues`. */
 	const issueOrder = useMemo(() => displayOrder(issues, effectiveGroupBy), [issues, effectiveGroupBy])
 	const nestedIssues = showingIssues
-	const previewIssues = showingProjects && target?.kind === "my-projects"
+	const previewIssues = showingProjects && projectTree
 	const prDropdowns = nestedIssues || previewIssues
 	const dropdownIssues = previewIssues ? (projectPreview?.id === expandedProjectId ? projectPreview.issues : []) : issues
 	const dropdownGroupBy = previewIssues ? groupBy : effectiveGroupBy
@@ -520,7 +524,7 @@ export function App({
 			}
 			// The overview is one scrolling document; its scrollbox owns j/k.
 			if (showingOverview) return
-			if (target?.kind === "my-projects") {
+			if (projectTree) {
 				const at = projectSelectableRows.findIndex((row) =>
 					projectIssueSelectedId
 						? (row.kind === "issue" || row.kind === "pr" || row.kind === "session") && row.row.key === selectedIssueRow?.key
@@ -568,7 +572,7 @@ export function App({
 				return
 			}
 			if (showingOverview) return
-			if (target?.kind === "my-projects") {
+			if (projectTree) {
 				const row = edge === "top" ? projectSelectableRows[0] : projectSelectableRows.at(-1)
 				if (row?.kind === "issue" || row?.kind === "pr" || row?.kind === "session") {
 					setListSelected(row.projectIndex)
@@ -1485,7 +1489,7 @@ export function App({
 			actions.help = () => setMode("help")
 			if (mode === "list") {
 				actions.search = startSearch
-				if (showingIssues || target?.kind === "my-projects") actions.group = openGroupPicker
+				if (showingIssues || projectTree) actions.group = openGroupPicker
 				if (teamProjects) actions.toggleFinishedProjects = toggleFinishedProjects
 				if (prDropdowns) {
 					actions.toggleAllPrs = () => setAllPrsExpanded()
@@ -1698,7 +1702,7 @@ export function App({
 				return
 			}
 			if (showingProjects) {
-				if (target?.kind === "my-projects" && projectIssue) {
+				if (projectTree && projectIssue) {
 					openDetail(projectIssue)
 					return
 				}
@@ -1822,7 +1826,7 @@ export function App({
 
 		// Grouping moved off `g` when that became the go-prefix. It only means
 		// anything over issue rows.
-		if (is(key, "b") && (showingIssues || target?.kind === "my-projects")) {
+		if (is(key, "b") && (showingIssues || projectTree)) {
 			openGroupPicker()
 			return
 		}
@@ -1849,7 +1853,7 @@ export function App({
 			if (row) selectIssueRow(row)
 			return
 		}
-		if (is(key, "space", " ") && target?.kind === "my-projects" && focusRef.current === "list") {
+		if (is(key, "space", " ") && projectTree && focusRef.current === "list") {
 			const id = projects[listSelected]?.id
 			if (id) {
 				setExpandedProjectId(expandedProjectId === id ? null : id)
@@ -2127,7 +2131,7 @@ export function App({
 									onPick={pickProject}
 									onPickIssue={pickProjectIssue}
 									onScroll={moveList}
-									selectedIssueId={target?.kind === "my-projects" ? projectIssueSelectedId : null}
+									selectedIssueId={projectTree ? projectIssueSelectedId : null}
 									selectedRowKey={selectedIssueRow?.key}
 									expandedIssues={previewIssues ? expandedIssues : undefined}
 									sessionsFor={sessionsFor}
@@ -2139,9 +2143,9 @@ export function App({
 												}
 											: undefined
 									}
-									expandedProjectId={target?.kind === "my-projects" ? expandedProjectId : null}
-									expandable={target?.kind === "my-projects"}
-									preview={target?.kind === "my-projects" ? projectPreview : null}
+									expandedProjectId={projectTree ? expandedProjectId : null}
+									expandable={projectTree}
+									preview={projectTree ? projectPreview : null}
 									groupBy={groupBy}
 									sections={teamProjects ? { hiddenFinished } : undefined}
 								/>

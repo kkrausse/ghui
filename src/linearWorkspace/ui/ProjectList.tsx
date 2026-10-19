@@ -143,32 +143,24 @@ export function ProjectList({
 						)
 					if (row.kind === "issue" || row.kind === "pr" || row.kind === "session") {
 						const active = isActive(row)
+						const key = `${row.projectIndex}-${row.row.key}`
+						const pick = () => (onPickIssueRow ? onPickIssueRow(row.projectIndex, row.row) : onPickIssue?.(row.projectIndex, row.issue))
+						// PR and session rows are full-width rows of their own; wrapping them
+						// in another row box squeezed their growing summary cell to nothing.
+						if (row.row.t === "pr") return <PullRequestRow key={key} row={row.row} active={active} onPick={pick} />
+						if (row.row.t === "session") return <SessionRow key={key} row={row.row} active={active} onPick={pick} />
 						return (
-							<box
-								key={`${row.projectIndex}-${row.row.key}`}
-								flexDirection="row"
-								height={1}
-								{...(active ? { backgroundColor: color.selectedBg } : {})}
-								onMouseDown={() => (onPickIssueRow ? onPickIssueRow(row.projectIndex, row.row) : onPickIssue?.(row.projectIndex, row.issue))}
-							>
-								{row.row.t === "pr" ? (
-									<PullRequestRow row={row.row} active={active} />
-								) : row.row.t === "session" ? (
-									<SessionRow row={row.row} active={active} />
-								) : (
-									<>
-										<text fg={stateColor(row.issue.state?.type, row.issue.state?.color)} flexShrink={0}>
-											{`  ${stateGlyph(row.issue.state?.type)} `}
-										</text>
-										<text fg={active && focused ? color.accent : color.faint} flexShrink={0}>
-											{expandedIssues && hasChildren(row.issue, sessionsFor) ? (expandedIssues.has(row.issue.id) ? "▾ " : "▸ ") : "  "}
-											{fit(row.issue.identifier, 13)}
-										</text>
-										<text fg={active ? color.fg : color.dim} flexGrow={1} wrapMode="none" truncate>
-											{row.issue.title}
-										</text>
-									</>
-								)}
+							<box key={key} flexDirection="row" height={1} {...(active ? { backgroundColor: color.selectedBg } : {})} onMouseDown={pick}>
+								<text fg={stateColor(row.issue.state?.type, row.issue.state?.color)} flexShrink={0}>
+									{`  ${stateGlyph(row.issue.state?.type)} `}
+								</text>
+								<text fg={active && focused ? color.accent : color.faint} flexShrink={0}>
+									{expandedIssues && hasChildren(row.issue, sessionsFor) ? (expandedIssues.has(row.issue.id) ? "▾ " : "▸ ") : "  "}
+									{fit(row.issue.identifier, 13)}
+								</text>
+								<text fg={active ? color.fg : color.dim} flexGrow={1} wrapMode="none" truncate>
+									{row.issue.title}
+								</text>
 							</box>
 						)
 					}
