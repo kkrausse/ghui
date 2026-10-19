@@ -1,4 +1,5 @@
-import { useRef, type ReactNode, type MutableRefObject } from "react"
+import { useContext, useRef, type ReactNode, type MutableRefObject } from "react"
+import { githubPullRequestRoute } from "../../githubPullRequestRoute.js"
 import { gitCell, gitLinks, primaryGitLink } from "../git.ts"
 import type { Issue } from "../linear/schema.ts"
 import { color, gitStatusStyle, priorityStyle, relativeAge, stateColor, stateGlyph } from "../theme.ts"
@@ -6,6 +7,7 @@ import { type GroupBy } from "../views.ts"
 import { buildIssueRows, hasChildren, type SelectableIssueRow } from "../issueRows.js"
 import { noSessions, useSpinner, type FaplexSession, type SessionsFor } from "../faplex.js"
 import { gitSummary } from "../git.js"
+import { CHECK_STYLE, PullRequestStatusContext, REVIEW_STYLE } from "../pullRequestStatus.ts"
 import { clip, fit, windowFor } from "./layout.ts"
 import { wheel } from "./wheel.ts"
 
@@ -16,8 +18,8 @@ import { wheel } from "./wheel.ts"
  */
 const PR_COL = 9
 
-/** Issue status, caret, priority and the 13-wide identifier, less the 2-cell tree mark. */
-const PR_TREE_INDENT = 17
+/** The tree mark sits under the issue's priority column, two cells in from its caret. */
+const PR_TREE_INDENT = 4
 
 type Props = {
 	scrollOffsetRef?: MutableRefObject<number> | undefined
@@ -218,16 +220,22 @@ function IssueRow({
  * detail red.
  */
 export function PullRequestRow({ row, active, onPick }: { row: Extract<SelectableIssueRow, { t: "pr" }>; active: boolean; onPick?: () => void }) {
-	const { link } = row
+	const github = useContext(PullRequestStatusContext)(githubPullRequestRoute(row.link.url)?.url ?? row.link.url)
+	// GitHub's review decision supersedes Linear's verdict tally once it arrives.
+	const link = github ? { ...row.link, approvals: 0, changesRequested: 0 } : row.link
 	const style = gitStatusStyle(link.status)
+	const checks = github && CHECK_STYLE[github.checks]
+	const review = github && REVIEW_STYLE[github.review]
 	const trouble = link.changesRequested > 0 || link.hasConflicts
 	return (
 		<box flexDirection="row" height={1} {...(active ? { backgroundColor: color.selectedBg } : {})} {...(onPick ? { onMouseDown: onPick } : {})}>
 			<text flexShrink={0} fg={color.faint}>{`${" ".repeat(PR_TREE_INDENT)}${row.last ? "└" : "├"} `}</text>
 			<text flexShrink={0} fg={style.fg}>{`${style.glyph} `}</text>
-			<text flexShrink={0} fg={active ? color.fg : color.dim}>{`#${link.number}  `}</text>
+			<text flexShrink={0} fg={active ? color.fg : color.dim}>{`#${link.number} `}</text>
+			{checks ? <text flexShrink={0} fg={checks.fg}>{`${checks.glyph} `}</text> : null}
+			{review ? <text flexShrink={0} fg={review.fg}>{`${review.label} `}</text> : null}
 			<text fg={trouble ? color.urgent : color.dim} flexGrow={1} flexShrink={1} flexBasis={0} minWidth={0} wrapMode="none" truncate>
-				{gitSummary(link, row.issue.branchName).replace(`${style.glyph} `, "")}
+				{` ${gitSummary(link, row.issue.branchName).replace(`${style.glyph} `, "")}`}
 			</text>
 		</box>
 	)

@@ -58,6 +58,8 @@ import {
 	type Target,
 } from "./views.ts"
 import { CommentBox } from "./ui/CommentBox.tsx"
+import { githubPullRequestRoute } from "../githubPullRequestRoute.js"
+import { PullRequestStatusContext, type LoadPullRequestStatus, type PullRequestStatus } from "./pullRequestStatus.ts"
 import { IssueDetail } from "./ui/IssueDetail.tsx"
 import { IssueList } from "./ui/IssueList.tsx"
 import { NotificationList } from "./ui/NotificationList.tsx"
@@ -128,6 +130,8 @@ export type LinearWorkspaceProps = {
 	onQuit?: () => void
 	onNavigationLockChange?: (locked: boolean) => void
 	onOpenGitHubLink?: (url: string) => boolean
+	/** Review decision and checks for a linked PR; without it PR rows show Linear's metadata only. */
+	loadPullRequestStatus?: LoadPullRequestStatus
 	navigationNotice?: string | null
 }
 
@@ -141,6 +145,7 @@ export function App({
 	onQuit,
 	onNavigationLockChange,
 	onOpenGitHubLink,
+	loadPullRequestStatus,
 	navigationNotice,
 }: LinearWorkspaceProps = {}) {
 	const renderer = useRenderer()
@@ -459,6 +464,24 @@ export function App({
 	// happen to contain the same ticket. New views retain their issue-index cursor.
 	const issueRowInScope = issueRowTargetRef.current === target && issueRowSearchRef.current === searchTerm
 	const selectedIssueRow = prDropdowns && (!previewIssues || projectIssueSelectedId) ? reconcileIssueRow(nestedRows, issueRowInScope ? issueRowKey : null, dropdownIndex) : null
+	// GitHub status for the PR rows on screen. Settled PRs have nothing pending,
+	// so only in-flight ones are fetched; a failed lookup just leaves the row as is.
+	const [prStatuses, setPrStatuses] = useState<ReadonlyMap<string, PullRequestStatus>>(new Map())
+	const prStatusRequested = useRef(new Set<string>())
+	useEffect(() => {
+		if (!loadPullRequestStatus) return
+		for (const row of nestedRows) {
+			if (row.t !== "pr" || row.link.status === "merged" || row.link.status === "closed") continue
+			const url = githubPullRequestRoute(row.link.url)?.url
+			if (!url || prStatusRequested.current.has(url)) continue
+			prStatusRequested.current.add(url)
+			void loadPullRequestStatus(url).then(
+				(status) => setPrStatuses((all) => new Map(all).set(url, status)),
+				() => {},
+			)
+		}
+	}, [nestedRows, loadPullRequestStatus])
+	const prStatusFor = useCallback((url: string) => prStatuses.get(url), [prStatuses])
 	const liveNestedRows = () => selectableIssueRows(buildIssueRows(dropdownIssues, dropdownGroupBy, expandedIssuesRef.current, sessionsFor))
 	const liveIssueRow = () =>
 		prDropdowns && (!previewIssues || projectIssueSelectedId) ? reconcileIssueRow(liveNestedRows(), issueRowInScope ? issueRowKeyRef.current : null, dropdownIndex) : null
@@ -1435,6 +1458,7 @@ export function App({
 	const refreshCurrentView = () => {
 		prefixRef.current = null
 		invalidateCache()
+		prStatusRequested.current.clear()
 		refresh(modeRef.current === "detail" ? detailIssueIdRef.current : undefined)
 		refreshUnread()
 		notify("refreshing…")
@@ -1965,226 +1989,228 @@ export function App({
 
 	return (
 		<LinearLinkContext.Provider value={openLink}>
-			<box flexDirection="column" width={width} height={height}>
-				{mode === "help" ? (
-					<HelpOverlay />
-				) : mode === "picker" && picker ? (
-					<Picker title={picker.title} options={picker.options} onSelect={applyPick} busy={editBusy} />
-				) : mode === "comment" && compose ? (
-					<CommentBox
-						title={
-							compose.kind === "project-update"
-								? `update on ${compose.label} · ${healthLabel(compose.health)}`
-								: compose.kind === "session"
-									? `${compose.target.harness} session on ${compose.label} · ${compose.target.dir}`
-									: `comment on ${compose.label}`
-						}
-						placeholder={
-							compose.kind === "project-update"
-								? "What happened this week? Markdown is fine."
-								: compose.kind === "session"
-									? "Instructions for the agent, optional; Enter starts it. The ticket's id, title and link are added."
-									: "Markdown is fine. Enter makes a new line."
-						}
-						onSubmit={submitCompose}
-						busy={editBusy}
-						enterSends={compose.kind === "session"}
-					/>
-				) : mode === "update" ? (
-					<UpdateDetail
-						projectName={projectName}
-						update={openUpdate}
-						// Opened from the inbox, the update is named before its project's
-						// updates have been fetched -- that gap is loading, not a dead row.
-						loading={listLoading || !showingUpdates}
-						width={width}
-						selectedCommentId={selectedCommentId}
-						onComment={() => startReply(null)}
-						onReply={startReply}
-						onSelectComment={setSelectedCommentId}
-						onCopyLink={copyLink}
-						onOpenBrowser={() => {
-							if (openUpdate?.url) void openInBrowser(openUpdate.url)
-						}}
-					/>
-				) : mode === "detail" ? (
-					<IssueDetail
-						detail={detail}
-						loading={detailLoading}
-						error={detailError}
-						width={width}
-						selectedCommentId={selectedCommentId}
-						showActivity={showActivity}
-						onToggleActivity={() => setShowActivity((on) => !on)}
-						onAction={detailAction}
-						onReply={startReply}
-						onSelectComment={setSelectedCommentId}
-						onCopyBranch={() => {
-							if (detail?.branchName) {
-								void copyToClipboard(detail.branchName)
-								notify(`copied ${detail.branchName}`)
+			<PullRequestStatusContext.Provider value={prStatusFor}>
+				<box flexDirection="column" width={width} height={height}>
+					{mode === "help" ? (
+						<HelpOverlay />
+					) : mode === "picker" && picker ? (
+						<Picker title={picker.title} options={picker.options} onSelect={applyPick} busy={editBusy} />
+					) : mode === "comment" && compose ? (
+						<CommentBox
+							title={
+								compose.kind === "project-update"
+									? `update on ${compose.label} · ${healthLabel(compose.health)}`
+									: compose.kind === "session"
+										? `${compose.target.harness} session on ${compose.label} · ${compose.target.dir}`
+										: `comment on ${compose.label}`
 							}
-						}}
-						onOpenBrowser={() => {
-							if (detail?.url) void openInBrowser(detail.url)
-						}}
-						onOpenPr={() => openPr(detail)}
-						onOpenProject={() => openIssueProject(detail)}
-						onOpenLink={openLink}
-						onCopyLink={copyLink}
-					/>
-				) : searching ? (
-					<box flexDirection="column" flexGrow={1}>
-						<SearchBar
-							term={search?.term ?? ""}
-							editing={mode === "search"}
-							count={issues.length}
-							hasMore={morePages}
-							loading={listLoading}
-							onSubmit={submitSearch}
-							onEdit={startSearch}
+							placeholder={
+								compose.kind === "project-update"
+									? "What happened this week? Markdown is fine."
+									: compose.kind === "session"
+										? "Instructions for the agent, optional; Enter starts it. The ticket's id, title and link are added."
+										: "Markdown is fine. Enter makes a new line."
+							}
+							onSubmit={submitCompose}
+							busy={editBusy}
+							enterSends={compose.kind === "session"}
 						/>
-						<IssueList
-							title={title}
-							expanded={expandedIssues}
-							sessionsFor={sessionsFor}
-							scrollOffsetRef={issueListOffsetRef}
-							selectedRowKey={selectedIssueRow?.key}
-							onPickRow={pickNestedRow}
-							issues={issues}
-							selected={listSelected}
-							focused={mode !== "search"}
-							groupBy={effectiveGroupBy}
-							loading={listLoading}
-							loadingMore={loadingMore}
-							hasMore={morePages}
-							error={listError}
-							height={bodyHeight - 1}
-							onPick={pickIssue}
-							onScroll={moveList}
+					) : mode === "update" ? (
+						<UpdateDetail
+							projectName={projectName}
+							update={openUpdate}
+							// Opened from the inbox, the update is named before its project's
+							// updates have been fetched -- that gap is loading, not a dead row.
+							loading={listLoading || !showingUpdates}
+							width={width}
+							selectedCommentId={selectedCommentId}
+							onComment={() => startReply(null)}
+							onReply={startReply}
+							onSelectComment={setSelectedCommentId}
+							onCopyLink={copyLink}
+							onOpenBrowser={() => {
+								if (openUpdate?.url) void openInBrowser(openUpdate.url)
+							}}
 						/>
-					</box>
-				) : (
-					<box flexDirection="row" flexGrow={1}>
-						<Sidebar
-							items={nav}
-							selected={navSelected}
-							focused={focus === "sidebar"}
-							width={SIDEBAR_WIDTH}
-							height={bodyHeight}
-							unread={unread}
-							onPick={pickNav}
-							onScroll={moveNav}
-						/>
-						{showingInbox ? (
-							<NotificationList
-								title={title}
-								notifications={notifications}
-								selected={listSelected}
-								focused={focus === "list"}
-								loading={listLoading}
-								loadingMore={loadingMore}
-								hasMore={morePages}
-								error={listError}
-								height={bodyHeight}
-								onPick={pickNotification}
-								onScroll={moveList}
-							/>
-						) : showingProjects ? (
-							<ProjectList
-								title={title}
-								projects={projects}
-								selected={listSelected}
-								focused={focus === "list"}
-								loading={listLoading}
-								error={listError}
-								height={bodyHeight}
-								onPick={pickProject}
-								onPickIssue={pickProjectIssue}
-								onScroll={moveList}
-								selectedIssueId={target?.kind === "my-projects" ? projectIssueSelectedId : null}
-								selectedRowKey={selectedIssueRow?.key}
-								expandedIssues={previewIssues ? expandedIssues : undefined}
-								sessionsFor={sessionsFor}
-								onPickIssueRow={
-									previewIssues
-										? (index, row) => {
-												setListSelected(index)
-												pickNestedRow(row)
-											}
-										: undefined
+					) : mode === "detail" ? (
+						<IssueDetail
+							detail={detail}
+							loading={detailLoading}
+							error={detailError}
+							width={width}
+							selectedCommentId={selectedCommentId}
+							showActivity={showActivity}
+							onToggleActivity={() => setShowActivity((on) => !on)}
+							onAction={detailAction}
+							onReply={startReply}
+							onSelectComment={setSelectedCommentId}
+							onCopyBranch={() => {
+								if (detail?.branchName) {
+									void copyToClipboard(detail.branchName)
+									notify(`copied ${detail.branchName}`)
 								}
-								expandedProjectId={target?.kind === "my-projects" ? expandedProjectId : null}
-								expandable={target?.kind === "my-projects"}
-								preview={target?.kind === "my-projects" ? projectPreview : null}
-								groupBy={groupBy}
-								sections={teamProjects ? { hiddenFinished } : undefined}
-							/>
-						) : inProject === "overview" ? (
-							<ProjectOverview
-								title={title}
-								project={overview}
-								// The payload lags the tab by one request; until it catches up the
-								// pane is loading, even when `listLoading` has not been set yet.
-								loading={listLoading || !showingOverview}
-								error={listError}
-								focused={focus === "list"}
-								width={width - SIDEBAR_WIDTH}
-								activeTab="overview"
-								onTab={setProjectTab}
-								selectedCommentId={selectedCommentId}
-								onNewUpdate={startProjectUpdate}
-								onComment={() => startReply(null)}
-								onReply={startReply}
-								onSelectComment={setSelectedCommentId}
-								onCopyLink={copyLink}
-								onOpenBrowser={() => {
-									if (overview?.url) void openInBrowser(overview.url)
-								}}
-							/>
-						) : inProject === "updates" ? (
-							<UpdateList
-								title={title}
-								updates={updates}
-								selected={listSelected}
-								focused={focus === "list"}
-								loading={listLoading || !showingUpdates}
-								loadingMore={loadingMore}
+							}}
+							onOpenBrowser={() => {
+								if (detail?.url) void openInBrowser(detail.url)
+							}}
+							onOpenPr={() => openPr(detail)}
+							onOpenProject={() => openIssueProject(detail)}
+							onOpenLink={openLink}
+							onCopyLink={copyLink}
+						/>
+					) : searching ? (
+						<box flexDirection="column" flexGrow={1}>
+							<SearchBar
+								term={search?.term ?? ""}
+								editing={mode === "search"}
+								count={issues.length}
 								hasMore={morePages}
-								error={listError}
-								height={bodyHeight}
-								activeTab="updates"
-								onTab={setProjectTab}
-								onPick={pickUpdate}
-								onScroll={moveList}
+								loading={listLoading}
+								onSubmit={submitSearch}
+								onEdit={startSearch}
 							/>
-						) : (
 							<IssueList
 								title={title}
-								expanded={nestedIssues ? expandedIssues : undefined}
+								expanded={expandedIssues}
 								sessionsFor={sessionsFor}
-								scrollOffsetRef={nestedIssues ? issueListOffsetRef : undefined}
-								selectedRowKey={nestedIssues ? selectedIssueRow?.key : undefined}
-								onPickRow={nestedIssues ? pickNestedRow : undefined}
+								scrollOffsetRef={issueListOffsetRef}
+								selectedRowKey={selectedIssueRow?.key}
+								onPickRow={pickNestedRow}
 								issues={issues}
 								selected={listSelected}
-								focused={focus === "list"}
+								focused={mode !== "search"}
 								groupBy={effectiveGroupBy}
-								loading={inProject === "issues" ? listLoading || !showingIssues : listLoading}
+								loading={listLoading}
 								loadingMore={loadingMore}
 								hasMore={morePages}
 								error={listError}
-								height={bodyHeight}
-								header={inProject ? <ProjectTabs active="issues" focused={focus === "list"} onPick={setProjectTab} /> : undefined}
+								height={bodyHeight - 1}
 								onPick={pickIssue}
 								onScroll={moveList}
 							/>
-						)}
-					</box>
-				)}
+						</box>
+					) : (
+						<box flexDirection="row" flexGrow={1}>
+							<Sidebar
+								items={nav}
+								selected={navSelected}
+								focused={focus === "sidebar"}
+								width={SIDEBAR_WIDTH}
+								height={bodyHeight}
+								unread={unread}
+								onPick={pickNav}
+								onScroll={moveNav}
+							/>
+							{showingInbox ? (
+								<NotificationList
+									title={title}
+									notifications={notifications}
+									selected={listSelected}
+									focused={focus === "list"}
+									loading={listLoading}
+									loadingMore={loadingMore}
+									hasMore={morePages}
+									error={listError}
+									height={bodyHeight}
+									onPick={pickNotification}
+									onScroll={moveList}
+								/>
+							) : showingProjects ? (
+								<ProjectList
+									title={title}
+									projects={projects}
+									selected={listSelected}
+									focused={focus === "list"}
+									loading={listLoading}
+									error={listError}
+									height={bodyHeight}
+									onPick={pickProject}
+									onPickIssue={pickProjectIssue}
+									onScroll={moveList}
+									selectedIssueId={target?.kind === "my-projects" ? projectIssueSelectedId : null}
+									selectedRowKey={selectedIssueRow?.key}
+									expandedIssues={previewIssues ? expandedIssues : undefined}
+									sessionsFor={sessionsFor}
+									onPickIssueRow={
+										previewIssues
+											? (index, row) => {
+													setListSelected(index)
+													pickNestedRow(row)
+												}
+											: undefined
+									}
+									expandedProjectId={target?.kind === "my-projects" ? expandedProjectId : null}
+									expandable={target?.kind === "my-projects"}
+									preview={target?.kind === "my-projects" ? projectPreview : null}
+									groupBy={groupBy}
+									sections={teamProjects ? { hiddenFinished } : undefined}
+								/>
+							) : inProject === "overview" ? (
+								<ProjectOverview
+									title={title}
+									project={overview}
+									// The payload lags the tab by one request; until it catches up the
+									// pane is loading, even when `listLoading` has not been set yet.
+									loading={listLoading || !showingOverview}
+									error={listError}
+									focused={focus === "list"}
+									width={width - SIDEBAR_WIDTH}
+									activeTab="overview"
+									onTab={setProjectTab}
+									selectedCommentId={selectedCommentId}
+									onNewUpdate={startProjectUpdate}
+									onComment={() => startReply(null)}
+									onReply={startReply}
+									onSelectComment={setSelectedCommentId}
+									onCopyLink={copyLink}
+									onOpenBrowser={() => {
+										if (overview?.url) void openInBrowser(overview.url)
+									}}
+								/>
+							) : inProject === "updates" ? (
+								<UpdateList
+									title={title}
+									updates={updates}
+									selected={listSelected}
+									focused={focus === "list"}
+									loading={listLoading || !showingUpdates}
+									loadingMore={loadingMore}
+									hasMore={morePages}
+									error={listError}
+									height={bodyHeight}
+									activeTab="updates"
+									onTab={setProjectTab}
+									onPick={pickUpdate}
+									onScroll={moveList}
+								/>
+							) : (
+								<IssueList
+									title={title}
+									expanded={nestedIssues ? expandedIssues : undefined}
+									sessionsFor={sessionsFor}
+									scrollOffsetRef={nestedIssues ? issueListOffsetRef : undefined}
+									selectedRowKey={nestedIssues ? selectedIssueRow?.key : undefined}
+									onPickRow={nestedIssues ? pickNestedRow : undefined}
+									issues={issues}
+									selected={listSelected}
+									focused={focus === "list"}
+									groupBy={effectiveGroupBy}
+									loading={inProject === "issues" ? listLoading || !showingIssues : listLoading}
+									loadingMore={loadingMore}
+									hasMore={morePages}
+									error={listError}
+									height={bodyHeight}
+									header={inProject ? <ProjectTabs active="issues" focused={focus === "list"} onPick={setProjectTab} /> : undefined}
+									onPick={pickIssue}
+									onScroll={moveList}
+								/>
+							)}
+						</box>
+					)}
 
-				<StatusBar flash={navigationNotice ?? flash} who={boot.viewer.displayName} width={width} />
-			</box>
+					<StatusBar flash={navigationNotice ?? flash} who={boot.viewer.displayName} width={width} />
+				</box>
+			</PullRequestStatusContext.Provider>
 		</LinearLinkContext.Provider>
 	)
 }

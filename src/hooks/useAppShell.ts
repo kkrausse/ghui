@@ -73,7 +73,7 @@ import { copyTextRequest } from "../services/clipboardRequest.js"
 import { diffLineUrl } from "../ui/diff/links.js"
 import { processTitleFor, setApplicationTitle } from "../processTitle.js"
 import { useRequest } from "./useRequest.js"
-import { useLinearPullRequestNavigation } from "./useLinearPullRequestNavigation.js"
+import { useLinearPullRequestNavigation, useLinearPullRequestStatus } from "./useLinearPullRequestNavigation.js"
 
 export interface UseAppShellInput {
 	readonly systemThemeGeneration: number
@@ -997,6 +997,7 @@ export const useAppShell = ({ systemThemeGeneration, linearNavigationLocked = fa
 	}
 
 	const openLinearGitHubLink = useLinearPullRequestNavigation(flashNotice, linearNavigationLocked, linearNavigationLockRef)
+	const loadLinearPullRequestStatus = useLinearPullRequestStatus()
 	// Host owns digits outside Linear inputs/pickers; plain Tab stays pane navigation.
 	useKeyboard((key) => {
 		if (
@@ -1171,6 +1172,7 @@ export const useAppShell = ({ systemThemeGeneration, linearNavigationLocked = fa
 	if (isInitialLoading) {
 		return {
 			openLinearGitHubLink,
+			loadLinearPullRequestStatus,
 			linearNavigationNotice: notice,
 			linearInputBlocked: activeModal._tag !== "None",
 			isInitialLoading: true as const,
@@ -1301,6 +1303,7 @@ export const useAppShell = ({ systemThemeGeneration, linearNavigationLocked = fa
 	})
 	return {
 		openLinearGitHubLink,
+		loadLinearPullRequestStatus,
 		linearNavigationNotice: notice,
 		linearInputBlocked: activeModal._tag !== "None",
 		isInitialLoading: false as const,

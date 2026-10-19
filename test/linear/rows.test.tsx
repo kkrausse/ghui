@@ -12,6 +12,7 @@ import { testRender } from "@opentui/react/test-utils"
 import { expect, test } from "bun:test"
 import { IssueList } from "../../src/linearWorkspace/ui/IssueList.tsx"
 import { NotificationList } from "../../src/linearWorkspace/ui/NotificationList.tsx"
+import { PullRequestStatusContext } from "../../src/linearWorkspace/pullRequestStatus.ts"
 
 const LONG = "Make the default orchestrator concurrency cap configurable without a code change"
 
@@ -134,4 +135,21 @@ test("shrinking the terminal leaves no stale glyphs behind", async () => {
 		expect(lines[i]).toContain("charlie.mead")
 	}
 	expect(lines[items.length]?.trim()).toBe("")
+})
+
+test("expanded PR rows show GitHub's checks and review decision after the number", async () => {
+	const issues = [issue(0)]
+	const status = (url: string) => (url.endsWith("/pull/412") ? ({ review: "approved", checks: "failing" } as const) : undefined)
+	const setup = await testRender(
+		<PullRequestStatusContext.Provider value={status}>
+			<IssueList title="All Issues" issues={issues} selected={0} focused groupBy="none" loading={false} error={null} height={10} expanded={new Set(["i0"])} onPick={() => {}} />
+		</PullRequestStatusContext.Provider>,
+		{ width: 130, height: 12 },
+	)
+	await setup.waitForVisualIdle()
+	const lines = contentLines(setup.captureCharFrame())
+
+	expect(lines[1]).toContain("#412 × approved")
+	// Merged PRs are never looked up, so they keep Linear's metadata alone.
+	expect(lines[2]).toContain("#398  merged")
 })

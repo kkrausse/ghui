@@ -2,6 +2,7 @@ import { RegistryContext, useAtomValue } from "@effect/atom-react"
 import { Effect } from "effect"
 import { useCallback, useContext, useEffect, useRef } from "react"
 import { errorMessage } from "../errors.js"
+import type { LoadPullRequestStatus } from "../linearWorkspace/pullRequestStatus.js"
 import { githubPullRequestRoute, type GitHubPullRequestRoute } from "../githubPullRequestRoute.js"
 import { GitHubService } from "../services/GitHubService.js"
 import { githubRequest } from "../services/runtime.js"
@@ -53,5 +54,19 @@ export const useLinearPullRequestNavigation = (flashNotice: (message: string) =>
 			return true
 		},
 		[fetch, flashNotice, registry, navigationLockRef],
+	)
+}
+
+/** The Linear tab's PR rows: GitHub's review decision and check rollup for one linked PR. */
+export const useLinearPullRequestStatus = (): LoadPullRequestStatus => {
+	const fetch = useRequest(linkedPullRequestRequest)
+	return useCallback(
+		async (url: string) => {
+			const route = githubPullRequestRoute(url)
+			if (!route) throw new Error(`not a pull request: ${url}`)
+			const pr = await fetch(route)
+			return { review: pr.reviewStatus, checks: pr.checkStatus }
+		},
+		[fetch],
 	)
 }

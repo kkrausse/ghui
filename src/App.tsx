@@ -81,6 +81,7 @@ export const App = ({ systemThemeGeneration = 0 }: AppProps) => {
 			<LinearWorkspace
 				inputBlocked={shell.linearInputBlocked}
 				onOpenGitHubLink={shell.openLinearGitHubLink}
+				loadPullRequestStatus={shell.loadLinearPullRequestStatus}
 				navigationNotice={shell.linearNavigationNotice}
 				onNavigationLockChange={updateLinearNavigationLock}
 				active={!shell.terminalTooSmall && !shell.isInitialLoading && shell.activeWorkspaceSurface === "linear"}
