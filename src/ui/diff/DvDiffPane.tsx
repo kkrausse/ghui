@@ -5,14 +5,19 @@ import { Effect } from "effect"
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { PullRequestItem, PullRequestReviewComment } from "../../domain.js"
 import { resolveRepoPath } from "../../editorCommand.js"
+import { errorMessage } from "../../errors.js"
+import { useRequest } from "../../hooks/useRequest.js"
+import { copyTextRequest } from "../../services/clipboardRequest.js"
 import { loadStoredEditorConfig } from "../../themeStore.js"
 import { colors } from "../colors.js"
 import { pullRequestDiffKey } from "../diff.js"
 import { activeModalAtom } from "../modals/atoms.js"
+import { useFlashNotice } from "../notice/useFlashNotice.js"
 import { initialCommentModalState, Modal } from "../modals/types.js"
 import { shortRepoName } from "../pullRequests.js"
 import { diffCommentThreadsAtom, diffMarkdownPreviewAtom } from "./atoms.js"
 import { dvKeyCode, hostOwnsKey } from "./dvKeys.js"
+import { diffLineUrl } from "./links.js"
 import { DV_ACTION, DV_PENDING, DV_REDRAW, type DvAction, type DvMouseKind, type DvRun, DvView } from "./dvNative.js"
 
 interface KeyInputListeners {
@@ -72,7 +77,8 @@ export interface DvDiffPaneProps {
 /**
  * The diff pane drawn by dv (Rust, via FFI). dv gets every key except the few in
  * `hostOwnsKey` while no modal is open, and its comment/reply requests open
- * GHUI's comment modal, so posting and optimistic updates stay in GHUI.
+ * GHUI's comment modal, so posting and optimistic updates stay in GHUI. Link
+ * requests (`y`) copy the GitHub Files changed URL for the line or range.
  */
 export const DvDiffPane = ({ pullRequest, patch, width, height }: DvDiffPaneProps) => {
 	const renderer = useRenderer()
@@ -80,6 +86,8 @@ export const DvDiffPane = ({ pullRequest, patch, width, height }: DvDiffPaneProp
 	const runsRef = useRef<{ readonly runs: readonly DvRun[]; readonly width: number; readonly height: number } | null>(null)
 	const [view, setView] = useState<DvView | null>(null)
 	const setModal = useAtomSet(activeModalAtom)
+	const copyText = useRequest(copyTextRequest)
+	const flashNotice = useFlashNotice()
 	const modalOpen = useAtomValue(activeModalAtom)._tag !== "None"
 	const previewOpen = useAtomValue(diffMarkdownPreviewAtom)
 	const threads = useAtomValue(diffCommentThreadsAtom)
@@ -115,9 +123,23 @@ export const DvDiffPane = ({ pullRequest, patch, width, height }: DvDiffPaneProp
 
 	const openRequest = (action: DvAction) => {
 		const { repository, number } = pullRequest
-		if (action.type === "comment") {
-			const range =
-				action.startLine === undefined ? null : { start: { line: action.startLine, side: action.startSide ?? action.side }, end: { line: action.line, side: action.side } }
+		if (action.type === "reply") {
+			setModal(
+				Modal.Comment({
+					...initialCommentModalState,
+					target: { kind: "reply", subject: { repository, number, key: diffKey, issueUrl: null }, inReplyTo: action.inReplyTo, anchorLabel: `${action.path}:${action.line}` },
+				}),
+			)
+			return
+		}
+		const range =
+			action.startLine === undefined ? null : { start: { line: action.startLine, side: action.startSide ?? action.side }, end: { line: action.line, side: action.side } }
+		if (action.type === "link") {
+			void copyText(diffLineUrl(pullRequest.url, action, range)).then(
+				() => flashNotice(range ? "Diff line range link copied" : "Diff line link copied"),
+				(cause) => flashNotice(errorMessage(cause)),
+			)
+		} else {
 			setModal(
 				Modal.Comment({
 					...initialCommentModalState,
@@ -125,13 +147,6 @@ export const DvDiffPane = ({ pullRequest, patch, width, height }: DvDiffPaneProp
 						kind: "diff",
 						target: { repository, number, commitId: pullRequest.headRefOid, diffKey, anchor: { path: action.path, line: action.line, side: action.side }, range },
 					},
-				}),
-			)
-		} else {
-			setModal(
-				Modal.Comment({
-					...initialCommentModalState,
-					target: { kind: "reply", subject: { repository, number, key: diffKey, issueUrl: null }, inReplyTo: action.inReplyTo, anchorLabel: `${action.path}:${action.line}` },
 				}),
 			)
 		}

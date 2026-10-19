@@ -1,13 +1,17 @@
 import { createHash } from "node:crypto"
 import type { DiffCommentAnchor } from "../diff.js"
-import type { DiffCommentRangeSelection } from "./comments.js"
 
-/** GitHub's Files changed line anchors hash the repository-relative path. */
-export const diffLineUrl = (prUrl: string, anchor: Pick<DiffCommentAnchor, "path" | "side" | "line">, range: DiffCommentRangeSelection | null = null): string => {
+type LinePoint = Pick<DiffCommentAnchor, "side" | "line">
+
+/** GitHub's Files changed line anchors hash the repository-relative path. A range may cross sides (L3-R4). */
+export const diffLineUrl = (
+	prUrl: string,
+	anchor: Pick<DiffCommentAnchor, "path" | "side" | "line">,
+	range: { readonly start: LinePoint; readonly end: LinePoint } | null = null,
+): string => {
 	const hash = createHash("sha256").update(anchor.path).digest("hex")
-	const side = anchor.side === "LEFT" ? "L" : "R"
-	const start = range?.start.line ?? anchor.line
-	const end = range?.end.line ?? anchor.line
-	const lines = start === end ? `${side}${end}` : `${side}${start}-${side}${end}`
-	return `${prUrl.replace(/\/$/, "")}/files#diff-${hash}${lines}`
+	const point = (p: LinePoint) => `${p.side === "LEFT" ? "L" : "R"}${p.line}`
+	const start = point(range?.start ?? anchor)
+	const end = point(range?.end ?? anchor)
+	return `${prUrl.replace(/\/$/, "")}/files#diff-${hash}${start === end ? end : `${start}-${end}`}`
 }

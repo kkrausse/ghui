@@ -106,7 +106,14 @@ export interface DvRun {
 }
 
 export type DvAction =
-	| { readonly type: "comment"; readonly path: string; readonly line: number; readonly side: "LEFT" | "RIGHT"; readonly startLine?: number; readonly startSide?: "LEFT" | "RIGHT" }
+	| {
+			readonly type: "comment" | "link"
+			readonly path: string
+			readonly line: number
+			readonly side: "LEFT" | "RIGHT"
+			readonly startLine?: number
+			readonly startSide?: "LEFT" | "RIGHT"
+	  }
 	| { readonly type: "reply"; readonly inReplyTo: string; readonly path: string; readonly line: number }
 
 const encoder = new TextEncoder()

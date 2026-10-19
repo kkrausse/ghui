@@ -28,6 +28,11 @@ describe("diff line links", () => {
 		expect(diffLineUrl("https://github.com/kkrausse/ghui/pull/1", anchor(438, "LEFT"))).toBe(`${base}L438`)
 	})
 
+	test("a range from a removed line to an added line keeps each side", () => {
+		const range = { start: { line: 437, side: "LEFT" as const }, end: { line: 438, side: "RIGHT" as const } }
+		expect(diffLineUrl("https://github.com/kkrausse/ghui/pull/1", anchor(438), range)).toBe(`${base}L437-R438`)
+	})
+
 	test("a one-line range produces a single-line link", () => {
 		expect(diffLineUrl("https://github.com/kkrausse/ghui/pull/1", anchor(438), diffCommentRangeSelection(anchor(438), anchor(438)))).toBe(`${base}R438`)
 	})
