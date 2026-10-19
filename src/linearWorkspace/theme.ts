@@ -166,7 +166,8 @@ export function formatDateTime(iso: string | null | undefined): string {
 
 export function formatDate(iso: string | null | undefined): string {
 	if (!iso) return "—"
-	const d = new Date(iso)
+	// A bare YYYY-MM-DD parses as UTC midnight, which is the day before west of UTC.
+	const d = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? new Date(`${iso}T00:00`) : new Date(iso)
 	if (Number.isNaN(d.getTime())) return "—"
 	return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
 }

@@ -1,7 +1,8 @@
 import { useRef } from "react"
+import * as R from "remeda"
 import type { Issue, Project } from "../linear/schema.ts"
 import { color, formatDate, healthStyle, projectStatusGlyph, stateColor, stateGlyph } from "../theme.ts"
-import { type GroupBy } from "../views.ts"
+import { finishedProject, projectGroup, projectGroupLabel, type GroupBy } from "../views.ts"
 import { buildIssueRows, hasChildren, type SelectableIssueRow } from "../issueRows.js"
 import { noSessions, type SessionsFor } from "../faplex.js"
 import { PullRequestRow, SessionRow } from "./IssueList.tsx"
@@ -25,6 +26,8 @@ type Props = {
 	height: number
 	preview?: { id: string; issues: Issue[]; loading: boolean; error: string | null } | null
 	groupBy?: GroupBy
+	/** Team list: a heading per status section, and a note for the finished ones left out. */
+	sections?: Sections | undefined
 	/** First click selects, a click on the already-selected project drills in. */
 	onPick: (index: number) => void
 	onPickIssue?: (projectIndex: number, issue: Issue) => void
@@ -32,6 +35,8 @@ type Props = {
 	/** The wheel moves this pane's cursor, a row per event. */
 	onScroll?: (delta: number) => void
 }
+
+type Sections = { hiddenFinished: number }
 
 export type ProjectRow =
 	| { kind: "project"; project: Project; index: number }
@@ -46,9 +51,13 @@ export function projectRows(
 	groupBy: GroupBy,
 	expandedIssues?: ReadonlySet<string>,
 	sessionsFor: SessionsFor = noSessions,
+	sections?: Sections,
 ): ProjectRow[] {
 	const rows: ProjectRow[] = []
+	const counts = sections ? R.countBy(projects, (p) => String(projectGroup(p))) : {}
 	for (const [index, project] of projects.entries()) {
+		const group = projectGroup(project)
+		if (sections && (index === 0 || projectGroup(projects[index - 1]!) !== group)) rows.push({ kind: "group", text: `${projectGroupLabel(group)} (${counts[String(group)] ?? 0})` })
 		rows.push({ kind: "project", project, index })
 		if (project.id !== expandedProjectId) continue
 		if (!preview || preview.id !== project.id) {
@@ -65,6 +74,7 @@ export function projectRows(
 			else if (!preview.issues.length) rows.push({ kind: "message", text: "  No tickets." })
 		}
 	}
+	if (sections?.hiddenFinished) rows.push({ kind: "message", text: `${sections.hiddenFinished} completed or canceled hidden · F to show` })
 	return rows
 }
 
@@ -84,6 +94,7 @@ export function ProjectList({
 	height,
 	preview,
 	groupBy = "status",
+	sections,
 	onPick,
 	onPickIssue,
 	onPickIssueRow,
@@ -91,7 +102,8 @@ export function ProjectList({
 }: Props) {
 	const offsetRef = useRef(0)
 	const viewport = Math.max(1, height - 2)
-	const rows = projectRows(projects, expandedProjectId, preview, groupBy, expandedIssues, sessionsFor)
+	const rows = projectRows(projects, expandedProjectId, preview, groupBy, expandedIssues, sessionsFor, sections)
+	const today = new Date().toISOString().slice(0, 10)
 	const isActive = (row: ProjectRow) =>
 		selectedIssueId
 			? (row.kind === "issue" || row.kind === "pr" || row.kind === "session") &&
@@ -119,7 +131,7 @@ export function ProjectList({
 				<text fg={color.urgent}>{error}</text>
 			) : loading ? (
 				<text fg={color.dim}>Loading…</text>
-			) : projects.length === 0 ? (
+			) : projects.length === 0 && !sections?.hiddenFinished ? (
 				<text fg={color.dim}>No projects.</text>
 			) : (
 				visible.map((row, i) => {
@@ -164,6 +176,7 @@ export function ProjectList({
 					const p = row.project
 					const active = row.index === selected && !selectedIssueId
 					const health = healthStyle(p.health)
+					const overdue = !!p.targetDate && p.targetDate < today && !finishedProject(p)
 					return (
 						<box key={p.id} flexDirection="row" height={1} {...(active ? { backgroundColor: color.selectedBg } : {})} onMouseDown={() => onPick(row.index)}>
 							<text flexShrink={0} fg={active ? color.accent : color.faint}>
@@ -183,7 +196,7 @@ export function ProjectList({
 							<text flexShrink={0} fg={color.faint}>
 								{` ${fit(clip(p.lead?.displayName ?? "", 12), 12)}`}
 							</text>
-							<text flexShrink={0} fg={color.faint}>{` ${fit(formatDate(p.targetDate), 12)}`}</text>
+							<text flexShrink={0} fg={overdue ? color.urgent : color.faint}>{` ${fit(formatDate(p.targetDate), 12)}`}</text>
 						</box>
 					)
 				})

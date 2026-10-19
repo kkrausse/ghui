@@ -11,6 +11,7 @@ export const linearActionDefinitions = [
 	{ action: "refresh", title: "Linear: Refresh current view", scope: "View", shortcut: "R" },
 	{ action: "search", title: "Linear: Search issues", scope: "View", shortcut: "/" },
 	{ action: "group", title: "Linear: Group issues", scope: "View", shortcut: "b" },
+	{ action: "toggleFinishedProjects", title: "Linear: Show or hide finished team projects", scope: "View", shortcut: "F" },
 	{ action: "toggleAllPrs", title: "Linear: Toggle all linked PR and session dropdowns", scope: "View", shortcut: "Shift+Space" },
 	{ action: "expandAllPrs", title: "Linear: Expand all linked PR dropdowns", scope: "View" },
 	{ action: "collapseAllPrs", title: "Linear: Collapse all linked PR dropdowns", scope: "View" },

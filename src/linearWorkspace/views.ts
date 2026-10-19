@@ -74,6 +74,7 @@ export function projectRef(p: { id: string; name: string }): Project {
 		description: null,
 		progress: null,
 		targetDate: null,
+		sortOrder: null,
 		health: null,
 		status: null,
 		lead: null,
@@ -282,6 +283,25 @@ export function finishedProject(p: Project): boolean {
 	return p.status?.type === "completed" || p.status?.type === "canceled"
 }
 
+/** The team projects list's sections, in display order. Paused sits with In progress. */
+const PROJECT_GROUPS = [
+	{ label: "In progress", types: ["started", "paused"] },
+	{ label: "Planned", types: ["planned"] },
+	{ label: "Backlog", types: ["backlog"] },
+	{ label: "Completed", types: ["completed"] },
+	{ label: "Canceled", types: ["canceled"] },
+]
+
+/** A custom status type nobody listed lands with Backlog rather than vanishing. */
+export function projectGroup(p: Project): number {
+	const at = PROJECT_GROUPS.findIndex((g) => g.types.includes(p.status?.type ?? ""))
+	return at === -1 ? 2 : at
+}
+
+export function projectGroupLabel(group: number): string {
+	return PROJECT_GROUPS[group]?.label ?? ""
+}
+
 /**
  * Fetches one page. `after` null is the first page, and it alone is cached under
  * the plain view key -- later pages get an entry keyed by cursor, so re-entering
@@ -327,14 +347,11 @@ export async function loadTarget(t: Target, after: string | null = null): Promis
 			case "projects": {
 				const d = await gql(Q.TEAM_PROJECTS, { teamId: t.team.id }, TeamProjectsSchema)
 				const projects = d.team?.projects.nodes ?? []
-				// Live projects first, then by nearest target date -- backlog noise sinks.
+				// By status section, then Linear's manual order. Target dates are mostly
+				// shared quarter ends, and sorting by them floated stale overdue projects.
 				return {
 					type: "projects",
-					projects: R.sortBy(
-						projects,
-						(p) => (finishedProject(p) ? 1 : 0),
-						(p) => p.targetDate ?? "9999",
-					),
+					projects: R.sortBy(projects, projectGroup, (p) => p.sortOrder ?? Number.MAX_SAFE_INTEGER),
 				}
 			}
 			case "project": {

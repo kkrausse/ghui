@@ -70,6 +70,7 @@ binary; that was the trade for writing views in React.
 | `l` / `→`            | into the list, then open the selected row                                              |
 | `h` / `←`            | back out: close the pane, then back to the sidebar                                     |
 | `tab`                | in the list: switch pane · in detail: cycle comments                                   |
+| `F` (shift+f)        | team Projects list: show or hide completed and canceled projects                       |
 | `enter`              | load view · open issue · drill into project                                            |
 | `1` `2` `3`, `[` `]` | inside a project: switch tab                                                           |
 | `u`                  | inside a project: post a project update                                                |

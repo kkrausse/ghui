@@ -151,6 +151,7 @@ export const ProjectSchema = v.object({
 	description: v.nullish(v.string()),
 	progress: v.nullish(v.number()),
 	targetDate: v.nullish(v.string()),
+	sortOrder: v.nullish(v.number()),
 	health: HealthSchema,
 	status: v.nullish(ProjectStatusSchema),
 	lead: v.nullish(v.object({ displayName: v.string() })),

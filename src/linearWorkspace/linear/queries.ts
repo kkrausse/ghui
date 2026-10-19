@@ -263,6 +263,7 @@ export const CYCLE_ISSUES = /* GraphQL */ `
  * columns -- an In Progress project can be Off track.
  *
  * `Project.state` is the deprecated string form of `status.type`.
+ * `sortOrder` is the manual order of Linear's own project list.
  */
 const PROJECT_LIST_FIELDS = /* GraphQL */ `
   id
@@ -270,6 +271,7 @@ const PROJECT_LIST_FIELDS = /* GraphQL */ `
   description
   progress
   targetDate
+  sortOrder
   health
   status {
     id

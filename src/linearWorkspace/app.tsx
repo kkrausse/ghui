@@ -39,6 +39,7 @@ import {
 	displayOrder,
 	groupByLabel,
 	GROUP_BY,
+	finishedProject,
 	hasMore,
 	isSelectable,
 	itemCount,
@@ -194,6 +195,8 @@ export function App({
 	const expandedIssuesRef = useRef<ReadonlySet<string>>(expandedIssues)
 	const issueListOffsetRef = useRef(0)
 	const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null)
+	/** Team projects list only: completed and canceled stay out until asked for. */
+	const [showFinishedProjects, setShowFinishedProjects] = useState(false)
 	const [projectIssueSelectedId, setProjectIssueSelectedId] = useState<string | null>(null)
 
 	/**
@@ -393,7 +396,16 @@ export function App({
 	const sessionsFor = useMemo(() => indexSessions(faplex.snapshot), [faplex.snapshot])
 
 	const issues: Issue[] = search?.issues ?? (payload?.type === "issues" ? payload.issues : [])
-	const projects: Project[] = showingProjects ? payload.projects : []
+	const teamProjects = showingProjects && target?.kind === "projects"
+	const allProjects: Project[] = showingProjects ? payload.projects : []
+	const projects = teamProjects && !showFinishedProjects ? allProjects.filter((p) => !finishedProject(p)) : allProjects
+	const hiddenFinished = allProjects.length - projects.length
+	// Finished projects sort last, so hiding them only strands a cursor past the live ones.
+	const toggleFinishedProjects = () => {
+		const live = allProjects.filter((p) => !finishedProject(p)).length
+		if (showFinishedProjects) setListSelected((i) => Math.min(i, Math.max(0, live - 1)))
+		setShowFinishedProjects((on) => !on)
+	}
 	const projectListRows = target?.kind === "my-projects" ? projectRows(projects, expandedProjectId, projectPreview, groupBy, expandedIssues, sessionsFor) : []
 	const projectSelectableRows = projectListRows.filter((row) => row.kind === "project" || row.kind === "issue" || row.kind === "pr" || row.kind === "session")
 	const selectedProjectIssue = projectSelectableRows.find((row) => row.kind === "issue" && row.issue.id === projectIssueSelectedId)
@@ -1450,6 +1462,7 @@ export function App({
 			if (mode === "list") {
 				actions.search = startSearch
 				if (showingIssues || target?.kind === "my-projects") actions.group = openGroupPicker
+				if (teamProjects) actions.toggleFinishedProjects = toggleFinishedProjects
 				if (prDropdowns) {
 					actions.toggleAllPrs = () => setAllPrsExpanded()
 					actions.expandAllPrs = () => setAllPrsExpanded(true)
@@ -1790,6 +1803,11 @@ export function App({
 			return
 		}
 
+		if (is(key, "F") && teamProjects && focusRef.current === "list") {
+			toggleFinishedProjects()
+			return
+		}
+
 		if (key.shift && is(key, "space", " ") && prDropdowns) {
 			setAllPrsExpanded()
 			return
@@ -2100,6 +2118,7 @@ export function App({
 								expandable={target?.kind === "my-projects"}
 								preview={target?.kind === "my-projects" ? projectPreview : null}
 								groupBy={groupBy}
+								sections={teamProjects ? { hiddenFinished } : undefined}
 							/>
 						) : inProject === "overview" ? (
 							<ProjectOverview
