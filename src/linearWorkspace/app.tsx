@@ -887,7 +887,7 @@ export function App({
 				notify("interactive session · open it in its own terminal")
 				return
 			}
-			openSession(session.key).catch((e: unknown) => notify(e instanceof Error ? e.message : String(e)))
+			openSession(session).catch((e: unknown) => notify(e instanceof Error ? e.message : String(e)))
 		},
 		[notify],
 	)

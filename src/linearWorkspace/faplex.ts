@@ -23,7 +23,7 @@ export type FaplexSession = {
 	archived: boolean
 	prompted?: boolean
 	/** Absent when the session can't be opened from here (an interactive Claude session). */
-	open?: unknown
+	open?: { cmd: string[]; cwd: string }
 	tags: string[]
 	/** Subagents or a shell still running behind the session (Claude only so far). */
 	background?: { kind: "agent" | "shell" }
@@ -166,7 +166,8 @@ const handOver = (args: string[]) =>
 		if (code !== 0) throw new Error(stderr.trim().replace(/^faplex: /, "") || `faplex ${args[0]} exited ${code}`)
 	})
 
-export const openSession = (key: string) => handOver(["open", key])
+/** Passing `open` from the watch lets faplex attach at once instead of listing every session first. */
+export const openSession = (session: Pick<FaplexSession, "key" | "open">) => handOver(["open", session.key, ...(session.open ? ["--open", JSON.stringify(session.open)] : [])])
 
 /** `faplex new --background` exits with this when the folder's trust prompt has to be answered on screen. */
 const NEEDS_TRUST = 3
