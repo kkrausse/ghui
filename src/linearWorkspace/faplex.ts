@@ -25,12 +25,15 @@ export type FaplexSession = {
 	/** Absent when the session can't be opened from here (an interactive Claude session). */
 	open?: unknown
 	tags: string[]
-	/** The machine's short name from faplex's config, filled in by `indexSessions`. */
+	/** Subagents or a shell still running behind the session (Claude only so far). */
+	background?: { kind: "agent" | "shell" }
+	/** The machine's short name and label color from faplex's config, filled in by `indexSessions`. */
 	host?: string
+	hostColor?: string | undefined
 }
 
 export type FaplexSnapshot = {
-	machines: { id: string; short: string; remote: boolean; dir: string }[]
+	machines: { id: string; short: string; color?: string; remote: boolean; dir: string }[]
 	harnesses: string[]
 	lastPick: { machine: string; harness: string } | null
 	sources: { machine: string; harness: string; loaded: boolean; problem: { kind: string; message: string } | null }[]
@@ -108,44 +111,50 @@ const ORDER: Record<FaplexStatus, number> = { needs: 0, working: 1, failed: 2, i
 /**
  * A session belongs to every ticket it is tagged with (`faplex new --tag`) and
  * every ticket id in its title, status line or directory -- sessions started
- * outside GHUI turn up too. Untouched drafts are left out.
+ * outside GHUI turn up too. Archived sessions and untouched drafts are left out.
  */
 export const indexSessions = (snapshot: FaplexSnapshot | null): SessionsFor => {
 	if (!snapshot) return noSessions
 	const byTicket = new Map<string, FaplexSession[]>()
-	const short = new Map(snapshot.machines.map((m) => [m.id, m.short]))
+	const machines = new Map(snapshot.machines.map((m) => [m.id, m]))
 	for (const listed of snapshot.sessions) {
-		if (listed.prompted === false && listed.status === "idle") continue
-		const session = { ...listed, host: short.get(listed.machine) ?? listed.machine }
+		if (listed.archived || (listed.prompted === false && listed.status === "idle")) continue
+		const machine = machines.get(listed.machine)
+		const session = { ...listed, host: machine?.short ?? listed.machine, hostColor: machine?.color }
 		const mentioned = `${session.title} ${session.detail} ${session.cwd}`.match(TICKET_ID) ?? []
 		const ids = new Set([...session.tags, ...mentioned].map((id) => id.toUpperCase()))
 		for (const id of ids) byTicket.set(id, [...(byTicket.get(id) ?? []), session])
 	}
-	for (const sessions of byTicket.values()) sessions.sort((a, b) => Number(a.archived) - Number(b.archived) || ORDER[a.status] - ORDER[b.status] || b.updatedAt - a.updatedAt)
+	for (const sessions of byTicket.values()) sessions.sort((a, b) => ORDER[a.status] - ORDER[b.status] || b.updatedAt - a.updatedAt)
 	return (issue) => byTicket.get(issue.identifier.toUpperCase()) ?? []
 }
 
 /** How many start directories the picker offers per machine × harness. */
-const DIRS_PER_TARGET = 3
+const DIRS_PER_TARGET = 4
+
+/** A harness can't start there: not installed, or too old. A stopped daemon is started by the harness's CLI. */
+const UNAVAILABLE = new Set(["missing", "unsupported"])
+
+export type SessionTarget = { machine: string; harness: string; dirs: string[]; note: string }
 
 /**
- * Where a new session can start: every machine × harness without a problem
+ * Where a new session can start: every machine × harness that is available
  * (`faplex new` waits for one that hasn't reported yet), last picked first.
  * Directories come from the ticket's own sessions, then the machine's default,
  * then where its recent sessions ran.
  */
-export const sessionTargets = (snapshot: FaplexSnapshot, ticketSessions: readonly FaplexSession[] = []) => {
-	const recent = [...ticketSessions, ...[...snapshot.sessions].sort((a, b) => b.updatedAt - a.updatedAt)]
+export const sessionTargets = (snapshot: FaplexSnapshot, ticketSessions: readonly FaplexSession[] = []): SessionTarget[] => {
+	const recent = [...snapshot.sessions].sort((a, b) => b.updatedAt - a.updatedAt)
 	const last = snapshot.lastPick
 	const isLast = (s: { machine: string; harness: string }) => s.machine === last?.machine && s.harness === last?.harness
 	return snapshot.sources
-		.filter((s) => !s.problem)
+		.filter((s) => !s.problem || !UNAVAILABLE.has(s.problem.kind))
 		.sort((a, b) => Number(isLast(b)) - Number(isLast(a)))
-		.flatMap((s) => {
+		.map((s) => {
 			const fallback = snapshot.machines.find((m) => m.id === s.machine)?.dir ?? "~"
-			const onMachine = recent.filter((r) => r.machine === s.machine).map((r) => r.cwd)
-			const dirs = [...new Set([...ticketSessions.filter((r) => r.machine === s.machine).map((r) => r.cwd), fallback, ...onMachine])]
-			return dirs.slice(0, DIRS_PER_TARGET).map((dir) => ({ machine: s.machine, harness: s.harness, dir }))
+			const cwds = (sessions: readonly FaplexSession[]) => sessions.filter((r) => r.machine === s.machine).map((r) => r.cwd)
+			const dirs = [...new Set([...cwds(ticketSessions), fallback, ...cwds(recent)])].slice(0, DIRS_PER_TARGET)
+			return { machine: s.machine, harness: s.harness, dirs, note: s.problem ? `${s.problem.message} · starts with the session` : "" }
 		})
 }
 
@@ -159,5 +168,38 @@ const handOver = (args: string[]) =>
 
 export const openSession = (key: string) => handOver(["open", key])
 
-export const startSession = (input: { machine: string; harness: string; dir: string; prompt: string; tags: string[] }) =>
-	handOver(["new", "--machine", input.machine, "--harness", input.harness, "--dir", input.dir, "--prompt", input.prompt, ...input.tags.flatMap((t) => ["--tag", t])])
+/** `faplex new --background` exits with this when the folder's trust prompt has to be answered on screen. */
+const NEEDS_TRUST = 3
+
+/**
+ * Starts the session without leaving the current page and resolves once it is
+ * running. Only a folder whose trust prompt needs answering takes the terminal.
+ */
+export const startSession = async (input: { machine: string; harness: string; dir: string; prompt: string; tags: string[] }) => {
+	const args = ["new", "--machine", input.machine, "--harness", input.harness, "--dir", input.dir, "--prompt", input.prompt, ...input.tags.flatMap((t) => ["--tag", t])]
+	const proc = Bun.spawn(["faplex", ...args, "--background"], { stdin: "ignore", stdout: "ignore", stderr: "pipe" })
+	const [code, stderr] = await Promise.all([proc.exited, new Response(proc.stderr).text()])
+	if (code === NEEDS_TRUST) return handOver(args)
+	if (code !== 0) throw new Error(stderr.trim().replace(/^faplex: /, "") || `faplex new exited ${code}`)
+}
+
+// faplex's spinner: one shared ticker, running only while a working session is on screen.
+const FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+let frame = 0
+const spinListeners = new Set<() => void>()
+let ticker: ReturnType<typeof setInterval> | null = null
+const subscribeSpinner = (listener: () => void) => {
+	spinListeners.add(listener)
+	ticker ??= setInterval(() => {
+		frame = (frame + 1) % FRAMES.length
+		for (const l of spinListeners) l()
+	}, 80)
+	return () => {
+		spinListeners.delete(listener)
+		if (!spinListeners.size && ticker) {
+			clearInterval(ticker)
+			ticker = null
+		}
+	}
+}
+export const useSpinner = () => FRAMES[useSyncExternalStore(subscribeSpinner, () => frame)]!

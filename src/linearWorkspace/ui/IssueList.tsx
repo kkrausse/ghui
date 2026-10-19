@@ -4,7 +4,7 @@ import type { Issue } from "../linear/schema.ts"
 import { color, gitStatusStyle, priorityStyle, relativeAge, stateColor, stateGlyph } from "../theme.ts"
 import { type GroupBy } from "../views.ts"
 import { buildIssueRows, hasChildren, type SelectableIssueRow } from "../issueRows.js"
-import { noSessions, type FaplexStatus, type SessionsFor } from "../faplex.js"
+import { noSessions, useSpinner, type FaplexSession, type SessionsFor } from "../faplex.js"
 import { gitSummary } from "../git.js"
 import { clip, fit, windowFor } from "./layout.ts"
 import { wheel } from "./wheel.ts"
@@ -129,7 +129,7 @@ export function IssueList({
 							expanded={expanded?.has(row.issue.id)}
 							caretColumn={expanded !== undefined}
 							expandable={expanded !== undefined && hasChildren(row.issue, sessionsFor)}
-							session={sessionsFor(row.issue)[0]?.status}
+							session={sessionsFor(row.issue)[0]}
 							active={selectedRowKey ? row.key === selectedRowKey : row.index === selected}
 							focused={focused}
 							onPick={() => (onPickRow ? onPickRow(row) : onPick(row.index))}
@@ -159,8 +159,8 @@ function IssueRow({
 	caretColumn?: boolean
 	expandable?: boolean
 	expanded?: boolean | undefined
-	/** Status of the ticket's most relevant agent session, if it has one. */
-	session?: FaplexStatus | undefined
+	/** The ticket's most relevant agent session, if it has one. */
+	session?: FaplexSession | undefined
 }) {
 	const prio = priorityStyle(issue.priority)
 	const age = relativeAge(issue.updatedAt ?? issue.createdAt)
@@ -195,9 +195,14 @@ function IssueRow({
 			<text flexShrink={0} fg={pr ? gitStatusStyle(pr.status).fg : color.faint}>
 				{fit(pr && !expanded ? ` ${gitCell(pr, links.length > 1)}` : "", PR_COL)}
 			</text>
-			<text flexShrink={0} fg={session ? sessionStatusStyle(session).fg : color.faint}>
-				{session && !expanded ? ` ${sessionStatusStyle(session).glyph}` : "  "}
-			</text>
+			{session && !expanded ? (
+				<box flexShrink={0} flexDirection="row">
+					<text> </text>
+					<SessionMark session={session} />
+				</box>
+			) : (
+				<text flexShrink={0}>{"   "}</text>
+			)}
 			<text flexShrink={0} fg={color.faint}>{` ${fit(clip(assignee, 12), 12)}`}</text>
 			<text flexShrink={0} fg={color.faint}>
 				{age.padStart(4)}
@@ -228,32 +233,50 @@ export function PullRequestRow({ row, active, onPick }: { row: Extract<Selectabl
 	)
 }
 
-const SESSION_STATUS: Record<FaplexStatus, { glyph: string; fg: string; label: string }> = {
-	needs: { glyph: "◉", fg: color.high, label: "needs input" },
-	working: { glyph: "◐", fg: color.accent, label: "working" },
-	failed: { glyph: "✗", fg: color.urgent, label: "failed" },
-	interrupted: { glyph: "⊘", fg: color.dim, label: "interrupted" },
-	done: { glyph: "✓", fg: color.ok, label: "done" },
-	idle: { glyph: "○", fg: color.dim, label: "idle" },
+// faplex's list, mark for mark and color for color (faplex/src/list.tsx, theme.ts).
+const SESSION_COLOR = { working: "#fde047", needs: "#f59e0b", failed: "#ef4444", other: "#a1a1aa" }
+const HARNESS_COLOR: Record<string, string> = { claude: "#d97757", codex: "#e4e4e7", opencode: "#a78bfa", "opencode-mini": "#a78bfa" }
+const HARNESS_SHORT: Record<string, string> = { claude: "clau", opencode: "oc", "opencode-mini": "ocm" }
+
+const sessionColor = (status: FaplexSession["status"]) => (status === "working" || status === "needs" || status === "failed" ? SESSION_COLOR[status] : SESSION_COLOR.other)
+
+/** faplex's gutter: a spinner while working, `!` needs input, `×` failed, `-` interrupted, blank otherwise. */
+function SessionMark({ session }: { session: Pick<FaplexSession, "status" | "background"> }) {
+	const mark = session.status === "working" ? <Spinner /> : session.status === "needs" ? "!" : session.status === "failed" ? "×" : session.status === "interrupted" ? "-" : " "
+	const also = session.background?.kind === "agent" ? "⑂" : session.background?.kind === "shell" ? "$" : " "
+	return (
+		<text flexShrink={0} fg={sessionColor(session.status)}>
+			{mark}
+			{also}
+		</text>
+	)
 }
-export const sessionStatusStyle = (status: FaplexStatus) => SESSION_STATUS[status] ?? SESSION_STATUS.idle
+
+/** Its own component, so the 80ms tick re-renders only working marks. */
+function Spinner() {
+	return <>{useSpinner()}</>
+}
 
 /**
- * An agent session under its expanded issue, laid out like a PR row: status
- * glyph, `harness·machine`, then the session's title and status line. Archived
- * sessions are dimmed.
+ * An agent session under its expanded issue, laid out like faplex's list row:
+ * status mark, `host·harness`, title, then the status line in the status color.
  */
 export function SessionRow({ row, active, onPick }: { row: Extract<SelectableIssueRow, { t: "session" }>; active: boolean; onPick?: () => void }) {
 	const { session } = row
-	const style = sessionStatusStyle(session.status)
-	const text = active ? color.fg : session.archived ? color.faint : color.dim
+	const status = session.status === "failed" || session.status === "interrupted" ? session.status : ""
 	return (
 		<box flexDirection="row" height={1} {...(active ? { backgroundColor: color.selectedBg } : {})} {...(onPick ? { onMouseDown: onPick } : {})}>
 			<text flexShrink={0} fg={color.faint}>{`${" ".repeat(PR_TREE_INDENT)}${row.last ? "└" : "├"} `}</text>
-			<text flexShrink={0} fg={session.archived ? color.faint : style.fg}>{`${style.glyph} `}</text>
-			<text flexShrink={0} fg={color.faint}>{`${session.harness}·${session.host ?? session.machine}  `}</text>
-			<text fg={text} flexGrow={1} flexShrink={1} flexBasis={0} minWidth={0} wrapMode="none" truncate>
-				{[session.title, session.detail || style.label].filter(Boolean).join(" · ")}
+			<SessionMark session={session} />
+			<text flexShrink={0} fg={session.hostColor ?? color.dim}>
+				{session.host ?? session.machine}
+			</text>
+			<text flexShrink={0} fg={HARNESS_COLOR[session.harness] ?? color.dim}>{`·${HARNESS_SHORT[session.harness] ?? session.harness}  `}</text>
+			<text flexShrink={0} fg={active || session.open ? color.fg : color.dim}>
+				{clip(session.title, 48)}
+			</text>
+			<text fg={sessionColor(session.status)} flexGrow={1} flexShrink={1} flexBasis={0} minWidth={0} wrapMode="none" truncate>
+				{`  ${(session.detail || status).split("\n")[0]}`}
 			</text>
 			<text flexShrink={0} fg={color.faint}>
 				{relativeAge(new Date(session.updatedAt).toISOString()).padStart(5)}

@@ -20,19 +20,23 @@ const KEY_BINDINGS = [
 	{ name: "s", ctrl: true, action: "submit" as const },
 ]
 
+/** A one-off prompt rather than a comment: Enter sends, shift+Enter is the newline. */
+const ENTER_SENDS = [...KEY_BINDINGS, { name: "return", action: "submit" as const }, { name: "return", shift: true, action: "newline" as const }]
+
 type Props = {
 	/** Pane title, e.g. "comment on BACKEND-1361" or "update on Search Rebuild". */
 	title: string
 	placeholder: string
 	onSubmit: (body: string) => void
 	busy: boolean
+	enterSends?: boolean
 }
 
 /**
  * `SubmitEvent` carries no payload, so the body is read off the renderable's
  * `plainText` at submit time rather than mirrored into React state per keystroke.
  */
-export function CommentBox({ title, placeholder, onSubmit, busy }: Props) {
+export function CommentBox({ title, placeholder, onSubmit, busy, enterSends = false }: Props) {
 	const ref = useRef<TextareaRenderable | null>(null)
 
 	return (
@@ -42,14 +46,21 @@ export function CommentBox({ title, placeholder, onSubmit, busy }: Props) {
 			borderColor={color.accent}
 			title={` ${title} `}
 			titleColor={color.accent}
-			bottomTitle=" ⌘↵ or ctrl+s send · esc cancel "
+			bottomTitle={enterSends ? " ↵ send · shift+↵ new line · esc cancel " : " ⌘↵ or ctrl+s send · esc cancel "}
 			padding={1}
 			flexGrow={1}
 		>
 			{busy ? (
 				<text fg={color.dim}>Posting…</text>
 			) : (
-				<textarea ref={ref} focused flexGrow={1} placeholder={placeholder} keyBindings={KEY_BINDINGS} onSubmit={() => onSubmit(ref.current?.plainText ?? "")} />
+				<textarea
+					ref={ref}
+					focused
+					flexGrow={1}
+					placeholder={placeholder}
+					keyBindings={enterSends ? ENTER_SENDS : KEY_BINDINGS}
+					onSubmit={() => onSubmit(ref.current?.plainText ?? "")}
+				/>
 			)}
 		</box>
 	)

@@ -115,15 +115,18 @@ Agent sessions from [faplex](https://github.com/kkrausse/faplex) (Claude Code,
 Codex, OpenCode, on any machine faplex lists) nest under their ticket below its
 PRs, in every ticket list and project preview. A session belongs to a ticket
 when it was started from here, or when its title, status line or directory
-names the ticket id. Each row shows the session's status (`◉` needs input,
-`◐` working, `✓` done, `✗` failed), `harness·machine`, title and age; archived
-ones are dimmed. A collapsed ticket shows its most relevant session's glyph.
+names the ticket id; archived sessions are left out. Rows look like faplex's
+list: a spinner while working, `!` needs input, `×` failed, `-` interrupted
+(`⑂`/`$` when subagents or a shell still run), then `host·harness`, title,
+status line and age. A collapsed ticket shows its most relevant session's mark.
 
 `→`/`enter` on a session row hands the terminal to `faplex open`; `←` at the
 session's empty prompt (or `ctrl+]` anywhere) comes back. `n` on a ticket, or
-on one of its session rows, picks a machine and harness, then takes optional
-instructions; the session starts with them plus the ticket's id, title and
-link, opens, and is tagged with the ticket. Needs `faplex` on `PATH`.
+on one of its session rows, picks a machine and harness, then a directory, then
+takes optional instructions (Enter sends). The session starts in the background
+with them plus the ticket's id, title and link, tagged with the ticket, and you
+stay on the page; it appears under the ticket once it runs. Only a folder whose
+trust prompt needs answering opens on screen. Needs `faplex` on `PATH`.
 
 ### Linked PRs
 

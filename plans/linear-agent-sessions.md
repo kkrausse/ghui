@@ -12,9 +12,11 @@ started without leaving GHUI.
   in its title, status line or directory.
 - `→`/`enter` on a session hands the terminal to `faplex open`; `←` at its empty
   prompt or `ctrl+]` returns.
-- `n` on a ticket picks machine × harness × directory, takes optional
-  instructions, and runs `faplex new` with them plus the ticket's id, title and
-  link, tagged with the ticket.
+- `n` on a ticket picks machine × harness, then a directory, takes optional
+  instructions (Enter sends), and runs `faplex new --background` with them plus
+  the ticket's id, title and link, tagged with the ticket. GHUI stays on the
+  page; only a trust prompt takes the terminal.
+- Rows use faplex's marks and colors; archived sessions are hidden.
 
 ## API / architecture mapping
 

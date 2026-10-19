@@ -70,7 +70,7 @@ import { HelpOverlay, StatusBar } from "./ui/StatusBar.tsx"
 import { UpdateDetail } from "./ui/UpdateDetail.tsx"
 import { UpdateList } from "./ui/UpdateList.tsx"
 import { buildIssueRows, hasChildren, selectableIssueRows, reconcileIssueRow, type SelectableIssueRow } from "./issueRows.js"
-import { indexSessions, openSession, sessionTargets, startSession, useFaplex, type FaplexSession } from "./faplex.js"
+import { indexSessions, openSession, sessionTargets, startSession, useFaplex, type FaplexSession, type SessionTarget } from "./faplex.js"
 import { LinearLinkContext } from "./ui/Markdown.js"
 import { devLog } from "../devLog.js"
 
@@ -85,7 +85,7 @@ type Focus = "sidebar" | "list"
  * request to open. Only the issue edit kinds go through `openPicker`.
  */
 type EditPickerKind = "status" | "assignee" | "priority" | "cycle"
-type PickerKind = EditPickerKind | "group" | "health" | "pr" | "session"
+type PickerKind = EditPickerKind | "group" | "health" | "pr" | "session" | "session-dir"
 
 type PickerState = {
 	kind: PickerKind
@@ -229,6 +229,7 @@ export function App({
 	const [compose, setCompose] = useState<Compose | null>(null)
 	/** The ticket a session picker is open for, until the composer takes over. */
 	const sessionIssueRef = useRef<SessionIssue | null>(null)
+	const sessionTargetRef = useRef<SessionTarget | null>(null)
 	const [selectedCommentId, setSelectedCommentId] = useState<string | null>(null)
 	const [editBusy, setEditBusy] = useState(false)
 	useEffect(() => {
@@ -915,7 +916,7 @@ export function App({
 				title: `New agent session · ${issue.identifier}`,
 				options: targets.map((t) => ({
 					name: `${t.harness} · ${snapshot.machines.find((m) => m.id === t.machine)?.short ?? t.machine}`,
-					description: t.dir,
+					description: t.note,
 					value: t,
 				})),
 			})
@@ -1024,14 +1025,27 @@ export function App({
 				return
 			}
 
-			if (picker.kind === "session") {
-				setPicker(null)
+			// Harness first, then the directory when there is more than one to choose from.
+			if (picker.kind === "session" || picker.kind === "session-dir") {
 				const issue = sessionIssueRef.current
-				if (!issue) {
+				const target = picker.kind === "session" ? (option.value as SessionTarget) : sessionTargetRef.current
+				if (!issue || !target) {
+					setPicker(null)
 					setMode(returnModeRef.current)
 					return
 				}
-				setCompose({ kind: "session", label: issue.identifier, issue, target: option.value as { machine: string; harness: string; dir: string } })
+				if (picker.kind === "session" && target.dirs.length > 1) {
+					sessionTargetRef.current = target
+					setPicker({
+						kind: "session-dir",
+						title: `${target.harness} session on ${issue.identifier} · start in`,
+						options: target.dirs.map((dir) => ({ name: dir, description: "", value: dir })),
+					})
+					return
+				}
+				setPicker(null)
+				const dir = picker.kind === "session" ? (target.dirs[0] ?? "~") : (option.value as string)
+				setCompose({ kind: "session", label: issue.identifier, issue, target: { machine: target.machine, harness: target.harness, dir } })
 				setMode("comment")
 				return
 			}
@@ -1130,12 +1144,15 @@ export function App({
 				const { issue, target } = compose
 				setCompose(null)
 				setMode(returnModeRef.current)
-				// Expanded, the new session shows up under the ticket once faplex lists it.
+				// Back on this page right away; expanded, the session shows up under the ticket once it runs.
 				const next = new Set(expandedIssuesRef.current).add(issue.id)
 				expandedIssuesRef.current = next
 				setExpandedIssues(next)
 				const prompt = [body.trim(), `Linear ticket ${issue.identifier}: ${issue.title}\n${issue.url}`].filter(Boolean).join("\n\n")
-				startSession({ ...target, prompt, tags: [issue.identifier] }).catch((e: unknown) => notify(e instanceof Error ? e.message : String(e)))
+				startSession({ ...target, prompt, tags: [issue.identifier] }).then(
+					() => notify(`started ${target.harness} session on ${issue.identifier}`),
+					(e: unknown) => notify(e instanceof Error ? e.message : String(e)),
+				)
 				return
 			}
 			setEditBusy(true)
@@ -1941,11 +1958,12 @@ export function App({
 							compose.kind === "project-update"
 								? "What happened this week? Markdown is fine."
 								: compose.kind === "session"
-									? "Instructions for the agent, optional. The ticket's id, title and link are added."
+									? "Instructions for the agent, optional; Enter starts it. The ticket's id, title and link are added."
 									: "Markdown is fine. Enter makes a new line."
 						}
 						onSubmit={submitCompose}
 						busy={editBusy}
+						enterSends={compose.kind === "session"}
 					/>
 				) : mode === "update" ? (
 					<UpdateDetail

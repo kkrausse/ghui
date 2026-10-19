@@ -80,7 +80,7 @@ test("sessions match by tag or by the ticket id in title, status line or directo
 	expect(sessionsFor(issue("ABC-1"))[0]!.host).toBe("lap")
 })
 
-test("live sessions sort first, archived last", () => {
+test("sessions needing input sort first, then working, then the rest by recency; archived ones are hidden", () => {
 	const sessionsFor = indexSessions(
 		snapshot([
 			session("old", { tags: ["ABC-1"], updatedAt: 1 }),
@@ -89,7 +89,7 @@ test("live sessions sort first, archived last", () => {
 			session("asks", { tags: ["ABC-1"], status: "needs" }),
 		]),
 	)
-	expect(sessionsFor(issue("ABC-1")).map((s) => s.title)).toEqual(["asks", "working", "old", "archived"])
+	expect(sessionsFor(issue("ABC-1")).map((s) => s.title)).toEqual(["asks", "working", "old"])
 })
 
 test("an expanded ticket lists PRs, then sessions, with one last row", () => {
@@ -103,19 +103,24 @@ test("an expanded ticket lists PRs, then sessions, with one last row", () => {
 	])
 })
 
-test("new sessions start where a harness has no problem: the ticket's dirs, the default, then recent ones", () => {
+test("new sessions start on available harnesses, a stopped daemon included, with the ticket's dirs first", () => {
 	const onTicket = session("t", { cwd: "/home/me/src/.worktrees/abc-1", tags: ["ABC-1"] })
 	const snap = snapshot([session("recent", { cwd: "/home/me/other", updatedAt: 2 }), onTicket])
 	snap.sources[2] = { ...snap.sources[2]!, loaded: false }
+	snap.sources.push({ machine: "devbox", harness: "codex", loaded: true, problem: { kind: "missing", message: "not installed" } })
 	expect(sessionTargets(snap, [onTicket])).toEqual([
-		{ machine: "devbox", harness: "claude", dir: "~" },
-		{ machine: "laptop", harness: "claude", dir: "/home/me/src/.worktrees/abc-1" },
-		{ machine: "laptop", harness: "claude", dir: "/home/me/src" },
-		{ machine: "laptop", harness: "claude", dir: "/home/me/other" },
+		{ machine: "devbox", harness: "claude", dirs: ["~"], note: "" },
+		{ machine: "laptop", harness: "claude", dirs: ["/home/me/src/.worktrees/abc-1", "/home/me/src", "/home/me/other"], note: "" },
+		{
+			machine: "laptop",
+			harness: "codex",
+			dirs: ["/home/me/src/.worktrees/abc-1", "/home/me/src", "/home/me/other"],
+			note: "app-server not running · starts with the session",
+		},
 	])
 })
 
-test("session rows render status, harness·host and title", async () => {
+test("session rows render faplex's mark, host·harness, title and status line", async () => {
 	const sessionsFor = indexSessions(snapshot([session("fix the parser", { tags: ["ABC-1"], status: "working", detail: "running tests" })]))
 	const setup = await testRender(
 		<IssueList
@@ -135,7 +140,8 @@ test("session rows render status, harness·host and title", async () => {
 	)
 	await setup.renderOnce()
 	const frame = setup.captureCharFrame()
-	expect(frame).toContain("◐ claude·lap  fix the parser · running tests")
+	// faplex's spinner while working, then host·harness, title and status line.
+	expect(frame).toMatch(/[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] lap·clau {2}fix the parser {2}running tests/)
 	expect(frame).toContain("▾ ")
 	setup.renderer.destroy()
 })
