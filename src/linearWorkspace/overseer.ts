@@ -2,8 +2,10 @@ import { mkdirSync, renameSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { dirname, join } from "node:path"
 import { OVERSEER_TAG, type FaplexSession, type FaplexSnapshot, type SessionsFor } from "./faplex.js"
+import { githubPullRequestRoute } from "../githubPullRequestRoute.js"
 import { issuePullRequests } from "./issueRows.js"
 import type { Issue } from "./linear/schema.js"
+import type { PullRequestStatusFor } from "./pullRequestStatus.js"
 
 /**
  * The overseer: one agent session that sees every open ticket and every agent
@@ -28,10 +30,27 @@ const sessionLine = (s: FaplexSession) => {
 	return `${s.key} · ${s.status} · "${s.title}"${detail ? ` · ${detail}` : ""} · ${s.cwd.replace(homedir(), "~")}`
 }
 
-/** Tickets grouped by project, each with its PRs and sessions, then the sessions no listed ticket claims. */
-export const contextMarkdown = (issues: readonly Issue[], snapshot: FaplexSnapshot | null, sessionsFor: SessionsFor) => {
+/** GitHub's word on a PR when it is known: CI, then review. */
+const githubNote = (url: string, prStatus: PullRequestStatusFor) => {
+	const status = prStatus(githubPullRequestRoute(url)?.url ?? url)
+	if (!status) return ""
+	const checks = status.checks === "none" ? "" : `checks ${status.checks}`
+	const review = status.review === "approved" ? "approved" : status.review === "changes" ? "changes requested" : status.review === "review" ? "review required" : ""
+	return [checks, review]
+		.filter(Boolean)
+		.map((note) => ` · ${note}`)
+		.join("")
+}
+
+/**
+ * Tickets grouped by project, each with its PRs and sessions, then the sessions
+ * no listed ticket claims. PRs carry GitHub's checks and review when `prStatus` knows them.
+ */
+export const contextMarkdown = (issues: readonly Issue[], snapshot: FaplexSnapshot | null, sessionsFor: SessionsFor, prStatus: PullRequestStatusFor = () => undefined) => {
 	const out = [
 		`# Open tickets and agent sessions`,
+		``,
+		`As of ${new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}. \`ghui status\` refetches all of it and rewrites this file.`,
 		``,
 		`Kevin's open Linear tickets (My Issues in GHUI), their linked PRs, and the faplex sessions working on them.`,
 		`Session keys work with \`faplex tail\` and \`faplex send\`; \`faplex ls\` has their live status.`,
@@ -47,7 +66,12 @@ export const contextMarkdown = (issues: readonly Issue[], snapshot: FaplexSnapsh
 		out.push(`## ${project}`, ``)
 		for (const issue of group) {
 			out.push(`- ${issue.identifier} [${issue.state?.name ?? "?"}] ${issue.title} · ${issue.url}`)
-			for (const pr of issuePullRequests(issue)) out.push(`  - PR ${pr.repo}#${pr.number} ${pr.status}${pr.branch ? ` · ${pr.branch}` : ""} · ${pr.url}`)
+			for (const pr of issuePullRequests(issue)) {
+				// Linear's draft flag lags GitHub's; GitHub's wins when it is known.
+				const github = prStatus(githubPullRequestRoute(pr.url)?.url ?? pr.url)
+				const state = !github || pr.status === "merged" || pr.status === "closed" ? pr.status : github.review === "draft" ? "draft" : pr.status === "draft" ? "open" : pr.status
+				out.push(`  - PR ${pr.repo}#${pr.number} ${state}${githubNote(pr.url, prStatus)}${pr.branch ? ` · ${pr.branch}` : ""} · ${pr.url}`)
+			}
 			for (const s of sessionsFor(issue)) {
 				claimed.add(s.key)
 				out.push(`  - session ${sessionLine(s)}`)
@@ -80,7 +104,7 @@ export const writeContext = (text: string) => {
 export const briefing = (instructions: string) =>
 	[
 		`You are the overseer for Kevin's agent sessions, started from GHUI.`,
-		`First read ${CONTEXT_PATH}: his open Linear tickets, their PRs, and the faplex keys of the sessions on them. GHUI rewrites it whenever its list changes, so re-read it before answering about tickets.`,
+		`For the current state of everything, run \`ghui status\`: it refetches his open Linear tickets, each linked PR's state, CI and review from GitHub, and every faplex session (with its key), prints it, and rewrites ${CONTEXT_PATH}. Run it before answering about tickets or PRs, rather than trusting an older read.`,
 		``,
 		`Reach sessions only through faplex:`,
 		`- \`faplex ls\`: every session's status and last note, one line each. Start here for "status of everything".`,

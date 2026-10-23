@@ -137,11 +137,16 @@ trust prompt needs answering opens on screen. Needs `faplex` on `PATH`.
 The row above My Issues is the overseer: one agent session that sees every open
 ticket and every agent session. `↑` from the first ticket selects it and `enter`/`→`
 opens it; so do `A` and a click. With none running they start one the way
-`n` does, tagged `overseer`. Its first prompt points it at
-`~/.local/state/ghui/overseer.md` and explains `faplex ls`, `tail`, `send` and
-`new`. GHUI rewrites that file whenever My Issues or the session list changes:
-tickets by project with their PRs and the keys of the sessions on them, then the
-sessions on no listed ticket. The overseer never nests under a ticket. Archive
+`n` does, tagged `overseer`. Its first prompt tells it to run `ghui status` for
+the current state and explains `faplex ls`, `tail`, `send` and `new`.
+
+`ghui status` (a few seconds) fetches every open ticket of mine from Linear, each
+open linked PR's draft flag, CI and review from GitHub in one `gh api graphql`
+call, and every faplex session, then prints them: tickets by project with their
+PRs and the keys of the sessions on them, then the sessions on no listed ticket.
+It also writes that text to `~/.local/state/ghui/overseer.md`, which GHUI
+rewrites as well whenever My Issues, its PRs' GitHub status or the session list
+changes on screen. The overseer never nests under a ticket. Archive
 it in faplex to start a fresh one.
 
 ### Linked PRs

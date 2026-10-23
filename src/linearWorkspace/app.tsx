@@ -423,16 +423,6 @@ export function App({
 	}, [onMyIssues, setOverseerSelected])
 
 	const issues: Issue[] = search?.issues ?? (payload?.type === "issues" ? payload.issues : [])
-	// The overseer's context file follows My Issues and the session list while My Issues is loaded.
-	const myIssues = onMyIssues && payload?.type === "issues" && !listLoading ? payload.issues : null
-	useEffect(() => {
-		if (!myIssues) return
-		try {
-			writeContext(contextMarkdown(myIssues, faplex.snapshot, sessionsFor))
-		} catch (e) {
-			devLog("overseer context", e)
-		}
-	}, [myIssues, faplex.snapshot, sessionsFor])
 	const teamProjects = showingProjects && target?.kind === "projects"
 	const allProjects: Project[] = showingProjects ? payload.projects : []
 	const projects = teamProjects && !showFinishedProjects ? allProjects.filter((p) => !finishedProject(p)) : allProjects
@@ -516,6 +506,17 @@ export function App({
 		}
 	}, [nestedRows, loadPullRequestStatus])
 	const prStatusFor = useCallback((url: string) => prStatuses.get(url), [prStatuses])
+	// The overseer's context file follows My Issues, its PRs' GitHub status and the session list
+	// while My Issues is loaded; `ghui status` refreshes it from anywhere.
+	const myIssues = onMyIssues && payload?.type === "issues" && !listLoading ? payload.issues : null
+	useEffect(() => {
+		if (!myIssues) return
+		try {
+			writeContext(contextMarkdown(myIssues, faplex.snapshot, sessionsFor, prStatusFor))
+		} catch (e) {
+			devLog("overseer context", e)
+		}
+	}, [myIssues, faplex.snapshot, sessionsFor, prStatusFor])
 	const liveNestedRows = () => selectableIssueRows(buildIssueRows(dropdownIssues, dropdownGroupBy, expandedIssuesRef.current, sessionsFor))
 	const liveIssueRow = () =>
 		prDropdowns && (!previewIssues || projectIssueSelectedId) ? reconcileIssueRow(liveNestedRows(), issueRowInScope ? issueRowKeyRef.current : null, dropdownIndex) : null

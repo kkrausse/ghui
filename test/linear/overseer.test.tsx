@@ -79,7 +79,19 @@ test("the context lists tickets by project with PRs and session keys, then uncla
 	expect(text).not.toContain("overseer ·")
 })
 
-test("the briefing points at the context file and appends Kevin's own instructions", () => {
+test("PRs carry GitHub's checks and review, and GitHub's draft flag wins over Linear's", () => {
+	const text = contextMarkdown(
+		[issue("ABC-1", null, [12, 13])],
+		null,
+		() => [],
+		(url) => (url.endsWith("/12") ? { review: "approved", checks: "failing" } : url.endsWith("/13") ? { review: "draft", checks: "pending" } : undefined),
+	)
+	expect(text).toContain("  - PR repo#12 inReview · checks failing · approved · abc-12")
+	expect(text).toContain("  - PR repo#13 draft · checks pending · abc-13")
+})
+
+test("the briefing points at ghui status and the context file, then Kevin's own instructions", () => {
+	expect(briefing("")).toContain("run `ghui status`")
 	expect(briefing("")).toContain(CONTEXT_PATH)
 	expect(briefing("").endsWith("Only send messages to sessions or start new ones when Kevin asks.")).toBe(true)
 	expect(briefing("  watch the e2e runs ").endsWith("when Kevin asks.\n\nwatch the e2e runs")).toBe(true)

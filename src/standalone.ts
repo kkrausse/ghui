@@ -13,6 +13,9 @@ Usage:
                     Store a Linear API key in the local macOS Keychain
   ghui --linear-logout
                     Remove the locally stored Linear API key
+  ghui status       Print my open Linear tickets with their PRs (state, CI,
+                    review) and faplex agent sessions, fetched now; also
+                    rewrites the overseer's context file
 `
 
 const args = Bun.argv.slice(2)
@@ -21,7 +24,11 @@ if (command === "--linear-login" || command === "--linear-logout") {
 	const { login, logout } = await import("./linearWorkspace/login.js")
 	process.exit(await (command === "--linear-login" ? login() : logout()))
 }
-const commands = ["help", "version"]
+if (command === "status") {
+	const { status } = await import("./linearWorkspace/status.js")
+	process.exit(await status())
+}
+const commands = ["help", "version", "status"]
 
 const editDistance = (a: string, b: string) => {
 	const distances = Array.from({ length: a.length + 1 }, (_, i) => [i])
