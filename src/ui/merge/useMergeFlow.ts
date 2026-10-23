@@ -4,7 +4,7 @@ import { useRequest } from "../../hooks/useRequest.js"
 import { allowedMergeMethodList, type PullRequestItem, type PullRequestMergeAction, type PullRequestMergeMethod, type RepositoryMergeMethods } from "../../domain.js"
 import { pullRequestMergeMethods } from "../../domain.js"
 import { errorMessage } from "../../errors.js"
-import { getMergeKindDefinition, mergeInfoFromPullRequest, requiresMarkReady, visibleMergeKinds } from "../../mergeActions.js"
+import { autoMergeUpdatesBranch, getMergeKindDefinition, mergeInfoFromPullRequest, requiresMarkReady, visibleMergeKinds } from "../../mergeActions.js"
 import type { MergeModalState } from "../modals.js"
 import {
 	getPullRequestMergeInfoAtom,
@@ -133,6 +133,7 @@ export const useMergeFlow = ({
 		const targetPullRequest = pullRequests.find((pullRequest) => pullRequest.repository === repository && pullRequest.number === number)
 		const previousPullRequest = targetPullRequest ?? null
 		const queueRequest = info.mergeQueueEnabled && (kindDef.kind === "now" || kindDef.kind === "auto")
+		const updateBranch = autoMergeUpdatesBranch(kindDef.kind, info)
 
 		if (targetPullRequest && markReady) {
 			updatePullRequest(targetPullRequest.url, (pullRequest) => (pullRequest.reviewStatus === "draft" ? { ...pullRequest, reviewStatus: "none" } : pullRequest))
@@ -158,12 +159,13 @@ export const useMergeFlow = ({
 				await toggleDraftStatus({ repository, number, isDraft: true })
 				markedReady = true
 			}
+			if (updateBranch) await mergePullRequest({ repository, number, action: { kind: "update-merge" } })
 			await mergePullRequest({ repository, number, action })
 		}
 
 		void run()
 			.then(() => {
-				if (kindDef.refreshOnSuccess) {
+				if (kindDef.refreshOnSuccess || updateBranch) {
 					refreshPullRequests(`${pastTense} #${number}`)
 				} else {
 					flashNotice(`${pastTense} #${number}`)

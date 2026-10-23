@@ -79,6 +79,7 @@ const buildPullRequest = (index: number, options: Required<MockOptions>): PullRe
 					? [{ login: mockAuthor(index + 1), state: "changes" }]
 					: [{ login: mockAuthor(index + 1), state: "requested" }],
 		autoMergeEnabled: index % 11 === 0,
+		mergeState: "unknown",
 		detailLoaded: true,
 		createdAt,
 		updatedAt,

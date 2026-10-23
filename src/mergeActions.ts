@@ -126,9 +126,24 @@ const mergeKindDefinitions = {
 
 export const mergeKinds: readonly MergeKindDefinition[] = Object.values(mergeKindDefinitions)
 
+// Auto-merge waits forever on a behind branch when the base requires
+// up-to-date branches, so enabling it on one updates the branch first.
+export const autoMergeUpdatesBranch = (kind: PullRequestMergeKind, info: PullRequestMergeInfo) => kind === "auto" && !info.mergeQueueEnabled && isBehind(info)
+
+const updateAndAutoMergeDefinition = (definition: MergeKindDefinition): MergeKindDefinition => ({
+	...definition,
+	title: () => "Update branch & enable auto-merge",
+	description: () => "Merge the base branch in, then merge once GitHub requirements pass.",
+})
+
 export const availableMergeKinds = (info: PullRequestMergeInfo | null): readonly MergeKindDefinition[] => {
 	if (!info) return []
-	return mergeKinds.filter((kind) => kind.isAvailable(info)).map((kind) => getMergeKindDefinition(kind.kind, info.mergeQueueEnabled))
+	return mergeKinds
+		.filter((kind) => kind.isAvailable(info))
+		.map((kind) => {
+			const definition = getMergeKindDefinition(kind.kind, info.mergeQueueEnabled)
+			return autoMergeUpdatesBranch(kind.kind, info) ? updateAndAutoMergeDefinition(definition) : definition
+		})
 }
 
 export const visibleMergeKinds = (info: PullRequestMergeInfo | null, allowed: RepositoryMergeMethods | null, selected: PullRequestMergeMethod): readonly MergeKindDefinition[] => {
@@ -187,7 +202,7 @@ export const mergeInfoFromPullRequest = (pullRequest: PullRequestItem): PullRequ
 	state: pullRequest.state,
 	isDraft: pullRequest.reviewStatus === "draft",
 	mergeable: "unknown",
-	mergeState: "unknown",
+	mergeState: pullRequest.mergeState,
 	reviewStatus: pullRequest.reviewStatus,
 	checkStatus: pullRequest.checkStatus,
 	checkSummary: pullRequest.checkSummary,

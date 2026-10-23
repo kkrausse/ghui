@@ -24,6 +24,7 @@ const open: PullRequestItem = {
 	checks: [],
 	reviewers: [],
 	autoMergeEnabled: false,
+	mergeState: "unknown",
 	detailLoaded: true,
 	createdAt: new Date("2026-01-01"),
 	updatedAt: new Date("2026-01-01"),
@@ -63,6 +64,11 @@ describe("pullRequestRowDisplay", () => {
 	test("autoMergeEnabled overrides indicator to accent", () => {
 		const display = pullRequestRowDisplay({ ...open, autoMergeEnabled: true }, false)
 		expect(display.indicatorFg).toBe(colors.accent)
+	})
+
+	test("auto-merge stalled behind base → pending, on conflicts → failing", () => {
+		expect(pullRequestRowDisplay({ ...open, autoMergeEnabled: true, mergeState: "behind" }, false).indicatorFg).toBe(colors.status.pending)
+		expect(pullRequestRowDisplay({ ...open, autoMergeEnabled: true, mergeState: "dirty" }, false).indicatorFg).toBe(colors.status.failing)
 	})
 
 	test.each([

@@ -232,6 +232,7 @@ export const parsePullRequestSummary = (item: RawPullRequestSummaryNode): PullRe
 		checks: checkInfo.checks,
 		reviewers: [],
 		autoMergeEnabled: item.autoMergeRequest !== null,
+		mergeState: normalizeMergeState(item.mergeStateStatus),
 		detailLoaded: false,
 		createdAt: new Date(item.createdAt),
 		updatedAt: new Date(item.updatedAt),

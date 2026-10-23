@@ -69,6 +69,7 @@ const RawPullRequestSummaryFields = {
 	isDraft: Schema.Boolean,
 	reviewDecision: NullableString,
 	autoMergeRequest: Schema.NullOr(Schema.Unknown),
+	mergeStateStatus: Schema.optionalKey(Schema.String),
 	merged: Schema.Boolean,
 	headRefOid: Schema.String,
 	headRefName: Schema.String,
@@ -342,6 +343,7 @@ const SUMMARY_FIELDS_FRAGMENT = `
         isDraft
         reviewDecision
         autoMergeRequest { enabledAt }
+        mergeStateStatus
         state
         merged
         createdAt

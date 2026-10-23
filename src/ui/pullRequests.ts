@@ -68,6 +68,13 @@ export const reviewIcon = (pullRequest: PullRequestItem) => {
 	return REVIEW_ICON[pullRequest.reviewStatus]
 }
 
+// Auto-merge never updates a branch, so behind or conflicting PRs wait forever.
+const autoMergeColor = (pullRequest: PullRequestItem) => {
+	if (pullRequest.mergeState === "dirty") return colors.status.failing
+	if (pullRequest.mergeState === "behind") return colors.status.pending
+	return colors.accent
+}
+
 export interface PullRequestRowDisplay {
 	readonly indicatorFg: string
 	readonly rowFg: string
@@ -80,7 +87,13 @@ export const pullRequestRowDisplay = (pullRequest: PullRequestItem, selected: bo
 	const isMerged = pullRequest.state === "merged"
 	const isClosed = pullRequest.state === "closed"
 	const isFinal = isMerged || isClosed
-	const indicatorFg = isMerged ? colors.status.passing : isClosed ? colors.muted : pullRequest.autoMergeEnabled ? colors.accent : statusColor(pullRequest.reviewStatus)
+	const indicatorFg = isMerged
+		? colors.status.passing
+		: isClosed
+			? colors.muted
+			: pullRequest.autoMergeEnabled
+				? autoMergeColor(pullRequest)
+				: statusColor(pullRequest.reviewStatus)
 	// Open PR whose detail (and therefore check rollup) hasn't arrived yet
 	// gets a distinct placeholder so "checks unknown" doesn't look identical
 	// to "no checks configured."

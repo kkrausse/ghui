@@ -37,6 +37,17 @@ describe("mergeKinds ordering", () => {
 })
 
 describe("availableMergeKinds", () => {
+	test("behind branch offers update & auto-merge, unless a merge queue handles it", () => {
+		const behind = { ...cleanInfo, mergeState: "behind" as const }
+		const auto = (info: PullRequestMergeInfo) =>
+			availableMergeKinds(info)
+				.find((kind) => kind.kind === "auto")!
+				.title("squash")
+		expect(auto(behind)).toBe("Update branch & enable auto-merge")
+		expect(auto(cleanInfo)).toBe("Enable auto-merge")
+		expect(auto({ ...behind, mergeQueueEnabled: true })).toBe("Enable merge queue when ready")
+	})
+
 	test("GitHub clean/unstable state offers now even when a non-required check fails", () => {
 		for (const mergeState of ["clean", "unstable", "has_hooks"] as const) {
 			expect(availableMergeKinds({ ...cleanInfo, mergeState, checkStatus: "failing" }).map((k) => k.kind)).toEqual(["now", "auto"])

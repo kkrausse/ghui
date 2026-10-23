@@ -54,7 +54,8 @@ export type Mergeable = "mergeable" | "conflicting" | "unknown"
 
 // GitHub's own merge-box verdict (mergeStateStatus). It applies branch
 // protection, so only required checks and required reviews count.
-export type MergeState = "clean" | "unstable" | "has_hooks" | "behind" | "blocked" | "dirty" | "draft" | "unknown"
+export const mergeStates = ["clean", "unstable", "has_hooks", "behind", "blocked", "dirty", "draft", "unknown"] as const
+export type MergeState = (typeof mergeStates)[number]
 
 // DiffCommentSide is the only literal type still consumed at runtime — GitHubService
 // uses it as a Schema inside PullRequestCommentSchema.
@@ -168,6 +169,7 @@ export interface PullRequestItem {
 	readonly checks: readonly CheckItem[]
 	readonly reviewers: readonly PullRequestReviewer[]
 	readonly autoMergeEnabled: boolean
+	readonly mergeState: MergeState
 	readonly detailLoaded: boolean
 	readonly createdAt: Date
 	readonly updatedAt: Date

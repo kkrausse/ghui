@@ -24,6 +24,7 @@ const pullRequest = (body: string): PullRequestItem => ({
 	checks: [],
 	reviewers: [],
 	autoMergeEnabled: false,
+	mergeState: "unknown",
 	detailLoaded: true,
 	createdAt: new Date("2026-01-01T00:00:00Z"),
 	updatedAt: new Date("2026-01-01T00:00:00Z"),
