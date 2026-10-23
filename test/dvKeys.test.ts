@@ -28,6 +28,7 @@ describe("hostOwnsKey", () => {
 		expect(hostOwnsKey(key("q"), dv(false, false))).toBe(true)
 		expect(hostOwnsKey(key("p", "\x10", { ctrl: true }), dv(false, false))).toBe(true)
 		expect(hostOwnsKey(key("r", "R", { shift: true }), dv(false, false))).toBe(true)
+		expect(hostOwnsKey(key("w"), dv(false, false))).toBe(true)
 		expect(hostOwnsKey(key("j"), dv(false, false))).toBe(false)
 		expect(hostOwnsKey(key("left", "\x1b[D"), dv(false, false))).toBe(true)
 		expect(hostOwnsKey(key("right", "\x1b[C"), dv(false, false))).toBe(false)

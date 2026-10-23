@@ -22,6 +22,7 @@ const symbols = {
 	dv_state: { args: [FFIType.ptr], returns: FFIType.u32 },
 	dv_set_comments: { args: [FFIType.ptr, FFIType.ptr, FFIType.u32], returns: FFIType.u32 },
 	dv_set_source: { args: [FFIType.ptr, FFIType.u32, FFIType.ptr, FFIType.u32], returns: FFIType.u32 },
+	dv_set_wrap: { args: [FFIType.ptr, FFIType.u32], returns: FFIType.void },
 	dv_render: { args: [FFIType.ptr, FFIType.u32, FFIType.u32], returns: FFIType.u32 },
 	dv_frame_ptr: { args: [FFIType.ptr], returns: FFIType.ptr },
 	dv_take_action: { args: [FFIType.ptr], returns: FFIType.u32 },
@@ -174,6 +175,11 @@ export class DvView {
 		if (!this.handle) return false
 		const bytes = encoder.encode(text)
 		return this.lib.dv_set_source(this.handle, file, bytes, bytes.length) === 1
+	}
+
+	/** Wrap long lines onto extra rows instead of panning them. Redraw afterwards. */
+	setWrap(on: boolean): void {
+		if (this.handle) this.lib.dv_set_wrap(this.handle, on ? 1 : 0)
 	}
 
 	render(width: number, height: number): readonly DvRun[] {

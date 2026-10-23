@@ -15,7 +15,7 @@ import { activeModalAtom } from "../modals/atoms.js"
 import { useFlashNotice } from "../notice/useFlashNotice.js"
 import { initialCommentModalState, Modal } from "../modals/types.js"
 import { shortRepoName } from "../pullRequests.js"
-import { diffCommentThreadsAtom, diffMarkdownPreviewAtom, pullRequestFileContentRequest } from "./atoms.js"
+import { diffCommentThreadsAtom, diffMarkdownPreviewAtom, diffWrapModeAtom, pullRequestFileContentRequest } from "./atoms.js"
 import { dvKeyCode, hostOwnsKey } from "./dvKeys.js"
 import { diffLineUrl } from "./links.js"
 import { DV_ACTION, DV_PENDING, DV_REDRAW, type DvAction, type DvMouseKind, type DvRun, DvView } from "./dvNative.js"
@@ -93,6 +93,7 @@ export const DvDiffPane = ({ pullRequest, patch, width, height }: DvDiffPaneProp
 	const modalOpen = useAtomValue(activeModalAtom)._tag !== "None"
 	const previewOpen = useAtomValue(diffMarkdownPreviewAtom)
 	const threads = useAtomValue(diffCommentThreadsAtom)
+	const wrap = useAtomValue(diffWrapModeAtom) === "word"
 	const diffKey = pullRequestDiffKey(pullRequest)
 	const title = `#${pullRequest.number} ${shortRepoName(pullRequest.repository)}`
 
@@ -173,6 +174,13 @@ export const DvDiffPane = ({ pullRequest, patch, width, height }: DvDiffPaneProp
 	useEffect(() => {
 		if (view?.setComments(commentsJson)) redraw()
 	}, [view, commentsJson])
+
+	// GHUI's `w` / "Toggle diff word wrap" owns the setting; dv wraps by character.
+	useEffect(() => {
+		if (!view) return
+		view.setWrap(wrap)
+		redraw()
+	}, [view, wrap])
 
 	// Syntax highlighting and hidden-context sources load on dv's threads.
 	useEffect(() => {
