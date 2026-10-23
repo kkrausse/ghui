@@ -61,7 +61,7 @@ import { CommentBox } from "./ui/CommentBox.tsx"
 import { githubPullRequestRoute } from "../githubPullRequestRoute.js"
 import { PullRequestStatusContext, type LoadPullRequestStatus, type PullRequestStatus } from "./pullRequestStatus.ts"
 import { IssueDetail } from "./ui/IssueDetail.tsx"
-import { IssueList } from "./ui/IssueList.tsx"
+import { IssueList, OverseerPanel } from "./ui/IssueList.tsx"
 import { NotificationList } from "./ui/NotificationList.tsx"
 import { Picker } from "./ui/Picker.tsx"
 import { ProjectList, projectRows } from "./ui/ProjectList.tsx"
@@ -73,7 +73,8 @@ import { HelpOverlay, StatusBar } from "./ui/StatusBar.tsx"
 import { UpdateDetail } from "./ui/UpdateDetail.tsx"
 import { UpdateList } from "./ui/UpdateList.tsx"
 import { buildIssueRows, hasChildren, selectableIssueRows, reconcileIssueRow, type SelectableIssueRow } from "./issueRows.js"
-import { indexSessions, openSession, sessionTargets, startSession, useFaplex, warmSession, type FaplexSession, type SessionTarget } from "./faplex.js"
+import { indexSessions, openSession, OVERSEER_TAG, sessionTargets, startSession, useFaplex, warmSession, type FaplexSession, type SessionTarget } from "./faplex.js"
+import { briefing, contextMarkdown, overseerSession, writeContext } from "./overseer.js"
 import { LinearLinkContext } from "./ui/Markdown.js"
 import { devLog } from "../devLog.js"
 
@@ -112,6 +113,8 @@ type Compose =
 	| { kind: "project-update"; label: string; projectId: string; health: Health }
 	/** The optional first instructions for an agent session started on a ticket. */
 	| { kind: "session"; label: string; issue: SessionIssue; target: { machine: string; harness: string; dir: string } }
+	/** The optional first instructions for the overseer, after its briefing. */
+	| { kind: "overseer"; label: string; target: { machine: string; harness: string; dir: string } }
 
 /** What a new agent session is told about its ticket. */
 type SessionIssue = Pick<Issue, "id" | "identifier" | "title" | "url">
@@ -239,6 +242,8 @@ export function App({
 	const [compose, setCompose] = useState<Compose | null>(null)
 	/** The ticket a session picker is open for, until the composer takes over. */
 	const sessionIssueRef = useRef<SessionIssue | null>(null)
+	/** Set instead of the ticket while the picker is choosing where the overseer runs. */
+	const overseerPickRef = useRef(false)
 	const sessionTargetRef = useRef<SessionTarget | null>(null)
 	const [selectedCommentId, setSelectedCommentId] = useState<string | null>(null)
 	const [editBusy, setEditBusy] = useState(false)
@@ -401,8 +406,20 @@ export function App({
 
 	const faplex = useFaplex()
 	const sessionsFor = useMemo(() => indexSessions(faplex.snapshot), [faplex.snapshot])
+	const overseer = useMemo(() => overseerSession(faplex.snapshot), [faplex.snapshot])
+	const onMyIssues = !search && target?.kind === "my-issues"
 
 	const issues: Issue[] = search?.issues ?? (payload?.type === "issues" ? payload.issues : [])
+	// The overseer's context file follows My Issues and the session list while My Issues is loaded.
+	const myIssues = onMyIssues && payload?.type === "issues" && !listLoading ? payload.issues : null
+	useEffect(() => {
+		if (!myIssues) return
+		try {
+			writeContext(contextMarkdown(myIssues, faplex.snapshot, sessionsFor))
+		} catch (e) {
+			devLog("overseer context", e)
+		}
+	}, [myIssues, faplex.snapshot, sessionsFor])
 	const teamProjects = showingProjects && target?.kind === "projects"
 	const allProjects: Project[] = showingProjects ? payload.projects : []
 	const projects = teamProjects && !showFinishedProjects ? allProjects.filter((p) => !finishedProject(p)) : allProjects
@@ -971,6 +988,37 @@ export function App({
 		[faplex, sessionsFor, notify, setMode],
 	)
 
+	/** `A`: open the overseer, or pick where a new one runs like `n` does for a ticket. */
+	const openOverseer = useCallback(() => {
+		if (overseer) {
+			openAgentSession(overseer)
+			return
+		}
+		const snapshot = faplex.snapshot
+		if (!snapshot) {
+			notify(faplex.error ?? "waiting for faplex…")
+			return
+		}
+		const targets = sessionTargets(snapshot)
+		if (!targets.length) {
+			notify("faplex has no harness running on any machine")
+			return
+		}
+		returnModeRef.current = "list"
+		sessionIssueRef.current = null
+		overseerPickRef.current = true
+		setPicker({
+			kind: "session",
+			title: "New overseer · sees every open ticket and agent session",
+			options: targets.map((t) => ({
+				name: `${t.harness} · ${snapshot.machines.find((m) => m.id === t.machine)?.short ?? t.machine}`,
+				description: t.note,
+				value: t,
+			})),
+		})
+		setMode("picker")
+	}, [overseer, openAgentSession, faplex, notify, setMode])
+
 	const pickNestedRow = useCallback(
 		(row: SelectableIssueRow) => {
 			setFocus("list")
@@ -1074,8 +1122,9 @@ export function App({
 			// Harness first, then the directory when there is more than one to choose from.
 			if (picker.kind === "session" || picker.kind === "session-dir") {
 				const issue = sessionIssueRef.current
+				const overseerPick = overseerPickRef.current
 				const target = picker.kind === "session" ? (option.value as SessionTarget) : sessionTargetRef.current
-				if (!issue || !target) {
+				if ((!issue && !overseerPick) || !target) {
 					setPicker(null)
 					setMode(returnModeRef.current)
 					return
@@ -1084,14 +1133,16 @@ export function App({
 					sessionTargetRef.current = target
 					setPicker({
 						kind: "session-dir",
-						title: `${target.harness} session on ${issue.identifier} · start in`,
+						title: `${target.harness} ${overseerPick ? "overseer" : `session on ${issue!.identifier}`} · start in`,
 						options: target.dirs.map((dir) => ({ name: dir, description: "", value: dir })),
 					})
 					return
 				}
 				setPicker(null)
 				const dir = picker.kind === "session" ? (target.dirs[0] ?? "~") : (option.value as string)
-				setCompose({ kind: "session", label: issue.identifier, issue, target: { machine: target.machine, harness: target.harness, dir } })
+				const where = { machine: target.machine, harness: target.harness, dir }
+				overseerPickRef.current = false
+				setCompose(overseerPick ? { kind: "overseer", label: "overseer", target: where } : { kind: "session", label: issue!.identifier, issue: issue!, target: where })
 				setMode("comment")
 				return
 			}
@@ -1186,6 +1237,16 @@ export function App({
 	const submitCompose = useCallback(
 		async (body: string) => {
 			if (!compose) return
+			if (compose.kind === "overseer") {
+				const { target } = compose
+				setCompose(null)
+				setMode(returnModeRef.current)
+				startSession({ ...target, prompt: briefing(body), tags: [OVERSEER_TAG] }).then(
+					() => notify(`started the overseer (${target.harness})`),
+					(e: unknown) => notify(e instanceof Error ? e.message : String(e)),
+				)
+				return
+			}
 			if (compose.kind === "session") {
 				const { issue, target } = compose
 				setCompose(null)
@@ -1519,6 +1580,7 @@ export function App({
 				mode === "detail" ? detail : mode === "list" && !prRow && !sessionRow ? (projectIssue ?? (showingIssues ? (selectedIssueRow?.issue ?? currentIssue) : null)) : null
 			const sessionIssue = issue ?? sessionRow?.issue
 			if (sessionIssue) actions.startAgentSession = () => startAgentSession(sessionIssue)
+			if (mode === "list") actions.overseer = openOverseer
 			const url = mode === "detail" ? detail?.url : (prRow?.link.url ?? update?.url ?? (showingInbox ? currentNotification?.url : showingOverview ? overview?.url : issue?.url))
 			if (url) {
 				actions.openInBrowser = () => (prRow ? openLink(url) : void openInBrowser(url))
@@ -1883,6 +1945,12 @@ export function App({
 			return
 		}
 
+		// Above every `a` binding: a shifted letter also matches its bare twin.
+		if (is(key, "A") && focusRef.current === "list") {
+			openOverseer()
+			return
+		}
+
 		// A child is a navigation row, never an implicit Linear edit target.
 		if (liveSelectedIssueRow?.t === "session" && focusRef.current === "list") {
 			if (is(key, "n")) startAgentSession(liveSelectedIssueRow.issue)
@@ -2006,18 +2074,22 @@ export function App({
 									? `update on ${compose.label} · ${healthLabel(compose.health)}`
 									: compose.kind === "session"
 										? `${compose.target.harness} session on ${compose.label} · ${compose.target.dir}`
-										: `comment on ${compose.label}`
+										: compose.kind === "overseer"
+											? `${compose.target.harness} overseer · ${compose.target.dir}`
+											: `comment on ${compose.label}`
 							}
 							placeholder={
 								compose.kind === "project-update"
 									? "What happened this week? Markdown is fine."
 									: compose.kind === "session"
 										? "Instructions for the agent, optional; Enter starts it. The ticket's id, title and link are added."
-										: "Markdown is fine. Enter makes a new line."
+										: compose.kind === "overseer"
+											? "Instructions for the overseer, optional; Enter starts it. It is told how to read the tickets and reach the sessions."
+											: "Markdown is fine. Enter makes a new line."
 							}
 							onSubmit={submitCompose}
 							busy={editBusy}
-							enterSends={compose.kind === "session"}
+							enterSends={compose.kind === "session" || compose.kind === "overseer"}
 						/>
 					) : mode === "update" ? (
 						<UpdateDetail
@@ -2089,6 +2161,7 @@ export function App({
 								hasMore={morePages}
 								error={listError}
 								height={bodyHeight - 1}
+								header={onMyIssues ? <OverseerPanel session={overseer} onPick={openOverseer} /> : undefined}
 								onPick={pickIssue}
 								onScroll={moveList}
 							/>
@@ -2204,7 +2277,13 @@ export function App({
 									hasMore={morePages}
 									error={listError}
 									height={bodyHeight}
-									header={inProject ? <ProjectTabs active="issues" focused={focus === "list"} onPick={setProjectTab} /> : undefined}
+									header={
+										inProject ? (
+											<ProjectTabs active="issues" focused={focus === "list"} onPick={setProjectTab} />
+										) : onMyIssues ? (
+											<OverseerPanel session={overseer} onPick={openOverseer} />
+										) : undefined
+									}
 									onPick={pickIssue}
 									onScroll={moveList}
 								/>

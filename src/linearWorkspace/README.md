@@ -86,6 +86,7 @@ binary; that was the trade for writing views in React.
 | `O`                  | open its linked PR — picks one when the issue has several                                                     |
 | `P`                  | jump to the issue's project — also the `Project` row in the detail pane                                       |
 | `n`                  | start an agent session on the ticket (see [Agent sessions](#agent-sessions))                                  |
+| `A`                  | open the overseer, or start one (see [Overseer](#overseer))                                                   |
 | `?`                  | help                                                                                                          |
 | `q`, `ctrl+c`        | quit                                                                                                          |
 
@@ -130,6 +131,17 @@ takes optional instructions (Enter sends). The session starts in the background
 with them plus the ticket's id, title and link, tagged with the ticket, and you
 stay on the page; it appears under the ticket once it runs. Only a folder whose
 trust prompt needs answering opens on screen. Needs `faplex` on `PATH`.
+
+### Overseer
+
+The row above My Issues is the overseer: one agent session that sees every open
+ticket and every agent session. `A` (or a click) opens it, or starts one the way
+`n` does, tagged `overseer`. Its first prompt points it at
+`~/.local/state/ghui/overseer.md` and explains `faplex ls`, `tail`, `send` and
+`new`. GHUI rewrites that file whenever My Issues or the session list changes:
+tickets by project with their PRs and the keys of the sessions on them, then the
+sessions on no listed ticket. The overseer never nests under a ticket. Archive
+it in faplex to start a fresh one.
 
 ### Linked PRs
 

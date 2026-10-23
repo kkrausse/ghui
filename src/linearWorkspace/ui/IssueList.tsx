@@ -292,3 +292,36 @@ export function SessionRow({ row, active, onPick }: { row: Extract<SelectableIss
 		</box>
 	)
 }
+
+/**
+ * The overseer above My Issues: its status like a session row when one runs,
+ * else how to start one. `A` (or a click) opens or starts it.
+ */
+export function OverseerPanel({ session, onPick }: { session: FaplexSession | undefined; onPick: () => void }) {
+	return (
+		<box flexDirection="row" height={1} flexShrink={0} marginBottom={1} onMouseDown={onPick}>
+			<text flexShrink={0} fg={color.accent}>
+				{"◆ overseer  "}
+			</text>
+			{session ? (
+				<>
+					<SessionMark session={session} />
+					<text flexShrink={0} fg={session.hostColor ?? color.dim}>
+						{session.host ?? session.machine}
+					</text>
+					<text flexShrink={0} fg={HARNESS_COLOR[session.harness] ?? color.dim}>{`·${HARNESS_SHORT[session.harness] ?? session.harness}`}</text>
+					<text fg={sessionColor(session.status)} flexGrow={1} flexShrink={1} flexBasis={0} minWidth={0} wrapMode="none" truncate>
+						{`  ${(session.detail || session.status).split("\n")[0]}`}
+					</text>
+					<text flexShrink={0} fg={color.faint}>
+						{"  A open"}
+					</text>
+				</>
+			) : (
+				<text fg={color.faint} flexGrow={1} flexShrink={1} flexBasis={0} minWidth={0} wrapMode="none" truncate>
+					{"A starts an agent that sees every open ticket and agent session"}
+				</text>
+			)}
+		</box>
+	)
+}

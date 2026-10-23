@@ -83,6 +83,7 @@ export function HelpOverlay() {
 				["enter", "load view · open issue · drill into project"],
 				["space", "ticket: linked PRs and agent sessions · My Projects project: tickets"],
 				["shift+space", "any ticket list: toggle all linked PR and session dropdowns"],
+				["A", "open the overseer, or start one: an agent that sees every open ticket and session"],
 				["ctrl+p / cmd+k", "command palette: every action available on this screen"],
 				["1–7", "GHUI host tabs (except while editing or picking)"],
 				["esc", "leave detail, search, or drilled-in project"],

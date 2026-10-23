@@ -23,6 +23,7 @@ export const linearActionDefinitions = [
 	{ action: "setCycle", title: "Linear: Change cycle", scope: "Issue", shortcut: "C" },
 	{ action: "openPr", title: "Linear: Open linked pull request", scope: "Issue", shortcut: "O" },
 	{ action: "startAgentSession", title: "Linear: Start an agent session on the ticket", scope: "Issue", shortcut: "n" },
+	{ action: "overseer", title: "Linear: Open or start the overseer agent", scope: "View", shortcut: "A" },
 	{ action: "copyBranch", title: "Linear: Copy git branch name", scope: "Issue", shortcut: "y" },
 	{ action: "openInBrowser", title: "Linear: Open in browser", scope: "Issue", shortcut: "o" },
 	{ action: "copyLink", title: "Linear: Copy link", scope: "Issue", shortcut: "Y" },

@@ -118,20 +118,24 @@ export const useFaplex = (): State => useSyncExternalStore(subscribe, () => stat
 export type SessionsFor = (issue: Pick<Issue, "identifier">) => FaplexSession[]
 export const noSessions: SessionsFor = () => []
 
+/** The tag on the overseer session (overseer.ts), which belongs above the tickets, not under them. */
+export const OVERSEER_TAG = "overseer"
+
 const TICKET_ID = /\b[A-Z][A-Z0-9]*-\d+\b/gi
 const ORDER: Record<FaplexStatus, number> = { needs: 0, working: 1, failed: 2, interrupted: 3, done: 4, idle: 5 }
 
 /**
  * A session belongs to every ticket it is tagged with (`faplex new --tag`) and
  * every ticket id in its title, status line or directory -- sessions started
- * outside GHUI turn up too. Archived sessions and untouched drafts are left out.
+ * outside GHUI turn up too. Archived sessions, untouched drafts and the
+ * overseer are left out.
  */
 export const indexSessions = (snapshot: FaplexSnapshot | null): SessionsFor => {
 	if (!snapshot) return noSessions
 	const byTicket = new Map<string, FaplexSession[]>()
 	const machines = new Map(snapshot.machines.map((m) => [m.id, m]))
 	for (const listed of snapshot.sessions) {
-		if (listed.archived || (listed.prompted === false && listed.status === "idle")) continue
+		if (listed.archived || (listed.prompted === false && listed.status === "idle") || listed.tags.includes(OVERSEER_TAG)) continue
 		const machine = machines.get(listed.machine)
 		const session = { ...listed, host: machine?.short ?? listed.machine, hostColor: machine?.color }
 		const mentioned = `${session.title} ${session.detail} ${session.cwd}`.match(TICKET_ID) ?? []
