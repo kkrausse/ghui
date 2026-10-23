@@ -79,6 +79,8 @@ import { LinearLinkContext } from "./ui/Markdown.js"
 import { devLog } from "../devLog.js"
 
 const SIDEBAR_WIDTH = 26
+/** No ticket row has this key: while the overseer row holds the cursor, nothing in the list is highlighted. */
+const OVERSEER_ROW = "overseer"
 
 /** "update" is one posted project update, the project workspace's leaf view. */
 type Mode = "list" | "detail" | "update" | "search" | "help" | "picker" | "comment"
@@ -408,6 +410,17 @@ export function App({
 	const sessionsFor = useMemo(() => indexSessions(faplex.snapshot), [faplex.snapshot])
 	const overseer = useMemo(() => overseerSession(faplex.snapshot), [faplex.snapshot])
 	const onMyIssues = !search && target?.kind === "my-issues"
+	// The overseer row above My Issues takes the cursor on ↑ from the first row; ↓, picking a
+	// row, or leaving My Issues hands it back. A ref too, for the key handler and moveList.
+	const [overseerSelected, setOverseerSelectedState] = useState(false)
+	const overseerSelectedRef = useRef(false)
+	const setOverseerSelected = useCallback((on: boolean) => {
+		overseerSelectedRef.current = on
+		setOverseerSelectedState(on)
+	}, [])
+	useEffect(() => {
+		if (!onMyIssues) setOverseerSelected(false)
+	}, [onMyIssues, setOverseerSelected])
 
 	const issues: Issue[] = search?.issues ?? (payload?.type === "issues" ? payload.issues : [])
 	// The overseer's context file follows My Issues and the session list while My Issues is loaded.
@@ -520,11 +533,12 @@ export function App({
 	}, [warmKey])
 	const selectIssueRow = useCallback(
 		(row: SelectableIssueRow) => {
+			setOverseerSelected(false)
 			setIssueRowKey(row.key)
 			if (previewIssues) setProjectIssueSelectedId(row.issue.id)
 			else setListSelected(row.index)
 		},
-		[previewIssues, setIssueRowKey],
+		[previewIssues, setIssueRowKey, setOverseerSelected],
 	)
 
 	const rowCount = showingProjects ? projects.length : showingInbox ? notifications.length : showingUpdates ? updates.length : showingOverview ? 0 : issues.length
@@ -532,9 +546,17 @@ export function App({
 	const moveList = useCallback(
 		(delta: number) => {
 			if (nestedIssues) {
+				if (overseerSelectedRef.current) {
+					if (delta > 0) setOverseerSelected(false)
+					return
+				}
 				const rows = liveNestedRows()
 				const current = liveIssueRow()
 				const at = rows.findIndex((row) => row.key === current?.key)
+				if (onMyIssues && delta < 0 && at <= 0) {
+					setOverseerSelected(true)
+					return
+				}
 				const row = rows[Math.max(0, Math.min(rows.length - 1, at + delta))]
 				if (row) selectIssueRow(row)
 				return
@@ -577,6 +599,8 @@ export function App({
 			nestedRows,
 			selectedIssueRow,
 			selectIssueRow,
+			onMyIssues,
+			setOverseerSelected,
 		],
 	)
 
@@ -1746,6 +1770,10 @@ export function App({
 
 		/** Opens whatever the selected row points at. Shared by enter and `l`/right. */
 		const openSelected = () => {
+			if (overseerSelectedRef.current) {
+				openOverseer()
+				return
+			}
 			const row = liveIssueRow()
 			if (row?.t === "pr") {
 				openLink(row.link.url)
@@ -1950,6 +1978,8 @@ export function App({
 			openOverseer()
 			return
 		}
+		// On the overseer row, the ticket keys below would act on a ticket that isn't selected.
+		if (overseerSelectedRef.current && focusRef.current === "list") return
 
 		// A child is a navigation row, never an implicit Linear edit target.
 		if (liveSelectedIssueRow?.t === "session" && focusRef.current === "list") {
@@ -2150,7 +2180,7 @@ export function App({
 								expanded={expandedIssues}
 								sessionsFor={sessionsFor}
 								scrollOffsetRef={issueListOffsetRef}
-								selectedRowKey={selectedIssueRow?.key}
+								selectedRowKey={overseerSelected ? OVERSEER_ROW : selectedIssueRow?.key}
 								onPickRow={pickNestedRow}
 								issues={issues}
 								selected={listSelected}
@@ -2161,7 +2191,7 @@ export function App({
 								hasMore={morePages}
 								error={listError}
 								height={bodyHeight - 1}
-								header={onMyIssues ? <OverseerPanel session={overseer} onPick={openOverseer} /> : undefined}
+								header={onMyIssues ? <OverseerPanel session={overseer} active={overseerSelected} onPick={openOverseer} /> : undefined}
 								onPick={pickIssue}
 								onScroll={moveList}
 							/>
@@ -2266,7 +2296,7 @@ export function App({
 									expanded={nestedIssues ? expandedIssues : undefined}
 									sessionsFor={sessionsFor}
 									scrollOffsetRef={nestedIssues ? issueListOffsetRef : undefined}
-									selectedRowKey={nestedIssues ? selectedIssueRow?.key : undefined}
+									selectedRowKey={nestedIssues ? (overseerSelected ? OVERSEER_ROW : selectedIssueRow?.key) : undefined}
 									onPickRow={nestedIssues ? pickNestedRow : undefined}
 									issues={issues}
 									selected={listSelected}
@@ -2281,7 +2311,7 @@ export function App({
 										inProject ? (
 											<ProjectTabs active="issues" focused={focus === "list"} onPick={setProjectTab} />
 										) : onMyIssues ? (
-											<OverseerPanel session={overseer} onPick={openOverseer} />
+											<OverseerPanel session={overseer} active={overseerSelected} onPick={openOverseer} />
 										) : undefined
 									}
 									onPick={pickIssue}

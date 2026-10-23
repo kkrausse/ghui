@@ -295,11 +295,12 @@ export function SessionRow({ row, active, onPick }: { row: Extract<SelectableIss
 
 /**
  * The overseer above My Issues: its status like a session row when one runs,
- * else how to start one. `A` (or a click) opens or starts it.
+ * else how to start one. `A`, a click, or enter on the row (↑ from the first
+ * ticket) opens or starts it.
  */
-export function OverseerPanel({ session, onPick }: { session: FaplexSession | undefined; onPick: () => void }) {
+export function OverseerPanel({ session, active, onPick }: { session: FaplexSession | undefined; active?: boolean; onPick: () => void }) {
 	return (
-		<box flexDirection="row" height={1} flexShrink={0} marginBottom={1} onMouseDown={onPick}>
+		<box flexDirection="row" height={1} flexShrink={0} marginBottom={1} {...(active ? { backgroundColor: color.selectedBg } : {})} onMouseDown={onPick}>
 			<text flexShrink={0} fg={color.accent}>
 				{"◆ overseer  "}
 			</text>
