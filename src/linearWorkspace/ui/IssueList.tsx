@@ -19,7 +19,9 @@ import { wheel } from "./wheel.ts"
 const PR_COL = 9
 
 /** The tree mark sits under the issue's priority column, two cells in from its caret. */
-const PR_TREE_INDENT = 4
+// The connector sits under the ticket id and its rows start two columns right of it, so they read as
+// the ticket's children rather than more tickets.
+const PR_TREE_INDENT = 5
 
 type Props = {
 	scrollOffsetRef?: MutableRefObject<number> | undefined
@@ -177,7 +179,7 @@ function IssueRow({
 	return (
 		<box flexDirection="row" height={1} {...(active ? { backgroundColor: color.selectedBg } : {})} onMouseDown={onPick}>
 			<text flexShrink={0} fg={stateColor(issue.state?.type, issue.state?.color)}>
-				{`${stateGlyph(issue.state?.type)} `}
+				{caretColumn ? stateGlyph(issue.state?.type) : `${stateGlyph(issue.state?.type)} `}
 			</text>
 			{caretColumn ? (
 				<text flexShrink={0} fg={color.faint}>
@@ -229,7 +231,7 @@ export function PullRequestRow({ row, active, onPick }: { row: Extract<Selectabl
 	const trouble = link.changesRequested > 0 || link.hasConflicts
 	return (
 		<box flexDirection="row" height={1} {...(active ? { backgroundColor: color.selectedBg } : {})} {...(onPick ? { onMouseDown: onPick } : {})}>
-			<text flexShrink={0} fg={color.faint}>{`${" ".repeat(PR_TREE_INDENT)}${row.last ? "└" : "├"} `}</text>
+			<text flexShrink={0} fg={color.dim}>{`${" ".repeat(PR_TREE_INDENT)}${row.last ? "└" : "├"} `}</text>
 			<text flexShrink={0} fg={style.fg}>{`${style.glyph} `}</text>
 			<text flexShrink={0} fg={active ? color.fg : color.dim}>{`#${link.number} `}</text>
 			{checks ? <text flexShrink={0} fg={checks.fg}>{`${checks.glyph} `}</text> : null}
@@ -274,7 +276,7 @@ export function SessionRow({ row, active, onPick }: { row: Extract<SelectableIss
 	const status = session.status === "failed" || session.status === "interrupted" ? session.status : ""
 	return (
 		<box flexDirection="row" height={1} {...(active ? { backgroundColor: color.selectedBg } : {})} {...(onPick ? { onMouseDown: onPick } : {})}>
-			<text flexShrink={0} fg={color.faint}>{`${" ".repeat(PR_TREE_INDENT)}${row.last ? "└" : "├"} `}</text>
+			<text flexShrink={0} fg={color.dim}>{`${" ".repeat(PR_TREE_INDENT)}${row.last ? "└" : "├"} `}</text>
 			<SessionMark session={session} />
 			<text flexShrink={0} fg={session.hostColor ?? color.dim}>
 				{session.host ?? session.machine}
