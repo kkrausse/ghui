@@ -1266,7 +1266,7 @@ export function App({
 				const { target } = compose
 				setCompose(null)
 				setMode(returnModeRef.current)
-				startSession({ ...target, prompt: briefing(body), tags: [OVERSEER_TAG] }).then(
+				startSession({ ...target, prompt: briefing(body), tags: [OVERSEER_TAG, "keep"] }).then(
 					() => notify(`started the overseer (${target.harness})`),
 					(e: unknown) => notify(e instanceof Error ? e.message : String(e)),
 				)

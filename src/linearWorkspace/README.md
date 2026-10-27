@@ -146,8 +146,9 @@ call, and every faplex session, then prints them: tickets by project with their
 PRs and the keys of the sessions on them, then the sessions on no listed ticket.
 It also writes that text to `~/.local/state/ghui/overseer.md`, which GHUI
 rewrites as well whenever My Issues, its PRs' GitHub status or the session list
-changes on screen. The overseer never nests under a ticket. Archive
-it in faplex to start a fresh one.
+changes on screen. The overseer never nests under a ticket. It is also tagged
+`keep`, so faplex never ages it into the archive; archive it in faplex to start a
+fresh one.
 
 ### Linked PRs
 
