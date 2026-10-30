@@ -126,11 +126,14 @@ status line and age. A collapsed ticket shows its most relevant session's mark.
 `ctrl+]` anywhere) comes back. GHUI's `faplex watch` keeps each opened
 session's client attached, and attaches the one under the cursor ahead of time,
 so opening is a repaint (~0.2s); without it, `faplex open` takes the terminal. `n` on a ticket, or
-on one of its session rows, picks a machine and harness, then a directory, then
-takes optional instructions (Enter sends). The session starts in the background
-with them plus the ticket's id, title and link, tagged with the ticket, and you
-stay on the page; it appears under the ticket once it runs. Only a folder whose
-trust prompt needs answering opens on screen. Needs `faplex` on `PATH`.
+on one of its session rows, opens the same modal as `n` on a GitHub PR: pick a
+machine · harness · directory (the last pick comes first), then optional
+instructions. Enter starts the session in the background with them plus the
+ticket's id, title and link, and you stay on the page; `ctrl+o` instead starts
+it and opens it with the instructions and the ticket's id and link typed in,
+unsent, so the model or anything else can be changed first. Either way it is
+tagged with the ticket and appears under it once it runs. A folder whose trust
+prompt needs answering opens on screen. Needs `faplex` on `PATH`.
 
 ### Overseer
 

@@ -180,10 +180,13 @@ Requires the GitHub CLI (`gh`) the same as the rest of ghui; nothing extra to co
 [faplex](https://github.com/kkrausse/faplex) agent sessions are listed under
 the pull request they belong to: one tagged `owner/repo#123`, or one whose title
 or status line holds the PR's URL. `n` on a pull request picks a machine,
-harness and directory, then takes optional instructions (prefilled with a
-review request); the session starts in the background tagged with the PR.
+harness and directory (the repository's last pick comes first), then takes
+optional instructions. Enter starts the session in the background with them and
+the PR link; `ctrl+o` instead starts it and opens it with the instructions and
+the PR reference typed in, unsent. The session is tagged with the PR.
 `j` / `k` step through the session rows, and `enter` or `→` on one opens it
-(`←` at its empty prompt or `ctrl+]` comes back). Needs `faplex` on `PATH`.
+(`←` at its empty prompt or `ctrl+]` comes back). The Linear view's `n` uses the
+same modal. Needs `faplex` on `PATH`.
 
 ## Keybindings
 

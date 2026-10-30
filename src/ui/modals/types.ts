@@ -1,4 +1,5 @@
 import { Data } from "effect"
+import type { AgentTarget } from "../../faplex.js"
 import type { DiffCommentSide, PullRequestLabel, PullRequestMergeInfo, PullRequestMergeKind, PullRequestMergeMethod, RepositoryMergeMethods } from "../../domain.js"
 import type { ThemeConfig, ThemeMode } from "../../themeConfig.js"
 import type { ThemeId, ThemeTone } from "../colors.js"
@@ -121,19 +122,9 @@ export interface SubmitReviewModalState {
 	readonly error: string | null
 }
 
-/** Where a new agent session can run: one machine × harness × start directory. */
-export interface AgentSessionTarget {
-	readonly machine: string
-	/** faplex's short name for the machine. */
-	readonly host: string
-	readonly harness: string
-	readonly dir: string
-	readonly note: string
-}
-
 export interface AgentSessionModalState {
 	readonly pullRequest: { readonly repository: string; readonly number: number; readonly title: string; readonly url: string } | null
-	readonly targets: readonly AgentSessionTarget[]
+	readonly targets: readonly AgentTarget[]
 	readonly focus: "action" | "body"
 	readonly selectedIndex: number
 	readonly body: string

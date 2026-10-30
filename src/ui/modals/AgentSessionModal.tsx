@@ -14,6 +14,7 @@ const PLACEHOLDER = "Optional instructions..."
  */
 export const AgentSessionModal = ({
 	state,
+	title: titleOverride,
 	loadingIndicator,
 	modalWidth,
 	modalHeight,
@@ -21,6 +22,8 @@ export const AgentSessionModal = ({
 	offsetTop,
 }: {
 	state: AgentSessionModalState
+	/** For a session on something other than a pull request (a Linear ticket). */
+	title?: string
 	loadingIndicator: string
 	modalWidth: number
 	modalHeight: number
@@ -47,7 +50,7 @@ export const AgentSessionModal = ({
 	const visibleStart = Math.min(Math.max(0, lineRanges.length - editorHeight), Math.max(0, cursorLineIndex - editorHeight + 1))
 	const visibleLines = lineRanges.slice(visibleStart, visibleStart + editorHeight)
 	const pr = state.pullRequest
-	const title = pr ? `New agent session · ${pr.repository}#${pr.number}` : "New agent session"
+	const title = titleOverride ?? (pr ? `New agent session · ${pr.repository}#${pr.number}` : "New agent session")
 	const editorFocused = state.focus === "body"
 	const renderEditorLine = (line: { readonly text: string; readonly start: number; readonly end: number }, index: number) => {
 		const lineIndex = visibleStart + index

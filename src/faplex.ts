@@ -1,4 +1,7 @@
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { createConnection } from "node:net"
+import { homedir } from "node:os"
+import { dirname, join } from "node:path"
 import { createElement, Fragment, useSyncExternalStore } from "react"
 import { withTuiSuspended } from "./tuiSuspension.js"
 import type { Issue } from "./linearWorkspace/linear/schema.js"
@@ -215,20 +218,58 @@ export const sessionTargets = (snapshot: FaplexSnapshot, ticketSessions: readonl
 		})
 }
 
-/**
- * Every machine × harness × directory a session on this pull request can start
- * in. Directories of the PR's own sessions come first, then ones named after
- * its repository (likely a checkout of it).
- */
-export const pullRequestSessionTargets = (snapshot: FaplexSnapshot, pr: { repository: string; number: number }) => {
-	const repoName = pr.repository.split("/").pop()!.toLowerCase()
-	const checkouts = snapshot.sessions.filter((s) => s.cwd.toLowerCase().split("/").includes(repoName))
-	const preferred = [...indexPullRequestSessions(snapshot)(pr), ...checkouts.sort((a, b) => b.updatedAt - a.updatedAt)]
+/** One place a new session can run: machine × harness × start directory. */
+export type AgentTarget = { machine: string; host: string; harness: string; dir: string; note: string }
+type SessionPick = Pick<AgentTarget, "machine" | "harness" | "dir">
+
+/** The machine, harness and directory last picked, per repository for PRs and once for Linear tickets. */
+const PICKS_PATH = join(process.env.XDG_STATE_HOME ?? join(homedir(), ".local", "state"), "ghui", "agent-session-picks.json")
+export const LINEAR_PICK = "linear"
+const readPicks = (): Record<string, SessionPick> => {
+	try {
+		return JSON.parse(readFileSync(PICKS_PATH, "utf8")) as Record<string, SessionPick>
+	} catch {
+		return {}
+	}
+}
+export const rememberPick = (scope: string, pick: SessionPick) => {
+	try {
+		mkdirSync(dirname(PICKS_PATH), { recursive: true })
+		writeFileSync(PICKS_PATH, JSON.stringify({ ...readPicks(), [scope.toLowerCase()]: { machine: pick.machine, harness: pick.harness, dir: pick.dir } }, null, "\t") + "\n")
+	} catch {
+		// Not remembering a pick only costs a keypress next time.
+	}
+}
+
+/** Every target `sessionTargets` offers, one row per directory, with the remembered pick first. */
+export const agentTargets = (snapshot: FaplexSnapshot, preferred: readonly FaplexSession[], last: SessionPick | undefined): AgentTarget[] => {
 	const host = (machine: string) => snapshot.machines.find((m) => m.id === machine)?.short ?? machine
-	return sessionTargets(snapshot, preferred).flatMap((target) =>
+	const targets = sessionTargets(snapshot, preferred).flatMap((target) =>
 		target.dirs.map((dir) => ({ machine: target.machine, host: host(target.machine), harness: target.harness, dir, note: target.note })),
 	)
+	const same = (t: SessionPick) => t.machine === last?.machine && t.harness === last.harness && t.dir === last.dir
+	const offered = last && targets.some((t) => t.machine === last.machine && t.harness === last.harness)
+	const remembered = targets.find(same) ?? (offered ? { ...last, host: host(last.machine), note: "" } : undefined)
+	return remembered ? [remembered, ...targets.filter((t) => !same(t))] : targets
 }
+
+/**
+ * Where a session on this pull request can start: the repository's last pick,
+ * then directories of the PR's own sessions, then ones named after its
+ * repository (likely a checkout of it).
+ */
+export const pullRequestSessionTargets = (
+	snapshot: FaplexSnapshot,
+	pr: { repository: string; number: number },
+	last: SessionPick | undefined = readPicks()[pr.repository.toLowerCase()],
+) => {
+	const repoName = pr.repository.split("/").pop()!.toLowerCase()
+	const checkouts = snapshot.sessions.filter((s) => s.cwd.toLowerCase().split("/").includes(repoName))
+	return agentTargets(snapshot, [...indexPullRequestSessions(snapshot)(pr), ...checkouts.sort((a, b) => b.updatedAt - a.updatedAt)], last)
+}
+
+/** Where a session on a Linear ticket can start: the last ticket pick, then the ticket's own sessions' directories. */
+export const ticketSessionTargets = (snapshot: FaplexSnapshot, ticketSessions: readonly FaplexSession[]) => agentTargets(snapshot, ticketSessions, readPicks()[LINEAR_PICK])
 
 /** Runs faplex with the terminal; a failure comes back as its stderr. */
 const runFaplex = async (args: string[]) => {

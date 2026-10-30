@@ -73,7 +73,26 @@ import { HelpOverlay, StatusBar } from "./ui/StatusBar.tsx"
 import { UpdateDetail } from "./ui/UpdateDetail.tsx"
 import { UpdateList } from "./ui/UpdateList.tsx"
 import { buildIssueRows, hasChildren, selectableIssueRows, reconcileIssueRow, type SelectableIssueRow } from "./issueRows.js"
-import { indexSessions, openSession, OVERSEER_TAG, sessionTargets, startSession, useFaplex, warmSession, type FaplexSession, type SessionTarget } from "../faplex.js"
+import {
+	indexSessions,
+	LINEAR_PICK,
+	openSession,
+	OVERSEER_TAG,
+	rememberPick,
+	sessionTargets,
+	startAndOpenSession,
+	startSession,
+	ticketSessionTargets,
+	useFaplex,
+	warmSession,
+	type FaplexSession,
+	type SessionTarget,
+} from "../faplex.js"
+import { insertText } from "../ui/commentEditor.js"
+import { AgentSessionModal } from "../ui/modals/AgentSessionModal.js"
+import { agentSessionKey } from "../ui/modals/agentSessionKeys.js"
+import { initialAgentSessionModalState, type AgentSessionModalState } from "../ui/modals/types.js"
+import { usePasteHandler } from "../ui/usePasteHandler.js"
 import { briefing, contextMarkdown, overseerSession, writeContext } from "./overseer.js"
 import { LinearLinkContext } from "./ui/Markdown.js"
 import { devLog } from "../devLog.js"
@@ -83,7 +102,7 @@ const SIDEBAR_WIDTH = 26
 const OVERSEER_ROW = "overseer"
 
 /** "update" is one posted project update, the project workspace's leaf view. */
-type Mode = "list" | "detail" | "update" | "search" | "help" | "picker" | "comment"
+type Mode = "list" | "detail" | "update" | "search" | "help" | "picker" | "comment" | "agent-session"
 type Focus = "sidebar" | "list"
 /**
  * "group" picks a grouping attribute rather than editing the issue, "health" is
@@ -113,8 +132,6 @@ type Editable = Pick<Issue, "id" | "identifier" | "team">
 type Compose =
 	| { kind: "comment"; label: string; anchor: CommentAnchor; parentId: string | null }
 	| { kind: "project-update"; label: string; projectId: string; health: Health }
-	/** The optional first instructions for an agent session started on a ticket. */
-	| { kind: "session"; label: string; issue: SessionIssue; target: { machine: string; harness: string; dir: string } }
 	/** The optional first instructions for the overseer, after its briefing. */
 	| { kind: "overseer"; label: string; target: { machine: string; harness: string; dir: string } }
 
@@ -242,15 +259,21 @@ export function App({
 
 	const [picker, setPicker] = useState<PickerState | null>(null)
 	const [compose, setCompose] = useState<Compose | null>(null)
-	/** The ticket a session picker is open for, until the composer takes over. */
-	const sessionIssueRef = useRef<SessionIssue | null>(null)
-	/** Set instead of the ticket while the picker is choosing where the overseer runs. */
+	/** `n` on a ticket: the shared agent session modal (GitHub's `n` on a PR uses the same one). */
+	const [agentModal, setAgentModalState] = useState<{ issue: SessionIssue; state: AgentSessionModalState } | null>(null)
+	// Keys read the ref, which is set at once: a burst of typing lands before the next render.
+	const agentModalRef = useRef(agentModal)
+	const setAgentModal = useCallback((next: typeof agentModal) => {
+		agentModalRef.current = next
+		setAgentModalState(next)
+	}, [])
+	/** Set while the picker is choosing where the overseer runs. */
 	const overseerPickRef = useRef(false)
 	const sessionTargetRef = useRef<SessionTarget | null>(null)
 	const [selectedCommentId, setSelectedCommentId] = useState<string | null>(null)
 	const [editBusy, setEditBusy] = useState(false)
 	useEffect(() => {
-		onNavigationLockChange?.(mode === "comment" || mode === "search" || mode === "picker" || editBusy)
+		onNavigationLockChange?.(mode === "comment" || mode === "search" || mode === "picker" || mode === "agent-session" || editBusy)
 	}, [mode, editBusy, onNavigationLockChange])
 
 	/**
@@ -981,8 +1004,9 @@ export function App({
 	)
 
 	/**
-	 * `n` on a ticket: pick where the session runs, then write optional first
-	 * instructions. The ticket's id, title and link are always added.
+	 * `n` on a ticket: pick where the session runs, then either send optional
+	 * first instructions in the background (enter) or open it with them typed in,
+	 * unsent (ctrl+o). The ticket's id, title and link are always added.
 	 */
 	const startAgentSession = useCallback(
 		(issue: SessionIssue | null | undefined) => {
@@ -992,26 +1016,55 @@ export function App({
 				notify(faplex.error ?? "waiting for faplex…")
 				return
 			}
-			const targets = sessionTargets(snapshot, sessionsFor(issue))
+			const targets = ticketSessionTargets(snapshot, sessionsFor(issue))
 			if (!targets.length) {
 				notify("faplex has no harness running on any machine")
 				return
 			}
 			returnModeRef.current = modeRef.current === "detail" ? "detail" : "list"
-			sessionIssueRef.current = issue
-			setPicker({
-				kind: "session",
-				title: `New agent session · ${issue.identifier}`,
-				options: targets.map((t) => ({
-					name: `${t.harness} · ${snapshot.machines.find((m) => m.id === t.machine)?.short ?? t.machine}`,
-					description: t.note,
-					value: t,
-				})),
-			})
-			setMode("picker")
+			setAgentModal({ issue, state: { ...initialAgentSessionModalState, targets } })
+			setMode("agent-session")
 		},
-		[faplex, sessionsFor, notify, setMode],
+		[faplex, sessionsFor, notify, setMode, setAgentModal],
 	)
+
+	const finishAgentModal = useCallback(
+		(action: "start" | "open" | "cancel") => {
+			const current = agentModalRef.current
+			setAgentModal(null)
+			setMode(returnModeRef.current)
+			const target = current?.state.targets[current.state.selectedIndex]
+			if (action === "cancel" || !current || !target) return
+			const { issue, state } = current
+			rememberPick(LINEAR_PICK, target)
+			// Expanded, the session shows up under the ticket once it runs.
+			const next = new Set(expandedIssuesRef.current).add(issue.id)
+			expandedIssuesRef.current = next
+			setExpandedIssues(next)
+			const where = { machine: target.machine, harness: target.harness, dir: target.dir, tags: [issue.identifier] }
+			if (action === "open") {
+				const typed = [state.body.trim(), `${issue.identifier} ${issue.url}`].filter(Boolean).join(" ") + " "
+				startAndOpenSession({ ...where, typed }).catch((e: unknown) => notify(e instanceof Error ? e.message : String(e)))
+				return
+			}
+			const prompt = [state.body.trim(), `Linear ticket ${issue.identifier}: ${issue.title}\n${issue.url}`].filter(Boolean).join("\n\n")
+			startSession({ ...where, prompt }).then(
+				() => notify(`started ${target.harness} session on ${issue.identifier}`),
+				(e: unknown) => notify(e instanceof Error ? e.message : String(e)),
+			)
+		},
+		[notify, setMode, setAgentModal],
+	)
+	usePasteHandler({
+		renderer,
+		onPaste: (text) => {
+			if (!active || modeRef.current !== "agent-session" || !agentModalRef.current) return false
+			const current = agentModalRef.current
+			const value = insertText(current.state, text.replace(/\r\n?/g, "\n"))
+			setAgentModal({ ...current, state: { ...current.state, ...value, focus: "body" } })
+			return true
+		},
+	})
 
 	/** `A`: open the overseer, or pick where a new one runs like `n` does for a ticket. */
 	const openOverseer = useCallback(() => {
@@ -1030,7 +1083,6 @@ export function App({
 			return
 		}
 		returnModeRef.current = "list"
-		sessionIssueRef.current = null
 		overseerPickRef.current = true
 		setPicker({
 			kind: "session",
@@ -1146,10 +1198,9 @@ export function App({
 
 			// Harness first, then the directory when there is more than one to choose from.
 			if (picker.kind === "session" || picker.kind === "session-dir") {
-				const issue = sessionIssueRef.current
 				const overseerPick = overseerPickRef.current
 				const target = picker.kind === "session" ? (option.value as SessionTarget) : sessionTargetRef.current
-				if ((!issue && !overseerPick) || !target) {
+				if (!overseerPick || !target) {
 					setPicker(null)
 					setMode(returnModeRef.current)
 					return
@@ -1158,7 +1209,7 @@ export function App({
 					sessionTargetRef.current = target
 					setPicker({
 						kind: "session-dir",
-						title: `${target.harness} ${overseerPick ? "overseer" : `session on ${issue!.identifier}`} · start in`,
+						title: `${target.harness} overseer · start in`,
 						options: target.dirs.map((dir) => ({ name: dir, description: "", value: dir })),
 					})
 					return
@@ -1167,7 +1218,7 @@ export function App({
 				const dir = picker.kind === "session" ? (target.dirs[0] ?? "~") : (option.value as string)
 				const where = { machine: target.machine, harness: target.harness, dir }
 				overseerPickRef.current = false
-				setCompose(overseerPick ? { kind: "overseer", label: "overseer", target: where } : { kind: "session", label: issue!.identifier, issue: issue!, target: where })
+				setCompose({ kind: "overseer", label: "overseer", target: where })
 				setMode("comment")
 				return
 			}
@@ -1268,21 +1319,6 @@ export function App({
 				setMode(returnModeRef.current)
 				startSession({ ...target, prompt: briefing(body), tags: [OVERSEER_TAG, "keep"] }).then(
 					() => notify(`started the overseer (${target.harness})`),
-					(e: unknown) => notify(e instanceof Error ? e.message : String(e)),
-				)
-				return
-			}
-			if (compose.kind === "session") {
-				const { issue, target } = compose
-				setCompose(null)
-				setMode(returnModeRef.current)
-				// Back on this page right away; expanded, the session shows up under the ticket once it runs.
-				const next = new Set(expandedIssuesRef.current).add(issue.id)
-				expandedIssuesRef.current = next
-				setExpandedIssues(next)
-				const prompt = [body.trim(), `Linear ticket ${issue.identifier}: ${issue.title}\n${issue.url}`].filter(Boolean).join("\n\n")
-				startSession({ ...target, prompt, tags: [issue.identifier] }).then(
-					() => notify(`started ${target.harness} session on ${issue.identifier}`),
 					(e: unknown) => notify(e instanceof Error ? e.message : String(e)),
 				)
 				return
@@ -1652,6 +1688,14 @@ export function App({
 		}
 		if (modeRef.current === "comment") {
 			if (is(key, "escape")) setMode(returnModeRef.current)
+			return
+		}
+		if (modeRef.current === "agent-session") {
+			const current = agentModalRef.current
+			if (!current) return
+			const { state, action } = agentSessionKey(current.state, key)
+			if (action) finishAgentModal(action)
+			else setAgentModal({ ...current, state })
 			return
 		}
 		if (modeRef.current === "picker") {
@@ -2094,6 +2138,17 @@ export function App({
 		<LinearLinkContext.Provider value={openLink}>
 			<PullRequestStatusContext.Provider value={prStatusFor}>
 				<box flexDirection="column" width={width} height={height}>
+					{mode === "agent-session" && agentModal ? (
+						<AgentSessionModal
+							state={agentModal.state}
+							title={`New agent session · ${agentModal.issue.identifier}`}
+							loadingIndicator=""
+							modalWidth={Math.min(96, Math.max(40, width - 4))}
+							modalHeight={Math.min(22, Math.max(12, height - 2))}
+							offsetLeft={Math.max(0, Math.floor((width - Math.min(96, Math.max(40, width - 4))) / 2))}
+							offsetTop={Math.max(0, Math.floor((height - Math.min(22, Math.max(12, height - 2))) / 2))}
+						/>
+					) : null}
 					{mode === "help" ? (
 						<HelpOverlay />
 					) : mode === "picker" && picker ? (
@@ -2103,24 +2158,20 @@ export function App({
 							title={
 								compose.kind === "project-update"
 									? `update on ${compose.label} · ${healthLabel(compose.health)}`
-									: compose.kind === "session"
-										? `${compose.target.harness} session on ${compose.label} · ${compose.target.dir}`
-										: compose.kind === "overseer"
-											? `${compose.target.harness} overseer · ${compose.target.dir}`
-											: `comment on ${compose.label}`
+									: compose.kind === "overseer"
+										? `${compose.target.harness} overseer · ${compose.target.dir}`
+										: `comment on ${compose.label}`
 							}
 							placeholder={
 								compose.kind === "project-update"
 									? "What happened this week? Markdown is fine."
-									: compose.kind === "session"
-										? "Instructions for the agent, optional; Enter starts it. The ticket's id, title and link are added."
-										: compose.kind === "overseer"
-											? "Instructions for the overseer, optional; Enter starts it. It is told how to read the tickets and reach the sessions."
-											: "Markdown is fine. Enter makes a new line."
+									: compose.kind === "overseer"
+										? "Instructions for the overseer, optional; Enter starts it. It is told how to read the tickets and reach the sessions."
+										: "Markdown is fine. Enter makes a new line."
 							}
 							onSubmit={submitCompose}
 							busy={editBusy}
-							enterSends={compose.kind === "session" || compose.kind === "overseer"}
+							enterSends={compose.kind === "overseer"}
 						/>
 					) : mode === "update" ? (
 						<UpdateDetail

@@ -9,8 +9,6 @@ import { selectedPullRequestAtom } from "../ui/pullRequests/atoms.js"
 import { noPullRequestReasonAtom, selectedPullRequestLabelAtom } from "./derivations.js"
 import { defineCommand, type CommandDefinition } from "./registry.js"
 
-const DEFAULT_INSTRUCTIONS = "Review this pull request."
-
 const noSessionReasonAtom = Atom.make((get): string | null => {
 	const reason = get(noPullRequestReasonAtom)
 	if (reason !== null) return reason
@@ -43,8 +41,8 @@ export const agentSessionCommands: readonly CommandDefinition[] = [
 					targets,
 					focus: "action",
 					selectedIndex: 0,
-					body: DEFAULT_INSTRUCTIONS,
-					cursor: DEFAULT_INSTRUCTIONS.length,
+					body: "",
+					cursor: 0,
 					running: false,
 					error: null,
 				}),

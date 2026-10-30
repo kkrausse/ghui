@@ -4,7 +4,7 @@ import * as AsyncResult from "effect/unstable/reactivity/AsyncResult"
 import { useContext, useEffect, useRef, useState } from "react"
 import type { AppCommand } from "../commands.js"
 import { errorMessage } from "../errors.js"
-import { pullRequestTag, startAndOpenSession, startSession } from "../faplex.js"
+import { pullRequestTag, rememberPick, startAndOpenSession, startSession } from "../faplex.js"
 import type { CommentEditorValue } from "../ui/commentEditor.js"
 import { parseRepositoryInput } from "../pullRequestViews.js"
 
@@ -1007,6 +1007,7 @@ export const useAppShell = ({ systemThemeGeneration, linearNavigationLocked = fa
 		const target = targets[targetIndex]
 		if (!pr || !target) return
 		closeActiveModal()
+		rememberPick(pr.repository, target)
 		const prompt = [body.trim(), `GitHub pull request ${pr.repository}#${pr.number}: ${pr.title}\n${pr.url}`].filter(Boolean).join("\n\n")
 		startSession({ machine: target.machine, harness: target.harness, dir: target.dir, prompt, tags: [pullRequestTag(pr)] }).then(
 			() => flashNotice(`started ${target.harness} session on ${pr.repository}#${pr.number}`),
@@ -1019,6 +1020,7 @@ export const useAppShell = ({ systemThemeGeneration, linearNavigationLocked = fa
 		const target = targets[targetIndex]
 		if (!pr || !target) return
 		closeActiveModal()
+		rememberPick(pr.repository, target)
 		const typed = [body.trim(), `${pr.repository}#${pr.number} ${pr.url}`].filter(Boolean).join(" ") + " "
 		startAndOpenSession({ machine: target.machine, harness: target.harness, dir: target.dir, tags: [pullRequestTag(pr)], typed }).catch((error: unknown) =>
 			flashNotice(errorMessage(error)),
