@@ -17,6 +17,7 @@ import { mergeModalKeymap, type MergeModalCtx } from "./mergeModal.ts"
 import { openRepositoryModalKeymap, type OpenRepositoryModalCtx } from "./openRepositoryModal.ts"
 import { pullRequestStateModalKeymap, type PullRequestStateModalCtx } from "./pullRequestStateModal.ts"
 import { runsViewKeymap, type RunsViewCtx } from "./runsView.ts"
+import { agentSessionModalKeymap, type AgentSessionModalCtx } from "./agentSessionModal.ts"
 import { submitReviewModalKeymap, type SubmitReviewModalCtx } from "./submitReviewModal.ts"
 import { themeModalKeymap, type ThemeModalCtx } from "./themeModal.ts"
 
@@ -58,6 +59,7 @@ export interface AppCtx {
 	readonly filterModal: FilterModalCtx
 	readonly submitReviewModal: SubmitReviewModalCtx
 	readonly agentSessionModal: SubmitReviewModalCtx
+	readonly agentSessionStart: AgentSessionModalCtx
 	readonly labelModal: LabelModalCtx
 	readonly themeModal: ThemeModalCtx
 	readonly openRepositoryModal: OpenRepositoryModalCtx
@@ -134,6 +136,7 @@ export const appKeymap = App(
 	filterModalKeymap.scope((a) => a.filterModalActive && a.filterModal),
 	submitReviewModalKeymap.scope((a) => a.submitReviewModalActive && a.submitReviewModal),
 	submitReviewModalKeymap.scope((a) => a.agentSessionModalActive && a.agentSessionModal),
+	agentSessionModalKeymap.scope((a) => a.agentSessionModalActive && a.agentSessionStart),
 	labelModalKeymap.scope((a) => a.labelModalActive && a.labelModal),
 	themeModalKeymap.scope((a) => a.themeModalActive && a.themeModal),
 	openRepositoryModalKeymap.scope((a) => a.openRepositoryModalActive && a.openRepositoryModal),

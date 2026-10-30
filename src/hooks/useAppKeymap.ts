@@ -77,6 +77,7 @@ export interface UseAppKeymapInput {
 	readonly moveSubmitReviewActionSelection: (delta: -1 | 1) => void
 	readonly setAgentSessionModal: (next: AgentSessionModalState | ((prev: AgentSessionModalState) => AgentSessionModalState)) => void
 	readonly confirmAgentSession: () => void
+	readonly startAndOpenAgentSession: () => void
 	readonly editAgentSession: (transform: (value: CommentEditorValue) => CommentEditorValue) => void
 	readonly moveAgentSessionTarget: (delta: -1 | 1) => void
 	readonly pullRequestSessionSelected: boolean
@@ -264,6 +265,7 @@ export const useAppKeymap = (i: UseAppKeymapInput): void => {
 				editSubmitReview: i.editAgentSession,
 				moveSubmitReviewActionSelection: i.moveAgentSessionTarget,
 			},
+			agentSessionStart: { startAndOpen: i.startAndOpenAgentSession },
 			labelModal: { closeActiveModal: i.closeActiveModal, toggleLabelAtIndex: i.toggleLabelAtIndex, moveLabelSelection: i.moveLabelSelection },
 			themeModal: {
 				themeModal: i.themeModal,

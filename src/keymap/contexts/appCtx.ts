@@ -13,6 +13,7 @@ import type { MarkdownPreviewCtx } from "../markdownPreview.ts"
 import { buildMergeModalCtx, type BuildMergeModalCtxInput } from "./mergeModalCtx.ts"
 import { buildPullRequestStateModalCtx, type BuildPullRequestStateModalCtxInput } from "./pullRequestStateModalCtx.ts"
 import { buildSubmitReviewModalCtx, type BuildSubmitReviewModalCtxInput } from "./submitReviewModalCtx.ts"
+import type { AgentSessionModalCtx } from "../agentSessionModal.ts"
 import type { AgentSessionModalState } from "../../ui/modals/types.ts"
 import { buildThemeModalCtx, type BuildThemeModalCtxInput } from "./themeModalCtx.ts"
 
@@ -84,6 +85,7 @@ export interface BuildAppCtxInput {
 	readonly filterModal: BuildFilterModalCtxInput
 	readonly submitReviewModal: BuildSubmitReviewModalCtxInput
 	readonly agentSessionModal: BuildSubmitReviewModalCtxInput<AgentSessionModalState>
+	readonly agentSessionStart: AgentSessionModalCtx
 	readonly labelModal: BuildLabelModalCtxInput
 	readonly themeModal: BuildThemeModalCtxInput
 	readonly openRepositoryModal: BuildOpenRepositoryModalCtxInput
@@ -115,6 +117,7 @@ export const buildAppCtx = (input: BuildAppCtxInput): AppCtx => ({
 	},
 	submitReviewModal: buildSubmitReviewModalCtx(input.submitReviewModal),
 	agentSessionModal: buildSubmitReviewModalCtx(input.agentSessionModal),
+	agentSessionStart: input.agentSessionStart,
 	labelModal: {
 		closeModal: input.labelModal.closeActiveModal,
 		toggleSelected: input.labelModal.toggleLabelAtIndex,

@@ -125,11 +125,13 @@ export const AgentSessionModal = ({
 								? [
 										{ key: "shift-enter", label: "newline" },
 										{ key: "enter", label: "start" },
+										{ key: "ctrl-o", label: "open" },
 										{ key: "esc", label: "where" },
 									]
 								: [
 										{ key: "↑↓", label: "where" },
 										{ key: "enter", label: "instructions" },
+										{ key: "ctrl-o", label: "open" },
 										{ key: "esc", label: "cancel" },
 									]
 						}

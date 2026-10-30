@@ -242,7 +242,7 @@ const handOver = (args: string[]) => withTuiSuspended(() => runFaplex(args))
  * Relays the terminal to the watch's client for `key` until the watch ends the
  * connection (the session was left). False when the socket can't be reached.
  */
-const relay = (socket: string, key: string) =>
+const relay = (socket: string, key: string, typed = "") =>
 	new Promise<boolean>((resolve) => {
 		const conn = createConnection(socket)
 		const keys = (data: Uint8Array) => conn.write(data)
@@ -254,7 +254,15 @@ const relay = (socket: string, key: string) =>
 			process.stdin.on("data", keys)
 			process.stdin.resume()
 		})
-		conn.on("data", (data: Uint8Array) => process.stdout.write(data))
+		// Typed once the session has painted, so it lands in its input box.
+		let pending = typed
+		conn.on("data", (data: Uint8Array) => {
+			process.stdout.write(data)
+			if (!pending) return
+			const text = pending
+			pending = ""
+			setTimeout(() => conn.write(text), 300)
+		})
 		conn.on("error", () => {})
 		conn.on("close", () => {
 			process.stdin.off("data", keys)
@@ -281,6 +289,43 @@ export const warmSession = (key: string) => {
 
 /** `faplex new --background` exits with this when the folder's trust prompt has to be answered on screen. */
 const NEEDS_TRUST = 3
+
+/** Resolves once the watch lists `key`, or after `ms`. */
+const listed = (key: string, ms = 10_000) =>
+	new Promise<void>((resolve) => {
+		const check = () => {
+			if (!state.snapshot?.sessions.some((s) => s.key === key)) return
+			listeners.delete(check)
+			clearTimeout(timer)
+			resolve()
+		}
+		const timer = setTimeout(() => {
+			listeners.delete(check)
+			resolve()
+		}, ms)
+		listeners.add(check)
+		check()
+	})
+
+/**
+ * Starts a session without a prompt and hands the terminal to it with `typed`
+ * in its input box, unsent. A folder whose trust prompt needs answering opens
+ * on screen without it.
+ */
+export const startAndOpenSession = async (input: { machine: string; harness: string; dir: string; tags: string[]; typed: string }) => {
+	const args = ["new", "--machine", input.machine, "--harness", input.harness, "--dir", input.dir, ...input.tags.flatMap((t) => ["--tag", t])]
+	const proc = Bun.spawn(["faplex", ...args, "--background"], { stdin: "ignore", stdout: "pipe", stderr: "pipe" })
+	const [code, stdout, stderr] = await Promise.all([proc.exited, new Response(proc.stdout).text(), new Response(proc.stderr).text()])
+	if (code === NEEDS_TRUST) return handOver(args)
+	const key = stdout.trim().split("\n").pop()
+	if (code !== 0 || !key) throw new Error(stderr.trim().replace(/^faplex: /, "") || `faplex new exited ${code}`)
+	await listed(key)
+	await withTuiSuspended(async () => {
+		const socket = state.snapshot?.socket
+		if (socket && (await relay(socket, key, input.typed))) return
+		await runFaplex(["open", key])
+	})
+}
 
 /**
  * Starts the session without leaving the current page and resolves once it is

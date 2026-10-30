@@ -4,7 +4,7 @@ import * as AsyncResult from "effect/unstable/reactivity/AsyncResult"
 import { useContext, useEffect, useRef, useState } from "react"
 import type { AppCommand } from "../commands.js"
 import { errorMessage } from "../errors.js"
-import { pullRequestTag, startSession } from "../faplex.js"
+import { pullRequestTag, startAndOpenSession, startSession } from "../faplex.js"
 import type { CommentEditorValue } from "../ui/commentEditor.js"
 import { parseRepositoryInput } from "../pullRequestViews.js"
 
@@ -1013,6 +1013,17 @@ export const useAppShell = ({ systemThemeGeneration, linearNavigationLocked = fa
 			(error: unknown) => flashNotice(errorMessage(error)),
 		)
 	}
+	// The other way in: open the session at once, the instructions and PR reference typed into it but not sent.
+	const startAndOpenAgentSession = () => {
+		const { pullRequest: pr, targets, selectedIndex: targetIndex, body } = agentSessionModal
+		const target = targets[targetIndex]
+		if (!pr || !target) return
+		closeActiveModal()
+		const typed = [body.trim(), `${pr.repository}#${pr.number} ${pr.url}`].filter(Boolean).join(" ") + " "
+		startAndOpenSession({ machine: target.machine, harness: target.harness, dir: target.dir, tags: [pullRequestTag(pr)], typed }).catch((error: unknown) =>
+			flashNotice(errorMessage(error)),
+		)
+	}
 	const handleQuitOrClose = () => {
 		if (themeModalActive) {
 			closeThemeModal(false)
@@ -1106,6 +1117,7 @@ export const useAppShell = ({ systemThemeGeneration, linearNavigationLocked = fa
 		moveSubmitReviewActionSelection,
 		setAgentSessionModal,
 		confirmAgentSession,
+		startAndOpenAgentSession,
 		editAgentSession,
 		moveAgentSessionTarget,
 		pullRequestSessionSelected: activeWorkspaceSurface === "pullRequests" && selectedPullRequestSession !== null,
