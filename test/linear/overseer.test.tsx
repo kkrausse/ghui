@@ -7,7 +7,7 @@
  */
 import { testRender } from "@opentui/react/test-utils"
 import { expect, test } from "bun:test"
-import { indexSessions, type FaplexSession, type FaplexSnapshot } from "../../src/linearWorkspace/faplex.ts"
+import { indexSessions, type FaplexSession, type FaplexSnapshot } from "../../src/faplex.ts"
 import { briefing, CONTEXT_PATH, contextMarkdown, overseerSession } from "../../src/linearWorkspace/overseer.ts"
 import { OverseerPanel } from "../../src/linearWorkspace/ui/IssueList.tsx"
 

@@ -38,6 +38,7 @@ export interface ModalLayouts {
 	readonly CommentThread: ModalRect
 	readonly Filter: ModalRect
 	readonly SubmitReview: ModalRect
+	readonly AgentSession: ModalRect
 	readonly Merge: ModalRect
 	readonly Theme: ModalRect
 	readonly OpenRepository: ModalRect
@@ -72,6 +73,7 @@ export const computeModalLayouts = ({ contentWidth, terminalHeight, longestLabel
 		CommentThread: sized(50, 86, 8, 22),
 		Filter: sized(58, 76, 10, 12),
 		SubmitReview: sized(54, 84, 8, 18),
+		AgentSession: sized(60, 96, 8, 22),
 		Merge: sized(46, 68, 14, 20),
 		Theme: sized(38, 58, 12, 16),
 		OpenRepository: sized(46, 76, 8, 8),

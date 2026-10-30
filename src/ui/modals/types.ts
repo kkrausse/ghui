@@ -121,6 +121,27 @@ export interface SubmitReviewModalState {
 	readonly error: string | null
 }
 
+/** Where a new agent session can run: one machine × harness × start directory. */
+export interface AgentSessionTarget {
+	readonly machine: string
+	/** faplex's short name for the machine. */
+	readonly host: string
+	readonly harness: string
+	readonly dir: string
+	readonly note: string
+}
+
+export interface AgentSessionModalState {
+	readonly pullRequest: { readonly repository: string; readonly number: number; readonly title: string; readonly url: string } | null
+	readonly targets: readonly AgentSessionTarget[]
+	readonly focus: "action" | "body"
+	readonly selectedIndex: number
+	readonly body: string
+	readonly cursor: number
+	readonly running: boolean
+	readonly error: string | null
+}
+
 export interface ThemeModalState {
 	readonly query: string
 	readonly filterMode: boolean
@@ -227,6 +248,17 @@ export const initialSubmitReviewModalState: SubmitReviewModalState = {
 	error: null,
 }
 
+export const initialAgentSessionModalState: AgentSessionModalState = {
+	pullRequest: null,
+	targets: [],
+	focus: "action",
+	selectedIndex: 0,
+	body: "",
+	cursor: 0,
+	running: false,
+	error: null,
+}
+
 export const initialThemeModalState: ThemeModalState = {
 	query: "",
 	filterMode: false,
@@ -260,6 +292,7 @@ export type Modal = Data.TaggedEnum<{
 	ChangedFiles: ChangedFilesModalState
 	Filter: FilterModalState
 	SubmitReview: SubmitReviewModalState
+	AgentSession: AgentSessionModalState
 	Theme: ThemeModalState
 	CommandPalette: CommandPaletteState
 	OpenRepository: OpenRepositoryModalState
@@ -282,6 +315,7 @@ export const modalInitialStates = {
 	ChangedFiles: initialChangedFilesModalState,
 	Filter: initialFilterModalState,
 	SubmitReview: initialSubmitReviewModalState,
+	AgentSession: initialAgentSessionModalState,
 	Theme: initialThemeModalState,
 	CommandPalette: initialCommandPaletteState,
 	OpenRepository: initialOpenRepositoryModalState,

@@ -1,5 +1,5 @@
 import { githubPullRequestRoute } from "../githubPullRequestRoute.js"
-import { noSessions, type FaplexSession, type SessionsFor } from "./faplex.js"
+import { noSessions, type FaplexSession, type SessionsFor } from "../faplex.js"
 import { gitLinks, type GitLink } from "./git.js"
 import type { Issue } from "./linear/schema.js"
 import { groupIssues, type GroupBy } from "./views.js"

@@ -10,6 +10,7 @@ export interface BuildListNavCtxInput {
 	readonly surfaces: readonly WorkspaceTab[]
 	readonly canGoUpWorkspace: boolean
 	readonly canScrollDetailPreview: boolean
+	readonly sessionSelected: boolean
 	readonly runCommandById: (id: string) => void
 	readonly openSelection: () => void
 	readonly openRepositoryPicker: () => void
@@ -38,6 +39,7 @@ export const buildListNavCtx = (input: BuildListNavCtxInput): ListNavCtx => ({
 	hasFilter: input.hasFilter,
 	activeSurface: input.activeSurface,
 	surfaces: input.surfaces,
+	sessionSelected: input.sessionSelected,
 	canGoUpWorkspace: input.canGoUpWorkspace,
 	canScrollDetailPreview: input.canScrollDetailPreview,
 	runCommandById: input.runCommandById,

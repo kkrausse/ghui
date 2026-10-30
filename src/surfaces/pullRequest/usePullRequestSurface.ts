@@ -42,6 +42,8 @@ import { AUTO_REFRESH_JITTER_MS, FOCUS_RETURN_REFRESH_MIN_MS, FOCUSED_IDLE_REFRE
 import { selectedRepositoryAtom } from "../../workspace/atoms.js"
 import type { WorkspaceSurface } from "../../workspaceSurfaces.js"
 import { linearPullRequestAtom } from "../../ui/pullRequests/linkedSelection.js"
+import { selectedPullRequestSessionAtom } from "../../ui/listSelection/atoms.js"
+import { indexPullRequestSessions, useFaplex, type FaplexSession, type PullRequestSessionsFor } from "../../faplex.js"
 
 type SetState<T> = (next: T | ((prev: T) => T)) => void
 
@@ -100,6 +102,10 @@ export interface PullRequestSurfaceShell {
 	readonly compactPullRequestRows: boolean
 	readonly pullRequestListRows: readonly PullRequestListRow[]
 	readonly selectedPullRequestRowIndex: number | null
+	// faplex agent sessions listed under their PRs
+	readonly pullRequestSessionsFor: PullRequestSessionsFor
+	readonly selectedPullRequestSession: FaplexSession | null
+	readonly setSelectedPullRequestSession: (next: { readonly url: string; readonly key: string } | null) => void
 	// Atom setters re-exposed for App-shell-level consumers (modals, mutations,
 	// workspace navigation). Will dissolve once those consumers read atoms
 	// directly via the command registry (step 5).
@@ -117,6 +123,7 @@ export interface PullRequestSurfaceShell {
 	readonly resetHydration: () => void
 	// Selection helper used by link navigation + comment view jump
 	readonly selectPullRequestByUrl: (url: string) => void
+	readonly selectPullRequestSession: (url: string, key: string) => void
 }
 
 // PR Surface shell — step 4a. Owns the PR data layer:
@@ -203,6 +210,13 @@ export const usePullRequestSurface = (input: UsePullRequestSurfaceInput): PullRe
 	const loadMoreRowSelected = useAtomValue(loadMoreRowSelectedAtom)
 	const loadMoreSlotAvailable = useAtomValue(pullRequestLoadMoreSlotAvailableAtom)
 	const groupStarts = useAtomValue(groupStartsAtom)
+	const faplex = useFaplex()
+	const pullRequestSessionsFor = useMemo(() => indexPullRequestSessions(faplex.snapshot), [faplex.snapshot])
+	const [sessionSelection, setSelectedPullRequestSession] = useAtom(selectedPullRequestSessionAtom)
+	const selectedPullRequestSession =
+		selectedPullRequest && sessionSelection?.url === selectedPullRequest.url
+			? (pullRequestSessionsFor(selectedPullRequest).find((session) => session.key === sessionSelection.key) ?? null)
+			: null
 	const selectedUrlRef = useRef<{ readonly cacheKey: string; readonly url: string } | null>(null)
 	const previousSelectionStateRef = useRef({ cacheKey: currentQueueCacheKey, visiblePullRequests, filterActive })
 
@@ -249,6 +263,7 @@ export const usePullRequestSurface = (input: UsePullRequestSurfaceInput): PullRe
 				hasMore: loadMoreSlotAvailable,
 				isLoadingMore: isLoadingMorePullRequests,
 				compact: compactPullRequestRows,
+				sessionsFor: pullRequestSessionsFor,
 			}),
 		[
 			visibleGroups,
@@ -260,9 +275,10 @@ export const usePullRequestSurface = (input: UsePullRequestSurfaceInput): PullRe
 			loadMoreSlotAvailable,
 			isLoadingMorePullRequests,
 			compactPullRequestRows,
+			pullRequestSessionsFor,
 		],
 	)
-	const selectedPullRequestRowIndex = pullRequestListRowIndex(pullRequestListRows, selectedPullRequest?.url ?? null, loadMoreRowSelected)
+	const selectedPullRequestRowIndex = pullRequestListRowIndex(pullRequestListRows, selectedPullRequest?.url ?? null, loadMoreRowSelected, selectedPullRequestSession?.key ?? null)
 
 	const { detailHydrationState, resetHydration } = useDetailHydration({
 		selectedPullRequest,
@@ -330,9 +346,14 @@ export const usePullRequestSurface = (input: UsePullRequestSurfaceInput): PullRe
 		const index = visiblePullRequests.findIndex((pullRequest) => pullRequest.url === url)
 		if (index >= 0) {
 			setLinearPullRequest(null)
+			setSelectedPullRequestSession(null)
 			setSelectedIndex(index)
 			setQueueSelection((current) => ({ ...current, [currentQueueCacheKey]: index }))
 		}
+	}
+	const selectPullRequestSession = (url: string, key: string) => {
+		selectPullRequestByUrl(url)
+		setSelectedPullRequestSession({ url, key })
 	}
 
 	// `isFullscreen` is provisionally `false` for the PR Surface here — the
@@ -369,6 +390,9 @@ export const usePullRequestSurface = (input: UsePullRequestSurfaceInput): PullRe
 		compactPullRequestRows,
 		pullRequestListRows,
 		selectedPullRequestRowIndex,
+		pullRequestSessionsFor,
+		selectedPullRequestSession,
+		setSelectedPullRequestSession,
 		setPullRequestOverrides,
 		setRecentlyCompletedPullRequests,
 		retryProgress,
@@ -381,5 +405,6 @@ export const usePullRequestSurface = (input: UsePullRequestSurfaceInput): PullRe
 		detailHydrationState,
 		resetHydration,
 		selectPullRequestByUrl,
+		selectPullRequestSession,
 	}
 }

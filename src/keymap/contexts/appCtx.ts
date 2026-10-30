@@ -13,6 +13,7 @@ import type { MarkdownPreviewCtx } from "../markdownPreview.ts"
 import { buildMergeModalCtx, type BuildMergeModalCtxInput } from "./mergeModalCtx.ts"
 import { buildPullRequestStateModalCtx, type BuildPullRequestStateModalCtxInput } from "./pullRequestStateModalCtx.ts"
 import { buildSubmitReviewModalCtx, type BuildSubmitReviewModalCtxInput } from "./submitReviewModalCtx.ts"
+import type { AgentSessionModalState } from "../../ui/modals/types.ts"
 import { buildThemeModalCtx, type BuildThemeModalCtxInput } from "./themeModalCtx.ts"
 
 // Five modal contexts are pure rename adapters from App's local handler names
@@ -57,6 +58,7 @@ export interface BuildAppCtxFlags {
 	readonly changedFilesModalActive: boolean
 	readonly filterModalActive: boolean
 	readonly submitReviewModalActive: boolean
+	readonly agentSessionModalActive: boolean
 	readonly labelModalActive: boolean
 	readonly themeModalActive: boolean
 	readonly openRepositoryModalActive: boolean
@@ -81,6 +83,7 @@ export interface BuildAppCtxInput {
 	readonly changedFilesModal: BuildChangedFilesModalCtxInput
 	readonly filterModal: BuildFilterModalCtxInput
 	readonly submitReviewModal: BuildSubmitReviewModalCtxInput
+	readonly agentSessionModal: BuildSubmitReviewModalCtxInput<AgentSessionModalState>
 	readonly labelModal: BuildLabelModalCtxInput
 	readonly themeModal: BuildThemeModalCtxInput
 	readonly openRepositoryModal: BuildOpenRepositoryModalCtxInput
@@ -111,6 +114,7 @@ export const buildAppCtx = (input: BuildAppCtxInput): AppCtx => ({
 		moveSelection: input.filterModal.moveSelection,
 	},
 	submitReviewModal: buildSubmitReviewModalCtx(input.submitReviewModal),
+	agentSessionModal: buildSubmitReviewModalCtx(input.agentSessionModal),
 	labelModal: {
 		closeModal: input.labelModal.closeActiveModal,
 		toggleSelected: input.labelModal.toggleLabelAtIndex,

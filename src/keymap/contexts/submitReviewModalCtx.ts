@@ -18,23 +18,26 @@ import {
 import type { SubmitReviewModalState } from "../../ui/modals.ts"
 import type { SubmitReviewModalCtx } from "../submitReviewModal.ts"
 
-export interface BuildSubmitReviewModalCtxInput {
-	readonly submitReviewModal: SubmitReviewModalState
+/** Also drives the agent session modal, which has the same list-then-text shape. */
+type ListThenTextState = Pick<SubmitReviewModalState, "focus" | "error">
+
+export interface BuildSubmitReviewModalCtxInput<S extends ListThenTextState = SubmitReviewModalState> {
+	readonly submitReviewModal: S
 	readonly closeActiveModal: () => void
-	readonly setSubmitReviewModal: (next: SubmitReviewModalState | ((prev: SubmitReviewModalState) => SubmitReviewModalState)) => void
+	readonly setSubmitReviewModal: (next: S | ((prev: S) => S)) => void
 	readonly confirmSubmitReview: () => void
 	readonly editSubmitReview: (transform: (state: CommentEditorValue) => CommentEditorValue) => void
 	readonly moveSubmitReviewActionSelection: (delta: -1 | 1) => void
 }
 
-export const buildSubmitReviewModalCtx = ({
+export const buildSubmitReviewModalCtx = <S extends ListThenTextState>({
 	submitReviewModal,
 	closeActiveModal,
 	setSubmitReviewModal,
 	confirmSubmitReview,
 	editSubmitReview,
 	moveSubmitReviewActionSelection,
-}: BuildSubmitReviewModalCtxInput): SubmitReviewModalCtx => ({
+}: BuildSubmitReviewModalCtxInput<S>): SubmitReviewModalCtx => ({
 	summaryFocused: submitReviewModal.focus === "body",
 	handleEscape: () => {
 		if (submitReviewModal.focus === "body") setSubmitReviewModal((current) => ({ ...current, focus: "action" }))

@@ -31,6 +31,7 @@ export interface AppCtx {
 	readonly changedFilesModalActive: boolean
 	readonly filterModalActive: boolean
 	readonly submitReviewModalActive: boolean
+	readonly agentSessionModalActive: boolean
 	readonly labelModalActive: boolean
 	readonly themeModalActive: boolean
 	readonly openRepositoryModalActive: boolean
@@ -56,6 +57,7 @@ export interface AppCtx {
 	readonly changedFilesModal: ChangedFilesModalCtx
 	readonly filterModal: FilterModalCtx
 	readonly submitReviewModal: SubmitReviewModalCtx
+	readonly agentSessionModal: SubmitReviewModalCtx
 	readonly labelModal: LabelModalCtx
 	readonly themeModal: ThemeModalCtx
 	readonly openRepositoryModal: OpenRepositoryModalCtx
@@ -85,6 +87,7 @@ const modalActive = (a: AppCtx): boolean =>
 	a.changedFilesModalActive ||
 	a.filterModalActive ||
 	a.submitReviewModalActive ||
+	a.agentSessionModalActive ||
 	a.labelModalActive ||
 	a.themeModalActive ||
 	a.openRepositoryModalActive ||
@@ -130,6 +133,7 @@ export const appKeymap = App(
 	changedFilesModalKeymap.scope((a) => a.changedFilesModalActive && a.changedFilesModal),
 	filterModalKeymap.scope((a) => a.filterModalActive && a.filterModal),
 	submitReviewModalKeymap.scope((a) => a.submitReviewModalActive && a.submitReviewModal),
+	submitReviewModalKeymap.scope((a) => a.agentSessionModalActive && a.agentSessionModal),
 	labelModalKeymap.scope((a) => a.labelModalActive && a.labelModal),
 	themeModalKeymap.scope((a) => a.themeModalActive && a.themeModal),
 	openRepositoryModalKeymap.scope((a) => a.openRepositoryModalActive && a.openRepositoryModal),

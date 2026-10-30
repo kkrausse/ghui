@@ -175,6 +175,16 @@ scoped to the PR's head commit:
 
 Requires the GitHub CLI (`gh`) the same as the rest of ghui; nothing extra to configure.
 
+### Agent sessions
+
+[faplex](https://github.com/kkrausse/faplex) agent sessions are listed under
+the pull request they belong to: one tagged `owner/repo#123`, or one whose title
+or status line holds the PR's URL. `n` on a pull request picks a machine,
+harness and directory, then takes optional instructions (prefilled with a
+review request); the session starts in the background tagged with the PR.
+`j` / `k` step through the session rows, and `enter` or `→` on one opens it
+(`←` at its empty prompt or `ctrl+]` comes back). Needs `faplex` on `PATH`.
+
 ## Keybindings
 
 The home tabs are **Repos**, **My PRs**, **Review requested**, **Assigned PRs**,
@@ -198,6 +208,7 @@ are **Pull Requests** and **Issues**. Click a tab or use the shortcuts below.
 - `d`: view stacked diff for all changed files
 - `a`: view this PR's GitHub Actions runs (jobs, steps, and failing logs)
 - `shift-r`: review or approve the selected pull request
+- `n`: start a faplex agent session on the selected pull request
 - `up` / `down` / `pageup` / `pagedown`: move comment target while viewing a diff
 - `enter`: open a commented diff line, or start a comment on an uncommented line
 - `v`: start or clear a multi-line diff comment range

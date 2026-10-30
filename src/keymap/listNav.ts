@@ -11,6 +11,8 @@ export interface ListNavCtx {
 	readonly surfaces: readonly WorkspaceTab[]
 	readonly canGoUpWorkspace: boolean
 	readonly canScrollDetailPreview: boolean
+	/** The cursor is on an agent session row under a PR. */
+	readonly sessionSelected: boolean
 	readonly runCommandById: (id: string) => void
 	readonly openSelection: () => void
 	readonly openRepositoryPicker: () => void
@@ -84,9 +86,18 @@ export const listNavKeymap = List(
 	{ id: "list.copy", title: "Copy metadata", keys: ["y"], when: pullRequestsActive, run: (s) => s.runCommandById("pull.copy-metadata") },
 	{ id: "list.copy-url", title: "Copy pull request link", keys: ["shift+y"], when: pullRequestsActive, run: (s) => s.runCommandById("pull.copy-url") },
 	{ id: "list.issue-copy", title: "Copy metadata", keys: ["y"], when: issuesActive, run: (s) => s.runCommandById("issue.copy-metadata") },
-	{ id: "list.detail.open", title: "Open selected", keys: ["return"], enabled: itemSelected, run: (s) => s.openSelection() },
+	{ id: "list.agent-session", title: "Start an agent session", keys: ["n"], when: pullRequestsActive, run: (s) => s.runCommandById("agent.start-pull-request-session") },
+	{ id: "list.session.open", title: "Open agent session", keys: ["return", "right"], when: (s) => s.sessionSelected, run: (s) => s.runCommandById("agent.open-session") },
+	{ id: "list.detail.open", title: "Open selected", keys: ["return"], when: (s) => !s.sessionSelected, enabled: itemSelected, run: (s) => s.openSelection() },
 	{ id: "list.repository.right", title: "Open repository", keys: ["right"], when: reposActive, enabled: itemSelected, run: (s) => s.openSelection() },
-	{ id: "list.detail.right", title: "Open PR details", keys: ["right"], when: pullRequestsActive, enabled: itemSelected, run: (s) => s.runCommandById("detail.open") },
+	{
+		id: "list.detail.right",
+		title: "Open PR details",
+		keys: ["right"],
+		when: (s) => pullRequestsActive(s) && !s.sessionSelected,
+		enabled: itemSelected,
+		run: (s) => s.runCommandById("detail.open"),
+	},
 	{ id: "workspace.left", title: "Go to repositories", keys: ["left"], when: (s) => s.canGoUpWorkspace, run: (s) => s.goUpWorkspace() },
 
 	// Escape goes one level up: clear local filter first, otherwise leave repo scope.

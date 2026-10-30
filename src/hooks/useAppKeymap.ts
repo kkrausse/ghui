@@ -8,6 +8,7 @@ import type {
 	MergeModalState,
 	OpenRepositoryModalState,
 	SubmitReviewModalState,
+	AgentSessionModalState,
 	ThemeModalState,
 } from "../ui/modals/types.js"
 import { canEditComment } from "../ui/comments/useCommentMutations.js"
@@ -29,6 +30,7 @@ export interface UseAppKeymapInput {
 	readonly changedFilesModalActive: boolean
 	readonly filterModalActive: boolean
 	readonly submitReviewModalActive: boolean
+	readonly agentSessionModalActive: boolean
 	readonly labelModalActive: boolean
 	readonly themeModalActive: boolean
 	readonly openRepositoryModalActive: boolean
@@ -45,6 +47,7 @@ export interface UseAppKeymapInput {
 	// Modal state needed for derived flags
 	readonly themeModal: ThemeModalState
 	readonly submitReviewModal: SubmitReviewModalState
+	readonly agentSessionModal: AgentSessionModalState
 	readonly mergeModal: MergeModalState
 	readonly commandPaletteSelectedCommand: AppCommand | null
 
@@ -72,6 +75,11 @@ export interface UseAppKeymapInput {
 	readonly confirmSubmitReview: () => void
 	readonly editSubmitReview: (transform: (value: CommentEditorValue) => CommentEditorValue) => void
 	readonly moveSubmitReviewActionSelection: (delta: -1 | 1) => void
+	readonly setAgentSessionModal: (next: AgentSessionModalState | ((prev: AgentSessionModalState) => AgentSessionModalState)) => void
+	readonly confirmAgentSession: () => void
+	readonly editAgentSession: (transform: (value: CommentEditorValue) => CommentEditorValue) => void
+	readonly moveAgentSessionTarget: (delta: -1 | 1) => void
+	readonly pullRequestSessionSelected: boolean
 	readonly toggleLabelAtIndex: () => void
 	readonly moveLabelSelection: (delta: -1 | 1) => void
 	readonly closeThemeModal: (apply: boolean) => void
@@ -195,6 +203,7 @@ export const useAppKeymap = (i: UseAppKeymapInput): void => {
 				changedFilesModalActive: i.changedFilesModalActive,
 				filterModalActive: i.filterModalActive,
 				submitReviewModalActive: i.submitReviewModalActive,
+				agentSessionModalActive: i.agentSessionModalActive,
 				labelModalActive: i.labelModalActive,
 				themeModalActive: i.themeModalActive,
 				openRepositoryModalActive: i.openRepositoryModalActive,
@@ -213,6 +222,7 @@ export const useAppKeymap = (i: UseAppKeymapInput): void => {
 					i.openRepositoryModalActive ||
 					i.changedFilesModalActive ||
 					i.submitReviewModalActive ||
+					i.agentSessionModalActive ||
 					i.labelModalActive ||
 					i.filterMode ||
 					(i.themeModalActive && i.themeModal.filterMode),
@@ -245,6 +255,14 @@ export const useAppKeymap = (i: UseAppKeymapInput): void => {
 				confirmSubmitReview: i.confirmSubmitReview,
 				editSubmitReview: i.editSubmitReview,
 				moveSubmitReviewActionSelection: i.moveSubmitReviewActionSelection,
+			},
+			agentSessionModal: {
+				submitReviewModal: i.agentSessionModal,
+				closeActiveModal: i.closeActiveModal,
+				setSubmitReviewModal: i.setAgentSessionModal,
+				confirmSubmitReview: i.confirmAgentSession,
+				editSubmitReview: i.editAgentSession,
+				moveSubmitReviewActionSelection: i.moveAgentSessionTarget,
 			},
 			labelModal: { closeActiveModal: i.closeActiveModal, toggleLabelAtIndex: i.toggleLabelAtIndex, moveLabelSelection: i.moveLabelSelection },
 			themeModal: {
@@ -321,6 +339,7 @@ export const useAppKeymap = (i: UseAppKeymapInput): void => {
 				activeSurface: i.activeWorkspaceSurface,
 				surfaces: i.workspaceTabSurfaces,
 				canGoUpWorkspace: i.selectedRepository !== null,
+				sessionSelected: i.pullRequestSessionSelected,
 				canScrollDetailPreview:
 					(i.activeWorkspaceSurface === "pullRequests" && i.selectedPullRequest !== null) ||
 					(i.activeWorkspaceSurface === "issues" && i.selectedIssue !== null) ||
@@ -367,6 +386,7 @@ export const useAppKeymap = (i: UseAppKeymapInput): void => {
 			themeModalActive: i.themeModalActive,
 			commentModalActive: i.commentModalActive,
 			submitReviewModalActive: i.submitReviewModalActive,
+			agentSessionModalActive: i.agentSessionModalActive,
 			changedFilesModalActive: i.changedFilesModalActive,
 			labelModalActive: i.labelModalActive,
 			filterMode: i.filterMode,
@@ -375,6 +395,7 @@ export const useAppKeymap = (i: UseAppKeymapInput): void => {
 			commentsViewActive: i.commentsViewActive,
 			themeModal: i.themeModal,
 			submitReviewModal: i.submitReviewModal,
+			agentSessionModal: i.agentSessionModal,
 			workspaceTabSurfaces: i.workspaceTabSurfaces,
 			activeWorkspaceSurface: i.activeWorkspaceSurface,
 			switchWorkspaceSurface: i.switchWorkspaceSurface,
@@ -385,6 +406,7 @@ export const useAppKeymap = (i: UseAppKeymapInput): void => {
 			setFilterDraft: i.setFilterDraft,
 			editThemeQuery: i.editThemeQuery,
 			editSubmitReview: i.editSubmitReview,
+			editAgentSession: i.editAgentSession,
 		},
 	})
 }

@@ -1,7 +1,7 @@
 import { mkdirSync, renameSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { dirname, join } from "node:path"
-import { OVERSEER_TAG, type FaplexSession, type FaplexSnapshot, type SessionsFor } from "./faplex.js"
+import { OVERSEER_TAG, type FaplexSession, type FaplexSnapshot, type SessionsFor } from "../faplex.js"
 import { githubPullRequestRoute } from "../githubPullRequestRoute.js"
 import { issuePullRequests } from "./issueRows.js"
 import type { Issue } from "./linear/schema.js"

@@ -117,4 +117,26 @@ describe("buildPullRequestListRows", () => {
 		expect(pullRequestListRowIndex(rows, second.url)).toBe(3)
 		expect(pullRequestListVisualLineCount(rows)).toBe(4)
 	})
+
+	test("indents grouped PRs under their repository and lists their agent sessions", () => {
+		const first = pullRequest({ number: 1, url: "https://github.com/owner/repo/pull/1" })
+		const second = pullRequest({ number: 2, url: "https://github.com/owner/repo/pull/2" })
+		const session = (key: string) => ({ key, machine: "m", harness: "claude", title: key, cwd: "/", status: "done" as const, detail: "", updatedAt: 0, archived: false, tags: [] })
+		const rows = buildPullRequestListRows({
+			groups: [["owner/repo", [first, second]]],
+			status: "ready",
+			error: null,
+			filterText: "",
+			loadedCount: 2,
+			hasMore: false,
+			isLoadingMore: false,
+			sessionsFor: (pr) => (pr.number === 1 ? [session("a"), session("b")] : []),
+		})
+
+		expect(
+			rows.map((row) => (row._tag === "session" ? `session ${row.session.key}${row.last ? " last" : ""}` : row._tag === "pull-request" ? `pr ${row.indent}` : row._tag)),
+		).toEqual(["title", "group", "pr 2", "session a", "session b last", "pr 2"])
+		expect(pullRequestListRowIndex(rows, first.url, false, "b")).toBe(5)
+		expect(pullRequestListRowIndex(rows, second.url)).toBe(6)
+	})
 })

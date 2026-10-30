@@ -18,6 +18,7 @@ import {
 	SubmitReviewModal,
 	ThemeModal,
 } from "../ui/modals.js"
+import { AgentSessionModal } from "../ui/modals/AgentSessionModal.js"
 import { Modal, type ModalTag } from "../ui/modals/types.js"
 import { MarkdownFilePreview } from "../ui/diff/MarkdownFilePreview.js"
 
@@ -97,6 +98,7 @@ export const WorkspaceModals = (props: WorkspaceModalsProps) => {
 			),
 		Filter: (state) => <FilterModal state={state} {...layoutToProps(props.layouts.Filter)} />,
 		SubmitReview: (state) => <SubmitReviewModal state={state} {...layoutToProps(props.layouts.SubmitReview)} />,
+		AgentSession: (state) => <AgentSessionModal state={state} loadingIndicator={props.loadingIndicator} {...layoutToProps(props.layouts.AgentSession)} />,
 		Theme: (state) => <ThemeModal state={state} {...layoutToProps(props.layouts.Theme)} />,
 		OpenRepository: (state) => <OpenRepositoryModal state={state} {...layoutToProps(props.layouts.OpenRepository)} />,
 		CommandPalette: (state) => (

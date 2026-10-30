@@ -1,3 +1,4 @@
+import { agentSessionCommands } from "./agentSessions.js"
 import { globalCommands } from "./builtins.js"
 import { linearCommands } from "./linear.js"
 import * as Atom from "effect/unstable/reactivity/Atom"
@@ -8,7 +9,7 @@ import type { CommandDefinition } from "./registry.js"
 // remain available in Linear; GitHub commands must not operate on stale selections.
 
 const sharedCommand = (command: CommandDefinition) => command.id.startsWith("workspace.") || ["command.open", "theme.open", "app.quit"].includes(command.id)
-const surfaceCommands = globalCommands.map(
+const surfaceCommands = [...globalCommands, ...agentSessionCommands].map(
 	(command): CommandDefinition =>
 		sharedCommand(command)
 			? command

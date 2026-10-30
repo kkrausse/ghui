@@ -5,7 +5,7 @@ import type { Issue } from "../linear/schema.ts"
 import { color, gitStatusStyle, priorityStyle, relativeAge, stateColor, stateGlyph } from "../theme.ts"
 import { type GroupBy } from "../views.ts"
 import { buildIssueRows, hasChildren, type SelectableIssueRow } from "../issueRows.js"
-import { noSessions, useSpinner, type FaplexSession, type SessionsFor } from "../faplex.js"
+import { HARNESS_COLOR, HARNESS_SHORT, noSessions, sessionColor, SessionMarkText, type FaplexSession, type SessionsFor } from "../../faplex.js"
 import { gitSummary } from "../git.js"
 import { CHECK_STYLE, PullRequestStatusContext, REVIEW_STYLE } from "../pullRequestStatus.ts"
 import { clip, fit, windowFor } from "./layout.ts"
@@ -243,28 +243,13 @@ export function PullRequestRow({ row, active, onPick }: { row: Extract<Selectabl
 	)
 }
 
-// faplex's list, mark for mark and color for color (faplex/src/list.tsx, theme.ts).
-const SESSION_COLOR = { working: "#fde047", needs: "#f59e0b", failed: "#ef4444", other: "#a1a1aa" }
-const HARNESS_COLOR: Record<string, string> = { claude: "#d97757", codex: "#e4e4e7", opencode: "#a78bfa", "opencode-mini": "#a78bfa" }
-const HARNESS_SHORT: Record<string, string> = { claude: "clau", opencode: "oc", "opencode-mini": "ocm" }
-
-const sessionColor = (status: FaplexSession["status"]) => (status === "working" || status === "needs" || status === "failed" ? SESSION_COLOR[status] : SESSION_COLOR.other)
-
-/** faplex's gutter: a spinner while working, `!` needs input, `×` failed, `-` interrupted, blank otherwise. */
+/** faplex's gutter mark. */
 function SessionMark({ session }: { session: Pick<FaplexSession, "status" | "background"> }) {
-	const mark = session.status === "working" ? <Spinner /> : session.status === "needs" ? "!" : session.status === "failed" ? "×" : session.status === "interrupted" ? "-" : " "
-	const also = session.background?.kind === "agent" ? "⑂" : session.background?.kind === "shell" ? "$" : " "
 	return (
 		<text flexShrink={0} fg={sessionColor(session.status)}>
-			{mark}
-			{also}
+			<SessionMarkText session={session} />
 		</text>
 	)
-}
-
-/** Its own component, so the 80ms tick re-renders only working marks. */
-function Spinner() {
-	return <>{useSpinner()}</>
 }
 
 /**

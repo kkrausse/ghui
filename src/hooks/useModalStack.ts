@@ -14,6 +14,7 @@ import {
 	initialOpenRepositoryModalState,
 	initialPullRequestStateModalState,
 	initialSubmitReviewModalState,
+	initialAgentSessionModalState,
 	initialThemeModalState,
 	type ChangedFilesModalState,
 	type CloseModalState,
@@ -26,6 +27,7 @@ import {
 	type OpenRepositoryModalState,
 	type PullRequestStateModalState,
 	type SubmitReviewModalState,
+	type AgentSessionModalState,
 	type ThemeModalState,
 } from "../ui/modals/types.js"
 
@@ -42,6 +44,7 @@ export interface ModalStack {
 	readonly changedFilesModalActive: boolean
 	readonly filterModalActive: boolean
 	readonly submitReviewModalActive: boolean
+	readonly agentSessionModalActive: boolean
 	readonly themeModalActive: boolean
 	readonly commandPaletteActive: boolean
 	readonly openRepositoryModalActive: boolean
@@ -54,6 +57,7 @@ export interface ModalStack {
 	readonly changedFilesModal: ChangedFilesModalState
 	readonly filterModal: FilterModalState
 	readonly submitReviewModal: SubmitReviewModalState
+	readonly agentSessionModal: AgentSessionModalState
 	readonly themeModal: ThemeModalState
 	readonly commandPalette: CommandPaletteState
 	readonly openRepositoryModal: OpenRepositoryModalState
@@ -66,6 +70,7 @@ export interface ModalStack {
 	readonly setChangedFilesModal: ReturnType<typeof makeModalSetter<"ChangedFiles">>
 	readonly setFilterModal: ReturnType<typeof makeModalSetter<"Filter">>
 	readonly setSubmitReviewModal: ReturnType<typeof makeModalSetter<"SubmitReview">>
+	readonly setAgentSessionModal: ReturnType<typeof makeModalSetter<"AgentSession">>
 	readonly setThemeModal: ReturnType<typeof makeModalSetter<"Theme">>
 	readonly setCommandPalette: ReturnType<typeof makeModalSetter<"CommandPalette">>
 	readonly setOpenRepositoryModal: ReturnType<typeof makeModalSetter<"OpenRepository">>
@@ -105,6 +110,7 @@ export const useModalStack = (): ModalStack => {
 	const changedFilesModalActive = Modal.$is("ChangedFiles")(activeModal)
 	const filterModalActive = Modal.$is("Filter")(activeModal)
 	const submitReviewModalActive = Modal.$is("SubmitReview")(activeModal)
+	const agentSessionModalActive = Modal.$is("AgentSession")(activeModal)
 	const themeModalActive = Modal.$is("Theme")(activeModal)
 	const commandPaletteActive = Modal.$is("CommandPalette")(activeModal)
 	const openRepositoryModalActive = Modal.$is("OpenRepository")(activeModal)
@@ -121,6 +127,7 @@ export const useModalStack = (): ModalStack => {
 		changedFilesModalActive,
 		filterModalActive,
 		submitReviewModalActive,
+		agentSessionModalActive,
 		themeModalActive,
 		commandPaletteActive,
 		openRepositoryModalActive,
@@ -133,6 +140,7 @@ export const useModalStack = (): ModalStack => {
 		changedFilesModal: changedFilesModalActive ? activeModal : initialChangedFilesModalState,
 		filterModal: filterModalActive ? activeModal : initialFilterModalState,
 		submitReviewModal: submitReviewModalActive ? activeModal : initialSubmitReviewModalState,
+		agentSessionModal: agentSessionModalActive ? activeModal : initialAgentSessionModalState,
 		themeModal: themeModalActive ? activeModal : initialThemeModalState,
 		commandPalette: commandPaletteActive ? activeModal : initialCommandPaletteState,
 		openRepositoryModal: openRepositoryModalActive ? activeModal : initialOpenRepositoryModalState,
@@ -145,6 +153,7 @@ export const useModalStack = (): ModalStack => {
 		setChangedFilesModal: makeModalSetter(setActiveModal, "ChangedFiles"),
 		setFilterModal: makeModalSetter(setActiveModal, "Filter"),
 		setSubmitReviewModal: makeModalSetter(setActiveModal, "SubmitReview"),
+		setAgentSessionModal: makeModalSetter(setActiveModal, "AgentSession"),
 		setThemeModal: makeModalSetter(setActiveModal, "Theme"),
 		setCommandPalette: makeModalSetter(setActiveModal, "CommandPalette"),
 		setOpenRepositoryModal: makeModalSetter(setActiveModal, "OpenRepository"),

@@ -3,6 +3,7 @@ import type { WorkspaceSurface } from "../workspaceSurfaces.js"
 import type { WorkspaceTab } from "../workspaceTabs.js"
 import { type CommentEditorValue, insertText } from "./commentEditor.js"
 import type { ChangedFilesModalState, CommandPaletteState, LabelModalState, OpenRepositoryModalState, SubmitReviewModalState, ThemeModalState } from "./modals.js"
+import type { AgentSessionModalState } from "./modals/types.js"
 import { editSingleLineInput, isSingleLineInputKey, printableKeyText } from "./singleLineInput.js"
 
 export interface UseTextInputDispatcherInput {
@@ -14,6 +15,7 @@ export interface UseTextInputDispatcherInput {
 	readonly themeModalActive: boolean
 	readonly commentModalActive: boolean
 	readonly submitReviewModalActive: boolean
+	readonly agentSessionModalActive: boolean
 	readonly changedFilesModalActive: boolean
 	readonly labelModalActive: boolean
 	readonly filterMode: boolean
@@ -24,6 +26,7 @@ export interface UseTextInputDispatcherInput {
 	// Modal sub-state needed for routing
 	readonly themeModal: ThemeModalState
 	readonly submitReviewModal: SubmitReviewModalState
+	readonly agentSessionModal: AgentSessionModalState
 
 	// Workspace tabs (numeric shortcuts follow the visible order).
 	readonly workspaceTabSurfaces: readonly WorkspaceTab[]
@@ -38,6 +41,7 @@ export interface UseTextInputDispatcherInput {
 	readonly setFilterDraft: (next: string | ((prev: string) => string)) => void
 	readonly editThemeQuery: (transform: (query: string) => string) => void
 	readonly editSubmitReview: (transform: (state: CommentEditorValue) => CommentEditorValue) => void
+	readonly editAgentSession: (transform: (state: CommentEditorValue) => CommentEditorValue) => void
 }
 
 /**
@@ -77,6 +81,14 @@ export const useTextInputDispatcher = (input: UseTextInputDispatcherInput): void
 					error: null,
 				}))
 			}
+			return
+		}
+
+		// Ahead of the numeric tab shortcuts: instructions often carry digits.
+		if (input.agentSessionModalActive) {
+			if (input.agentSessionModal.focus !== "body") return
+			const text = printableKeyText(key)
+			if (text) input.editAgentSession((state) => insertText(state, text))
 			return
 		}
 

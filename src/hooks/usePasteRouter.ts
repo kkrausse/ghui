@@ -6,6 +6,7 @@ import type {
 	ChangedFilesModalState,
 	LabelModalState,
 	SubmitReviewModalState,
+	AgentSessionModalState,
 } from "../ui/modals/types.js"
 import { insertText, type CommentEditorValue } from "../ui/commentEditor.js"
 import { singleLineText } from "../ui/singleLineInput.js"
@@ -20,6 +21,7 @@ export interface UsePasteRouterInput {
 	readonly themeModal: ThemeModalState
 	readonly commentModalActive: boolean
 	readonly submitReviewModalActive: boolean
+	readonly agentSessionModalActive: boolean
 	readonly labelModalActive: boolean
 	readonly changedFilesModalActive: boolean
 	readonly filterMode: boolean
@@ -27,6 +29,7 @@ export interface UsePasteRouterInput {
 	readonly setOpenRepositoryModal: (next: OpenRepositoryModalState | ((prev: OpenRepositoryModalState) => OpenRepositoryModalState)) => void
 	readonly editThemeQuery: (transform: (query: string) => string) => void
 	readonly setSubmitReviewModal: (next: (prev: SubmitReviewModalState) => SubmitReviewModalState) => void
+	readonly setAgentSessionModal: (next: (prev: AgentSessionModalState) => AgentSessionModalState) => void
 	readonly setLabelModal: (next: (prev: LabelModalState) => LabelModalState) => void
 	readonly setChangedFilesModal: (next: (prev: ChangedFilesModalState) => ChangedFilesModalState) => void
 	readonly setFilterDraft: (next: (prev: string) => string) => void
@@ -48,6 +51,7 @@ export const usePasteRouter = ({
 	themeModal,
 	commentModalActive,
 	submitReviewModalActive,
+	agentSessionModalActive,
 	labelModalActive,
 	changedFilesModalActive,
 	filterMode,
@@ -55,6 +59,7 @@ export const usePasteRouter = ({
 	setOpenRepositoryModal,
 	editThemeQuery,
 	setSubmitReviewModal,
+	setAgentSessionModal,
 	setLabelModal,
 	setChangedFilesModal,
 	setFilterDraft,
@@ -77,6 +82,13 @@ export const usePasteRouter = ({
 		if (commentModalActive) return false
 		if (submitReviewModalActive) {
 			setSubmitReviewModal((current) => {
+				const next = insertText({ body: current.body, cursor: current.cursor }, text.replace(/\r\n?/g, "\n"))
+				return { ...current, focus: "body", body: next.body, cursor: next.cursor, error: null }
+			})
+			return true
+		}
+		if (agentSessionModalActive) {
+			setAgentSessionModal((current) => {
 				const next = insertText({ body: current.body, cursor: current.cursor }, text.replace(/\r\n?/g, "\n"))
 				return { ...current, focus: "body", body: next.body, cursor: next.cursor, error: null }
 			})

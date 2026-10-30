@@ -6,7 +6,7 @@
  */
 import { testRender } from "@opentui/react/test-utils"
 import { expect, test } from "bun:test"
-import { indexSessions, sessionTargets, type FaplexSession, type FaplexSnapshot } from "../../src/linearWorkspace/faplex.ts"
+import { indexPullRequestSessions, indexSessions, pullRequestSessionTargets, pullRequestTag, sessionTargets, type FaplexSession, type FaplexSnapshot } from "../../src/faplex.ts"
 import { buildIssueRows } from "../../src/linearWorkspace/issueRows.ts"
 import { CommentBox } from "../../src/linearWorkspace/ui/CommentBox.tsx"
 import { IssueList } from "../../src/linearWorkspace/ui/IssueList.tsx"
@@ -161,4 +161,35 @@ test("the session prompt sends on Enter and cmd+Enter; ESC+CR adds a line", asyn
 	await setup.renderOnce()
 	expect(sent).toEqual(["a\nb", "a\nb"])
 	setup.renderer.destroy()
+})
+
+test("pull request sessions match by owner/repo#N tag or the PR URL in title or status line", () => {
+	const sessionsFor = indexPullRequestSessions(
+		snapshot([
+			session("tagged", { tags: [pullRequestTag({ repository: "Acme/Repo", number: 7 })] }),
+			session("linked", { title: "review https://github.com/acme/repo/pull/7" }),
+			session("detailed", { detail: "commented on github.com/acme/repo/pull/7#discussion_r1" }),
+			session("other-pr", { title: "review https://github.com/acme/repo/pull/71" }),
+			session("other-repo", { tags: ["acme/other#7"] }),
+			session("ticket", { tags: ["ABC-1"] }),
+		]),
+	)
+	expect(sessionsFor({ repository: "acme/repo", number: 7 }).map((s) => s.title)).toEqual(["tagged", "review https://github.com/acme/repo/pull/7", "detailed"])
+})
+
+test("pull request session targets prefer the PR's own directories, then checkouts named after the repo", () => {
+	const targets = pullRequestSessionTargets(
+		snapshot([
+			session("unrelated", { cwd: "/home/me/elsewhere", updatedAt: 3 }),
+			session("checkout", { cwd: "/home/me/src/repo", updatedAt: 2 }),
+			session("own", { cwd: "/home/me/src/repo/.worktrees/pr-7", tags: ["acme/repo#7"], updatedAt: 1 }),
+		]),
+		{ repository: "acme/repo", number: 7 },
+	)
+	expect(targets.filter((t) => t.machine === "laptop" && t.harness === "claude").map((t) => t.dir)).toEqual([
+		"/home/me/src/repo/.worktrees/pr-7",
+		"/home/me/src/repo",
+		"/home/me/src",
+		"/home/me/elsewhere",
+	])
 })

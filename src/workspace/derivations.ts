@@ -5,6 +5,7 @@ import type { DetailCommentsStatus } from "../ui/DetailsPane.js"
 import { getDetailHeaderHeight, getDetailJunctionRows, getScrollableDetailBodyHeight } from "../ui/DetailsPane.js"
 import { getIssueDetailJunctionRows, issueListVisualLineCount } from "../ui/IssueList.js"
 import type { IssueList } from "../ui/IssueList.js"
+import type { PullRequestSessionsFor } from "../faplex.js"
 import { type PullRequestGroups, type PullRequestListRow, pullRequestListVisualLineCount } from "../ui/PullRequestList.js"
 import type { PullRequestList } from "../ui/PullRequestList.js"
 import type { RepoList, RepositoryListItem } from "../ui/RepoList.js"
@@ -59,6 +60,9 @@ export interface WorkspaceDerivationsInput {
 	readonly filterMode: boolean
 	readonly visibleFilterText: string
 	readonly selectPullRequestByUrl: (url: string) => void
+	readonly pullRequestSessionsFor: PullRequestSessionsFor
+	readonly selectedPullRequestSessionKey: string | null
+	readonly selectPullRequestSession: (url: string, key: string) => void
 	readonly setSelectedIssueIndex: (index: number) => void
 	readonly setSelectedRepositoryIndex: (index: number) => void
 	readonly loadMoreSelected: boolean
@@ -162,6 +166,9 @@ export const computeWorkspaceDerivations = (input: WorkspaceDerivationsInput): W
 		filterMode,
 		visibleFilterText,
 		selectPullRequestByUrl,
+		pullRequestSessionsFor,
+		selectedPullRequestSessionKey,
+		selectPullRequestSession,
 		setSelectedIssueIndex,
 		setSelectedRepositoryIndex,
 		loadMoreSelected,
@@ -226,6 +233,9 @@ export const computeWorkspaceDerivations = (input: WorkspaceDerivationsInput): W
 		showRepositoryGroups: selectedRepository === null,
 		repositorySections: repositoryPullRequestSections,
 		compact: compactPullRequestRows,
+		sessionsFor: pullRequestSessionsFor,
+		selectedSessionKey: selectedPullRequestSessionKey,
+		onSelectSession: selectPullRequestSession,
 	} as const
 	const issueListProps = {
 		issues,

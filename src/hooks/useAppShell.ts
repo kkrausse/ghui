@@ -4,6 +4,8 @@ import * as AsyncResult from "effect/unstable/reactivity/AsyncResult"
 import { useContext, useEffect, useRef, useState } from "react"
 import type { AppCommand } from "../commands.js"
 import { errorMessage } from "../errors.js"
+import { pullRequestTag, startSession } from "../faplex.js"
+import type { CommentEditorValue } from "../ui/commentEditor.js"
 import { parseRepositoryInput } from "../pullRequestViews.js"
 
 import { colors } from "../ui/colors.js"
@@ -20,7 +22,7 @@ import { useWorkspacePreferencesPersistence } from "../workspace/useWorkspacePre
 import { commentsRowCountAtom, orderedCommentsAtom, pullRequestCommentsAtom, pullRequestCommentsLoadedAtom, selectedOrderedCommentAtom } from "../ui/comments/atoms.js"
 import { useIssueSurface } from "../surfaces/issue/useIssueSurface.js"
 import { filterDraftAtom, filterModeAtom, filterQueryAtom } from "../ui/filter/atoms.js"
-import { selectedIndexAtom } from "../ui/listSelection/atoms.js"
+import { selectedIndexAtom, selectedPullRequestSessionAtom } from "../ui/listSelection/atoms.js"
 import { noticeAtom } from "../ui/notice/atoms.js"
 import { useFlashNotice } from "../ui/notice/useFlashNotice.js"
 import { useCommentMutations } from "../ui/comments/useCommentMutations.js"
@@ -158,6 +160,7 @@ export const useAppShell = ({ systemThemeGeneration, linearNavigationLocked = fa
 		changedFilesModalActive,
 		filterModalActive,
 		submitReviewModalActive,
+		agentSessionModalActive,
 		themeModalActive,
 		commandPaletteActive,
 		openRepositoryModalActive,
@@ -170,6 +173,7 @@ export const useAppShell = ({ systemThemeGeneration, linearNavigationLocked = fa
 		changedFilesModal,
 		filterModal,
 		submitReviewModal,
+		agentSessionModal,
 		themeModal,
 		commandPalette,
 		openRepositoryModal,
@@ -182,6 +186,7 @@ export const useAppShell = ({ systemThemeGeneration, linearNavigationLocked = fa
 		setChangedFilesModal,
 		setFilterModal,
 		setSubmitReviewModal,
+		setAgentSessionModal,
 		setThemeModal,
 		setCommandPalette,
 		setOpenRepositoryModal,
@@ -322,6 +327,10 @@ export const useAppShell = ({ systemThemeGeneration, linearNavigationLocked = fa
 		detailHydrationState,
 		resetHydration,
 		selectPullRequestByUrl,
+		pullRequestSessionsFor,
+		selectedPullRequestSession,
+		setSelectedPullRequestSession,
+		selectPullRequestSession,
 	} = prSurface
 	const isInitialLoading = activeWorkspaceSurface !== "linear" && !startupLoadComplete && pullRequestStatus === "loading" && pullRequests.length === 0
 	const processTitle = processTitleFor({
@@ -884,6 +893,7 @@ export const useAppShell = ({ systemThemeGeneration, linearNavigationLocked = fa
 		themeModal,
 		commentModalActive,
 		submitReviewModalActive,
+		agentSessionModalActive,
 		labelModalActive,
 		changedFilesModalActive,
 		filterMode,
@@ -891,6 +901,7 @@ export const useAppShell = ({ systemThemeGeneration, linearNavigationLocked = fa
 		setOpenRepositoryModal,
 		editThemeQuery,
 		setSubmitReviewModal,
+		setAgentSessionModal,
 		setLabelModal,
 		setChangedFilesModal,
 		setFilterDraft,
@@ -979,7 +990,29 @@ export const useAppShell = ({ systemThemeGeneration, linearNavigationLocked = fa
 			setSelectedIndex,
 			setSelectedIssueIndex,
 			setSelectedRepositoryIndex,
+			pullRequestSessionsFor,
+			readSelection: () => ({ index: registry.get(selectedIndexAtom), session: registry.get(selectedPullRequestSessionAtom) }),
+			setSelectedSession: setSelectedPullRequestSession,
 		})
+	const editAgentSession = (transform: (value: CommentEditorValue) => CommentEditorValue) =>
+		setAgentSessionModal((current) => {
+			const next = transform({ body: current.body, cursor: current.cursor })
+			return next.body === current.body && next.cursor === current.cursor && current.error === null ? current : { ...current, ...next, error: null }
+		})
+	const moveAgentSessionTarget = (delta: -1 | 1) =>
+		setAgentSessionModal((current) => ({ ...current, selectedIndex: Math.max(0, Math.min(current.targets.length - 1, current.selectedIndex + delta)) }))
+	// Back on the list right away; the session shows up under the PR once faplex reports it.
+	const confirmAgentSession = () => {
+		const { pullRequest: pr, targets, selectedIndex: targetIndex, body } = agentSessionModal
+		const target = targets[targetIndex]
+		if (!pr || !target) return
+		closeActiveModal()
+		const prompt = [body.trim(), `GitHub pull request ${pr.repository}#${pr.number}: ${pr.title}\n${pr.url}`].filter(Boolean).join("\n\n")
+		startSession({ machine: target.machine, harness: target.harness, dir: target.dir, prompt, tags: [pullRequestTag(pr)] }).then(
+			() => flashNotice(`started ${target.harness} session on ${pr.repository}#${pr.number}`),
+			(error: unknown) => flashNotice(errorMessage(error)),
+		)
+	}
 	const handleQuitOrClose = () => {
 		if (themeModalActive) {
 			closeThemeModal(false)
@@ -1032,6 +1065,7 @@ export const useAppShell = ({ systemThemeGeneration, linearNavigationLocked = fa
 		changedFilesModalActive,
 		filterModalActive,
 		submitReviewModalActive,
+		agentSessionModalActive,
 		labelModalActive,
 		themeModalActive,
 		openRepositoryModalActive,
@@ -1046,6 +1080,7 @@ export const useAppShell = ({ systemThemeGeneration, linearNavigationLocked = fa
 		commentsViewActive,
 		themeModal,
 		submitReviewModal,
+		agentSessionModal,
 		mergeModal,
 		commandPaletteSelectedCommand: selectedCommand,
 		activeWorkspaceSurface,
@@ -1069,6 +1104,11 @@ export const useAppShell = ({ systemThemeGeneration, linearNavigationLocked = fa
 		confirmSubmitReview,
 		editSubmitReview,
 		moveSubmitReviewActionSelection,
+		setAgentSessionModal,
+		confirmAgentSession,
+		editAgentSession,
+		moveAgentSessionTarget,
+		pullRequestSessionSelected: activeWorkspaceSurface === "pullRequests" && selectedPullRequestSession !== null,
 		toggleLabelAtIndex,
 		moveLabelSelection,
 		closeThemeModal,
@@ -1232,6 +1272,9 @@ export const useAppShell = ({ systemThemeGeneration, linearNavigationLocked = fa
 		filterMode,
 		visibleFilterText,
 		selectPullRequestByUrl,
+		pullRequestSessionsFor,
+		selectedPullRequestSessionKey: selectedPullRequestSession?.key ?? null,
+		selectPullRequestSession,
 		setSelectedIssueIndex,
 		setSelectedRepositoryIndex,
 		loadMoreSelected: loadMoreRowSelected,

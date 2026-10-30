@@ -1,6 +1,6 @@
 import { githubPullRequestRoute } from "../githubPullRequestRoute.js"
 import { getReviewStatus } from "../services/githubNormalize.js"
-import { indexSessions, type FaplexSession, type FaplexSnapshot } from "./faplex.js"
+import { indexSessions, type FaplexSession, type FaplexSnapshot } from "../faplex.js"
 import { issuePullRequests } from "./issueRows.js"
 import type { Issue } from "./linear/schema.js"
 import { contextMarkdown, CONTEXT_PATH, writeContext } from "./overseer.js"

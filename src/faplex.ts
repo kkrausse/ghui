@@ -1,12 +1,13 @@
 import { createConnection } from "node:net"
-import { useSyncExternalStore } from "react"
-import { withTuiSuspended } from "../tuiSuspension.js"
-import type { Issue } from "./linear/schema.js"
+import { createElement, Fragment, useSyncExternalStore } from "react"
+import { withTuiSuspended } from "./tuiSuspension.js"
+import type { Issue } from "./linearWorkspace/linear/schema.js"
 
 /**
  * Agent sessions from faplex (github.com/kkrausse/faplex), nested under the
- * tickets they belong to. One `faplex watch --json` child streams the whole
- * session list and keeps the clients of sessions opened here, so reopening is a
+ * Linear tickets and GitHub pull requests they belong to. One `faplex watch
+ * --json` child streams the whole session list and keeps the clients of
+ * sessions opened here, so reopening is a
  * repaint: opening relays the terminal to it over its socket until the session
  * is left (ctrl+] or ← at an empty prompt). Without the socket, `faplex open`
  * takes the terminal instead.
@@ -111,7 +112,10 @@ const subscribe = (listener: () => void) => {
 	return () => listeners.delete(listener)
 }
 
-/** The latest session list; starts the watch on first use. */
+/** The latest session list, for code outside React (commands). */
+export const faplexState = (): State => state
+
+/** The latest session list; starts the watch on first use (the PR list, at launch). */
 export const useFaplex = (): State => useSyncExternalStore(subscribe, () => state)
 
 /** Sessions for one ticket, most relevant first. */
@@ -124,26 +128,62 @@ export const OVERSEER_TAG = "overseer"
 const TICKET_ID = /\b[A-Z][A-Z0-9]*-\d+\b/gi
 const ORDER: Record<FaplexStatus, number> = { needs: 0, working: 1, failed: 2, interrupted: 3, done: 4, idle: 5 }
 
+/** Sessions worth listing, with their machine's short name and color. Archived sessions, untouched drafts and the overseer are left out. */
+const listedSessions = (snapshot: FaplexSnapshot): FaplexSession[] => {
+	const machines = new Map(snapshot.machines.map((m) => [m.id, m]))
+	return snapshot.sessions
+		.filter((s) => !s.archived && !(s.prompted === false && s.status === "idle") && !s.tags.includes(OVERSEER_TAG))
+		.map((s) => ({ ...s, host: machines.get(s.machine)?.short ?? s.machine, hostColor: machines.get(s.machine)?.color }))
+}
+
+const groupBy = (entries: Iterable<[string, FaplexSession]>) => {
+	const grouped = new Map<string, FaplexSession[]>()
+	for (const [id, session] of entries) grouped.set(id, [...(grouped.get(id) ?? []), session])
+	for (const sessions of grouped.values()) sessions.sort((a, b) => ORDER[a.status] - ORDER[b.status] || b.updatedAt - a.updatedAt)
+	return grouped
+}
+
 /**
  * A session belongs to every ticket it is tagged with (`faplex new --tag`) and
  * every ticket id in its title, status line or directory -- sessions started
- * outside GHUI turn up too. Archived sessions, untouched drafts and the
- * overseer are left out.
+ * outside GHUI turn up too.
  */
 export const indexSessions = (snapshot: FaplexSnapshot | null): SessionsFor => {
 	if (!snapshot) return noSessions
-	const byTicket = new Map<string, FaplexSession[]>()
-	const machines = new Map(snapshot.machines.map((m) => [m.id, m]))
-	for (const listed of snapshot.sessions) {
-		if (listed.archived || (listed.prompted === false && listed.status === "idle") || listed.tags.includes(OVERSEER_TAG)) continue
-		const machine = machines.get(listed.machine)
-		const session = { ...listed, host: machine?.short ?? listed.machine, hostColor: machine?.color }
-		const mentioned = `${session.title} ${session.detail} ${session.cwd}`.match(TICKET_ID) ?? []
-		const ids = new Set([...session.tags, ...mentioned].map((id) => id.toUpperCase()))
-		for (const id of ids) byTicket.set(id, [...(byTicket.get(id) ?? []), session])
-	}
-	for (const sessions of byTicket.values()) sessions.sort((a, b) => ORDER[a.status] - ORDER[b.status] || b.updatedAt - a.updatedAt)
+	const byTicket = groupBy(
+		listedSessions(snapshot).flatMap((session) => {
+			const mentioned = `${session.title} ${session.detail} ${session.cwd}`.match(TICKET_ID) ?? []
+			return [...new Set([...session.tags, ...mentioned].map((id) => id.toUpperCase()))].map((id): [string, FaplexSession] => [id, session])
+		}),
+	)
 	return (issue) => byTicket.get(issue.identifier.toUpperCase()) ?? []
+}
+
+/** Sessions for one pull request, most relevant first. */
+export type PullRequestSessionsFor = (pr: { repository: string; number: number }) => FaplexSession[]
+export const noPullRequestSessions: PullRequestSessionsFor = () => []
+
+/** The tag GHUI puts on a session started on a pull request: `owner/repo#123`. */
+export const pullRequestTag = (pr: { repository: string; number: number }) => `${pr.repository}#${pr.number}`.toLowerCase()
+
+const PR_TAG = /^[\w.-]+\/[\w.-]+#\d+$/
+const PR_URL = /github\.com\/([\w.-]+\/[\w.-]+)\/pull\/(\d+)/gi
+
+/**
+ * A session belongs to every pull request it is tagged with (`owner/repo#123`)
+ * and every pull request URL in its title or status line, so a review started
+ * by pasting the link turns up too.
+ */
+export const indexPullRequestSessions = (snapshot: FaplexSnapshot | null): PullRequestSessionsFor => {
+	if (!snapshot) return noPullRequestSessions
+	const byPullRequest = groupBy(
+		listedSessions(snapshot).flatMap((session) => {
+			const tagged = session.tags.filter((tag) => PR_TAG.test(tag))
+			const linked = [...`${session.title} ${session.detail}`.matchAll(PR_URL)].map((m) => `${m[1]}#${m[2]}`)
+			return [...new Set([...tagged, ...linked].map((id) => id.toLowerCase()))].map((id): [string, FaplexSession] => [id, session])
+		}),
+	)
+	return (pr) => byPullRequest.get(pullRequestTag(pr)) ?? []
 }
 
 /** How many start directories the picker offers per machine × harness. */
@@ -173,6 +213,21 @@ export const sessionTargets = (snapshot: FaplexSnapshot, ticketSessions: readonl
 			const dirs = [...new Set([...cwds(ticketSessions), fallback, ...cwds(recent)])].slice(0, DIRS_PER_TARGET)
 			return { machine: s.machine, harness: s.harness, dirs, note: s.problem ? `${s.problem.message} · starts with the session` : "" }
 		})
+}
+
+/**
+ * Every machine × harness × directory a session on this pull request can start
+ * in. Directories of the PR's own sessions come first, then ones named after
+ * its repository (likely a checkout of it).
+ */
+export const pullRequestSessionTargets = (snapshot: FaplexSnapshot, pr: { repository: string; number: number }) => {
+	const repoName = pr.repository.split("/").pop()!.toLowerCase()
+	const checkouts = snapshot.sessions.filter((s) => s.cwd.toLowerCase().split("/").includes(repoName))
+	const preferred = [...indexPullRequestSessions(snapshot)(pr), ...checkouts.sort((a, b) => b.updatedAt - a.updatedAt)]
+	const host = (machine: string) => snapshot.machines.find((m) => m.id === machine)?.short ?? machine
+	return sessionTargets(snapshot, preferred).flatMap((target) =>
+		target.dirs.map((dir) => ({ machine: target.machine, host: host(target.machine), harness: target.harness, dir, note: target.note })),
+	)
 }
 
 /** Runs faplex with the terminal; a failure comes back as its stderr. */
@@ -259,3 +314,21 @@ const subscribeSpinner = (listener: () => void) => {
 	}
 }
 export const useSpinner = () => FRAMES[useSyncExternalStore(subscribeSpinner, () => frame)]!
+
+// faplex's list, mark for mark and color for color (faplex/src/list.tsx, theme.ts).
+const SESSION_COLOR = { working: "#fde047", needs: "#f59e0b", failed: "#ef4444", other: "#a1a1aa" }
+export const HARNESS_COLOR: Record<string, string> = { claude: "#d97757", codex: "#e4e4e7", opencode: "#a78bfa", "opencode-mini": "#a78bfa" }
+export const HARNESS_SHORT: Record<string, string> = { claude: "clau", opencode: "oc", "opencode-mini": "ocm" }
+
+export const sessionColor = (status: FaplexStatus) => (status === "working" || status === "needs" || status === "failed" ? SESSION_COLOR[status] : SESSION_COLOR.other)
+
+/** Its own component, so the 80ms tick re-renders only working marks. */
+const Spinner = () => useSpinner()
+
+/** faplex's gutter, two cells: a spinner while working, `!` needs input, `×` failed, `-` interrupted; then `⑂`/`$` for background work. */
+export const SessionMarkText = ({ session }: { session: Pick<FaplexSession, "status" | "background"> }) => {
+	const mark =
+		session.status === "working" ? createElement(Spinner) : session.status === "needs" ? "!" : session.status === "failed" ? "×" : session.status === "interrupted" ? "-" : " "
+	const also = session.background?.kind === "agent" ? "⑂" : session.background?.kind === "shell" ? "$" : " "
+	return createElement(Fragment, null, mark, also)
+}
