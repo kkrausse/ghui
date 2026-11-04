@@ -1016,7 +1016,7 @@ export function App({
 				notify(faplex.error ?? "waiting for faplex…")
 				return
 			}
-			const targets = ticketSessionTargets(snapshot, sessionsFor(issue))
+			const targets = ticketSessionTargets(snapshot)
 			if (!targets.length) {
 				notify("faplex has no harness running on any machine")
 				return

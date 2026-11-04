@@ -177,19 +177,11 @@ test("pull request sessions match by owner/repo#N tag or the PR URL in title or 
 	expect(sessionsFor({ repository: "acme/repo", number: 7 }).map((s) => s.title)).toEqual(["tagged", "review https://github.com/acme/repo/pull/7", "detailed"])
 })
 
-test("pull request session targets prefer the PR's own directories, then checkouts named after the repo", () => {
-	const targets = pullRequestSessionTargets(
-		snapshot([
-			session("unrelated", { cwd: "/home/me/elsewhere", updatedAt: 3 }),
-			session("checkout", { cwd: "/home/me/src/repo", updatedAt: 2 }),
-			session("own", { cwd: "/home/me/src/repo/.worktrees/pr-7", tags: ["acme/repo#7"], updatedAt: 1 }),
-		]),
-		{ repository: "acme/repo", number: 7 },
-	)
-	expect(targets.filter((t) => t.machine === "laptop" && t.harness === "claude").map((t) => t.dir)).toEqual([
-		"/home/me/src/repo/.worktrees/pr-7",
-		"/home/me/src/repo",
-		"/home/me/src",
-		"/home/me/elsewhere",
+test("pull request session targets: every local harness in the launch directory, remembered harness first", () => {
+	const snap = { ...snapshot([]), sources: [{ machine: "laptop", harness: "codex", loaded: true, problem: { kind: "missing", message: "not installed" } }] }
+	const targets = pullRequestSessionTargets(snap, { repository: "acme/repo" }, { machine: "laptop", harness: "codex", dir: "/elsewhere" })
+	expect(targets).toEqual([
+		{ machine: "laptop", host: "lap", harness: "codex", dir: process.cwd(), note: "not installed" },
+		{ machine: "laptop", host: "lap", harness: "claude", dir: process.cwd(), note: "" },
 	])
 })

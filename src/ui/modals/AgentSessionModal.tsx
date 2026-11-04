@@ -8,8 +8,8 @@ import type { AgentSessionModalState } from "./types.js"
 const PLACEHOLDER = "Optional instructions..."
 
 /**
- * `n` on a pull request: pick where a faplex agent session runs (machine ×
- * harness × directory), then write its first instructions. The session is
+ * `n` on a pull request: pick the harness for a faplex agent session (it
+ * starts in ghui's launch directory), then write its first instructions. The session is
  * tagged with the PR, so it shows up under it in the list.
  */
 export const AgentSessionModal = ({

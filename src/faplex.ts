@@ -241,35 +241,28 @@ export const rememberPick = (scope: string, pick: SessionPick) => {
 	}
 }
 
-/** Every target `sessionTargets` offers, one row per directory, with the remembered pick first. */
-export const agentTargets = (snapshot: FaplexSnapshot, preferred: readonly FaplexSession[], last: SessionPick | undefined): AgentTarget[] => {
-	const host = (machine: string) => snapshot.machines.find((m) => m.id === machine)?.short ?? machine
-	const targets = sessionTargets(snapshot, preferred).flatMap((target) =>
-		target.dirs.map((dir) => ({ machine: target.machine, host: host(target.machine), harness: target.harness, dir, note: target.note })),
-	)
-	const same = (t: SessionPick) => t.machine === last?.machine && t.harness === last.harness && t.dir === last.dir
-	const offered = last && targets.some((t) => t.machine === last.machine && t.harness === last.harness)
-	const remembered = targets.find(same) ?? (offered ? { ...last, host: host(last.machine), note: "" } : undefined)
-	return remembered ? [remembered, ...targets.filter((t) => !same(t))] : targets
-}
+/** New PR and ticket sessions start in the directory ghui was launched from. */
+const LAUNCH_DIR = process.cwd()
 
 /**
- * Where a session on this pull request can start: the repository's last pick,
- * then directories of the PR's own sessions, then ones named after its
- * repository (likely a checkout of it).
+ * One row per harness on this machine, all in the launch directory, the
+ * remembered harness first. A harness faplex reports a problem for stays
+ * listed with the problem as its note; `faplex new` says if it can't start.
  */
-export const pullRequestSessionTargets = (
-	snapshot: FaplexSnapshot,
-	pr: { repository: string; number: number },
-	last: SessionPick | undefined = readPicks()[pr.repository.toLowerCase()],
-) => {
-	const repoName = pr.repository.split("/").pop()!.toLowerCase()
-	const checkouts = snapshot.sessions.filter((s) => s.cwd.toLowerCase().split("/").includes(repoName))
-	return agentTargets(snapshot, [...indexPullRequestSessions(snapshot)(pr), ...checkouts.sort((a, b) => b.updatedAt - a.updatedAt)], last)
+export const agentTargets = (snapshot: FaplexSnapshot, last: SessionPick | undefined, dir: string = LAUNCH_DIR): AgentTarget[] => {
+	const machine = snapshot.machines.find((m) => !m.remote) ?? snapshot.machines[0]
+	if (!machine) return []
+	const targets = snapshot.harnesses.map((harness) => {
+		const problem = snapshot.sources.find((s) => s.machine === machine.id && s.harness === harness)?.problem
+		return { machine: machine.id, host: machine.short, harness, dir, note: problem?.message ?? "" }
+	})
+	return targets.sort((a, b) => Number(b.harness === last?.harness) - Number(a.harness === last?.harness))
 }
 
-/** Where a session on a Linear ticket can start: the last ticket pick, then the ticket's own sessions' directories. */
-export const ticketSessionTargets = (snapshot: FaplexSnapshot, ticketSessions: readonly FaplexSession[]) => agentTargets(snapshot, ticketSessions, readPicks()[LINEAR_PICK])
+export const pullRequestSessionTargets = (snapshot: FaplexSnapshot, pr: { repository: string }, last: SessionPick | undefined = readPicks()[pr.repository.toLowerCase()]) =>
+	agentTargets(snapshot, last)
+
+export const ticketSessionTargets = (snapshot: FaplexSnapshot) => agentTargets(snapshot, readPicks()[LINEAR_PICK])
 
 /** Runs faplex with the terminal; a failure comes back as its stderr. */
 const runFaplex = async (args: string[]) => {
