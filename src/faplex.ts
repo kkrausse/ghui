@@ -283,20 +283,13 @@ const relay = (socket: string, key: string, typed = "") =>
 		let connected = false
 		conn.on("connect", () => {
 			connected = true
-			conn.write(JSON.stringify({ key, cols: process.stdout.columns || 80, rows: process.stdout.rows || 24 }) + "\n")
+			// `typed` is pasted into the session's input box by the watch, once the session takes keys.
+			conn.write(JSON.stringify({ key, cols: process.stdout.columns || 80, rows: process.stdout.rows || 24, ...(typed ? { typed } : {}) }) + "\n")
 			process.stdin.setRawMode?.(true)
 			process.stdin.on("data", keys)
 			process.stdin.resume()
 		})
-		// Typed once the session has painted, so it lands in its input box.
-		let pending = typed
-		conn.on("data", (data: Uint8Array) => {
-			process.stdout.write(data)
-			if (!pending) return
-			const text = pending
-			pending = ""
-			setTimeout(() => conn.write(text), 300)
-		})
+		conn.on("data", (data: Uint8Array) => process.stdout.write(data))
 		conn.on("error", () => {})
 		conn.on("close", () => {
 			process.stdin.off("data", keys)
