@@ -1,6 +1,9 @@
 import { TextAttributes, type MouseEvent } from "@opentui/core"
+import { useRenderer } from "@opentui/react"
+import { parseKey } from "@ghui/keymap"
 import type React from "react"
-import { colors } from "./colors.js"
+import { useState } from "react"
+import { colors, mixHex, rowHoverBackground } from "./colors.js"
 
 export const fitCell = (text: string, width: number, align: "left" | "right" = "left") => {
 	const trimmed = text.length > width ? `${text.slice(0, Math.max(0, width - 1))}…` : text
@@ -226,21 +229,65 @@ export type HintItem = {
 	readonly keyFg?: string
 }
 
+const HINT_KEY_NAMES: Record<string, string> = { esc: "escape", enter: "return", "↵": "return", tab: "tab", "←": "left", "→": "right" }
+
+// Hint label -> keymap binding ("ctrl+p", "shift+return"). Null = not clickable (↑↓, pgup/dn, spinners).
+// "a/b" labels press their first key.
+export const hintBinding = (label: string): string | null => {
+	const first = label === "/" ? label : (label.split("/")[0] ?? "")
+	const parts = first.replace(/^⇧/, "shift-").split("-")
+	const base = parts.pop() ?? ""
+	const mods = parts.map((mod) => (mod === "cmd" ? "meta" : mod))
+	if (!mods.every((mod) => mod === "ctrl" || mod === "shift" || mod === "meta")) return null
+	const name = HINT_KEY_NAMES[base] ?? (base.length === 1 && base.charCodeAt(0) < 128 ? base : null)
+	if (name === null) return null
+	const upper = name.length === 1 && name !== name.toLowerCase()
+	return [...mods, ...(upper && !mods.includes("shift") ? ["shift"] : []), name.toLowerCase()].join("+")
+}
+
+// Clicking a hint replays its key through the renderer, so it hits the same keymap and text-input paths as typing it.
+const usePressBinding = () => {
+	const renderer = useRenderer()
+	return (binding: string) => {
+		const { key, ctrl, shift, meta } = parseKey(binding)
+		const sequence = key.length === 1 ? (shift ? key.toUpperCase() : key) : ""
+		renderer.keyInput.processParsedKey({ name: key, ctrl, shift, meta, option: false, sequence, number: false, raw: sequence, eventType: "press", source: "raw" })
+	}
+}
+
+const HintButton = ({ item, last }: { item: HintItem; last: boolean }) => {
+	const press = usePressBinding()
+	const [hovered, setHovered] = useState(false)
+	const binding = item.disabled ? null : hintBinding(item.key)
+	const text = ` ${item.key} ${item.label} `
+	const keyFg = item.disabled ? colors.separator : (item.keyFg ?? colors.count)
+	const labelFg = item.disabled ? colors.separator : hovered ? colors.text : colors.muted
+	const bg = binding === null ? undefined : hovered ? rowHoverBackground() : mixHex(colors.modalBackground, colors.separator, 0.35)
+	return (
+		<box height={1} flexDirection="row" flexShrink={0}>
+			<box
+				width={Bun.stringWidth(text)}
+				height={1}
+				{...(binding === null ? {} : { onMouseDown: () => press(binding), onMouseOver: () => setHovered(true), onMouseOut: () => setHovered(false) })}
+			>
+				<text wrapMode="none" truncate {...(bg ? { bg } : {})}>
+					<span fg={keyFg}>{` ${item.key}`}</span>
+					<span fg={labelFg}>{` ${item.label} `}</span>
+				</text>
+			</box>
+			{last ? null : <box width={1} height={1} />}
+		</box>
+	)
+}
+
 export const HintRow = ({ items }: { items: readonly HintItem[] }) => {
 	const visible = items.filter((item) => item.when !== false)
 	return (
-		<TextLine>
-			{visible.flatMap((item, index) => {
-				const keyFg = item.disabled ? colors.separator : (item.keyFg ?? colors.count)
-				const labelFg = item.disabled ? colors.separator : colors.muted
-				return [
-					<span key={`k${index}`} fg={keyFg}>
-						{item.key}
-					</span>,
-					<span key={`l${index}`} fg={labelFg}>{` ${item.label}${index < visible.length - 1 ? "  " : ""}`}</span>,
-				]
-			})}
-		</TextLine>
+		<box height={1} flexDirection="row" overflow="hidden">
+			{visible.map((item, index) => (
+				<HintButton key={`${index}:${item.key}`} item={item} last={index === visible.length - 1} />
+			))}
+		</box>
 	)
 }
 
